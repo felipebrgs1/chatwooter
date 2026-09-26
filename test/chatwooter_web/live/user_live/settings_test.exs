@@ -10,17 +10,17 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
       {:ok, _lv, html} =
         conn
         |> log_in_user(user_fixture())
-        |> live(~p"/users/settings")
+        |> live(~p"/app/settings/profile")
 
       assert html =~ "Change Email"
       assert html =~ "Save Password"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
-      assert {:error, redirect} = live(conn, ~p"/users/settings")
+      assert {:error, redirect} = live(conn, ~p"/app/settings/profile")
 
       assert {:redirect, %{to: path, flash: flash}} = redirect
-      assert path == ~p"/users/log-in"
+      assert path == ~p"/app/login"
       assert %{"error" => "You must log in to access this page."} = flash
     end
 
@@ -30,7 +30,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
         |> log_in_user(user_fixture(),
           token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
         )
-        |> live(~p"/users/settings")
+        |> live(~p"/app/settings/profile")
 
       assert html =~ "Change Email"
     end
@@ -41,9 +41,9 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
         |> log_in_user(user_fixture(),
           token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
         )
-        |> live(~p"/users/settings")
+        |> live(~p"/app/settings/profile")
 
-      assert {:error, {:live_redirect, %{to: "/users/log-in"}}} =
+      assert {:error, {:live_redirect, %{to: "/app/login"}}} =
                lv
                |> form("#email_form", user: %{email: "new@example.com"})
                |> render_submit()
@@ -59,7 +59,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     test "updates the user email", %{conn: conn, user: user} do
       new_email = unique_user_email()
 
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       result =
         lv
@@ -73,7 +73,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     end
 
     test "renders errors with invalid data (phx-change)", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       result =
         lv
@@ -88,7 +88,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     end
 
     test "renders errors with invalid data (phx-submit)", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       result =
         lv
@@ -111,7 +111,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     test "updates the user password", %{conn: conn, user: user} do
       new_password = valid_user_password()
 
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       form =
         form(lv, "#password_form", %{
@@ -126,7 +126,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
 
       new_password_conn = follow_trigger_action(form, conn)
 
-      assert redirected_to(new_password_conn) == ~p"/users/settings"
+      assert redirected_to(new_password_conn) == ~p"/app/settings/profile"
 
       assert get_session(new_password_conn, :user_token) != get_session(conn, :user_token)
 
@@ -137,7 +137,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     end
 
     test "renders errors with invalid data (phx-change)", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       result =
         lv
@@ -155,7 +155,7 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     end
 
     test "renders errors with invalid data (phx-submit)", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+      {:ok, lv, _html} = live(conn, ~p"/app/settings/profile")
 
       result =
         lv
@@ -187,27 +187,27 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
     end
 
     test "updates the user email once", %{conn: conn, user: user, token: token, email: email} do
-      {:error, redirect} = live(conn, ~p"/users/settings/confirm-email/#{token}")
+      {:error, redirect} = live(conn, ~p"/app/settings/profile/confirm-email/#{token}")
 
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
-      assert path == ~p"/users/settings"
+      assert path == ~p"/app/settings/profile"
       assert %{"info" => message} = flash
       assert message == "Email changed successfully."
       refute Accounts.get_user_by_email(user.email)
       assert Accounts.get_user_by_email(email)
 
       # use confirm token again
-      {:error, redirect} = live(conn, ~p"/users/settings/confirm-email/#{token}")
+      {:error, redirect} = live(conn, ~p"/app/settings/profile/confirm-email/#{token}")
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
-      assert path == ~p"/users/settings"
+      assert path == ~p"/app/settings/profile"
       assert %{"error" => message} = flash
       assert message == "Email change link is invalid or it has expired."
     end
 
     test "does not update email with invalid token", %{conn: conn, user: user} do
-      {:error, redirect} = live(conn, ~p"/users/settings/confirm-email/oops")
+      {:error, redirect} = live(conn, ~p"/app/settings/profile/confirm-email/oops")
       assert {:live_redirect, %{to: path, flash: flash}} = redirect
-      assert path == ~p"/users/settings"
+      assert path == ~p"/app/settings/profile"
       assert %{"error" => message} = flash
       assert message == "Email change link is invalid or it has expired."
       assert Accounts.get_user_by_email(user.email)
@@ -215,9 +215,9 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
 
     test "redirects if user is not logged in", %{token: token} do
       conn = build_conn()
-      {:error, redirect} = live(conn, ~p"/users/settings/confirm-email/#{token}")
+      {:error, redirect} = live(conn, ~p"/app/settings/profile/confirm-email/#{token}")
       assert {:redirect, %{to: path, flash: flash}} = redirect
-      assert path == ~p"/users/log-in"
+      assert path == ~p"/app/login"
       assert %{"error" => message} = flash
       assert message == "You must log in to access this page."
     end

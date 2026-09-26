@@ -6,7 +6,7 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
 
   describe "login page" do
     test "renders login page", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/users/log-in")
+      {:ok, _lv, html} = live(conn, ~p"/app/login")
 
       assert html =~ "Log in"
       assert html =~ "Sign up"
@@ -18,7 +18,7 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
     test "redirects if user logs in with valid credentials", %{conn: conn} do
       user = user_fixture() |> set_password()
 
-      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      {:ok, lv, _html} = live(conn, ~p"/app/login")
 
       form =
         form(lv, "#login_form_password",
@@ -33,7 +33,7 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
     test "redirects to login page with a flash error if credentials are invalid", %{
       conn: conn
     } do
-      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      {:ok, lv, _html} = live(conn, ~p"/app/login")
 
       form =
         form(lv, "#login_form_password", user: %{email: "test@email.com", password: "123456"})
@@ -42,19 +42,19 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
 
       conn = follow_trigger_action(form, conn)
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
-      assert redirected_to(conn) == ~p"/users/log-in"
+      assert redirected_to(conn) == ~p"/app/login"
     end
   end
 
   describe "login navigation" do
     test "redirects to registration page when the Register button is clicked", %{conn: conn} do
-      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+      {:ok, lv, _html} = live(conn, ~p"/app/login")
 
       {:ok, _login_live, login_html} =
         lv
         |> element("main a", "Sign up")
         |> render_click()
-        |> follow_redirect(conn, ~p"/users/register")
+        |> follow_redirect(conn, ~p"/app/signup")
 
       assert login_html =~ "Register"
     end
@@ -67,7 +67,7 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
     end
 
     test "redirects to the dashboard", %{conn: conn} do
-      assert {:error, {:live_redirect, %{to: "/app"}}} = live(conn, ~p"/users/log-in")
+      assert {:error, {:live_redirect, %{to: "/app"}}} = live(conn, ~p"/app/login")
     end
 
     test "stays for sudo re-authentication", %{conn: conn, user: user} do
@@ -77,7 +77,7 @@ defmodule ChatwooterWeb.UserLive.LoginTest do
         |> Phoenix.Controller.fetch_flash([])
         |> Phoenix.Controller.put_flash(:error, "You must re-authenticate to access this page.")
 
-      {:ok, _lv, html} = live(conn, ~p"/users/log-in")
+      {:ok, _lv, html} = live(conn, ~p"/app/login")
 
       assert html =~ "You need to reauthenticate"
 

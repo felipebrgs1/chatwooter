@@ -76,7 +76,7 @@ elixir --version  # Elixir 1.20.x
 docker compose up --build -d   # primeira vez compila deps (~3-5 min)
 docker compose logs -f web     # acompanhe até "Running ChatwooterWeb.Endpoint"
 # -> http://localhost:4000
-# login: http://localhost:4000/users/log-in
+# login: http://localhost:4000/app/login
 # conta seed (criada pelo seeds.exs): john@acme.inc / Password123! (admin da "Acme Inc")
 ```
 

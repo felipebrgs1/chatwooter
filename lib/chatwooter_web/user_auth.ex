@@ -225,7 +225,7 @@ defmodule ChatwooterWeb.UserAuth do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
+        |> Phoenix.LiveView.redirect(to: ~p"/app/login")
 
       {:halt, socket}
     end
@@ -240,7 +240,7 @@ defmodule ChatwooterWeb.UserAuth do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must re-authenticate to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
+        |> Phoenix.LiveView.redirect(to: ~p"/app/login")
 
       {:halt, socket}
     end
@@ -260,7 +260,7 @@ defmodule ChatwooterWeb.UserAuth do
   @doc "Returns the path to redirect to after log in."
   # the user was already logged in, redirect to settings
   def signed_in_path(%Plug.Conn{assigns: %{current_scope: %Scope{user: %Accounts.User{}}}}) do
-    ~p"/users/settings"
+    ~p"/app"
   end
 
   def signed_in_path(_), do: ~p"/"
@@ -275,7 +275,7 @@ defmodule ChatwooterWeb.UserAuth do
       conn
       |> put_flash(:error, "You must log in to access this page.")
       |> maybe_store_return_to()
-      |> redirect(to: ~p"/users/log-in")
+      |> redirect(to: ~p"/app/login")
       |> halt()
     end
   end

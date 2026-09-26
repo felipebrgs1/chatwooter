@@ -69,16 +69,8 @@ defmodule ChatwooterWeb.UserLive.Login do
 
           <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Log in</h2>
-            <p class="mt-2 text-sm text-slate-600">
-              <%= if @current_scope do %>
-                You need to reauthenticate to perform sensitive actions on your account.
-              <% else %>
-                Don't have an account? <.link
-                  navigate={~p"/users/register"}
-                  class="font-semibold text-brand hover:underline"
-                  phx-no-format
-                >Sign up</.link> for an account now.
-              <% end %>
+            <p :if={@current_scope} class="mt-2 text-sm text-slate-600">
+              You need to reauthenticate to perform sensitive actions on your account.
             </p>
           </div>
 
@@ -88,7 +80,7 @@ defmodule ChatwooterWeb.UserLive.Login do
             :let={f}
             for={@form}
             id="login_form_password"
-            action={~p"/users/log-in"}
+            action={~p"/app/login"}
             phx-submit="submit_password"
             phx-trigger-action={@trigger_submit}
           >

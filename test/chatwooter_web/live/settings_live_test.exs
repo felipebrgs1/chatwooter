@@ -13,7 +13,7 @@ defmodule ChatwooterWeb.SettingsLiveTest do
   end
 
   test "redirects guests to login" do
-    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(build_conn(), ~p"/app/settings")
+    assert {:error, {:redirect, %{to: "/app/login"}}} = live(build_conn(), ~p"/app/settings")
   end
 
   test "updates the account name", %{conn: conn, account: account} do

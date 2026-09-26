@@ -7,11 +7,36 @@ defmodule ChatwooterWeb.SettingsLive do
   alias ChatwooterWeb.AppShell
 
   @impl true
+  def mount(%{"token" => token}, _session, socket) do
+    socket =
+      case Accounts.update_user_email(socket.assigns.current_scope.user, token) do
+        {:ok, _user} ->
+          put_flash(socket, :info, "Email changed successfully.")
+
+        {:error, _} ->
+          put_flash(socket, :error, "Email change link is invalid or it has expired.")
+      end
+
+    {:ok, push_navigate(socket, to: ~p"/app/settings/profile")}
+  end
+
   def mount(_params, _session, socket) do
     user = socket.assigns.current_scope.user
     account = Accounts.list_user_accounts(user) |> List.first()
 
     socket = assign(socket, :account, account)
+
+    user = socket.assigns.current_scope.user
+
+    socket =
+      socket
+      |> assign(:current_email, user.email)
+      |> assign(:email_form, to_form(Accounts.change_user_email(user, %{}, validate_unique: false)))
+      |> assign(
+        :password_form,
+        to_form(Accounts.change_user_password(user, %{}, hash_password: false))
+      )
+      |> assign(:trigger_submit, false)
 
     if account do
       {:ok,
@@ -70,7 +95,7 @@ defmodule ChatwooterWeb.SettingsLive do
   def handle_event("invite", %{"invite" => %{"email" => email}}, socket) do
     case Accounts.invite_member(socket.assigns.account, String.trim(email)) do
       {:ok, user} ->
-        Accounts.deliver_login_instructions(user, &url(~p"/users/log-in/#{&1}"))
+        Accounts.deliver_login_instructions(user, &url(~p"/app/login/#{&1}"))
 
         {:noreply,
          socket
@@ -125,6 +150,73 @@ defmodule ChatwooterWeb.SettingsLive do
     end
   end
 
+  ## My profile (email + password — sudo enforced per action)
+
+  def handle_event("validate-profile-email", %{"user" => params}, socket) do
+    form =
+      socket.assigns.current_scope.user
+      |> Accounts.change_user_email(params, validate_unique: false)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, email_form: form)}
+  end
+
+  def handle_event("save-profile-email", %{"user" => params}, socket) do
+    user = socket.assigns.current_scope.user
+
+    if Accounts.sudo_mode?(user, -10) do
+      case Accounts.change_user_email(user, params) do
+        %{valid?: true} = changeset ->
+          Accounts.deliver_user_update_email_instructions(
+            Ecto.Changeset.apply_action!(changeset, :insert),
+            user.email,
+            &url(~p"/app/settings/profile/confirm-email/#{&1}")
+          )
+
+          {:noreply,
+           socket |> put_flash(:info, "A link to confirm your email change has been sent.")}
+
+        changeset ->
+          {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+      end
+    else
+      {:noreply, require_sudo(socket)}
+    end
+  end
+
+  def handle_event("validate-profile-password", %{"user" => params}, socket) do
+    form =
+      socket.assigns.current_scope.user
+      |> Accounts.change_user_password(params, hash_password: false)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, password_form: form)}
+  end
+
+  def handle_event("save-profile-password", %{"user" => params}, socket) do
+    user = socket.assigns.current_scope.user
+
+    if Accounts.sudo_mode?(user, -10) do
+      case Accounts.change_user_password(user, params) do
+        %{valid?: true} = changeset ->
+          {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
+
+        changeset ->
+          {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+      end
+    else
+      {:noreply, require_sudo(socket)}
+    end
+  end
+
+  defp require_sudo(socket) do
+    socket
+    |> put_flash(:error, "You must re-authenticate to access this page.")
+    |> push_navigate(to: ~p"/app/login")
+  end
+
   defp channel_badge(:whatsapp), do: {"WhatsApp", "bg-emerald-100 text-emerald-700"}
   defp channel_badge(:telegram), do: {"Telegram", "bg-sky-100 text-sky-700"}
 
@@ -142,7 +234,7 @@ defmodule ChatwooterWeb.SettingsLive do
         <nav class="w-56 shrink-0 space-y-1 border-r border-line bg-surface p-4">
           <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Settings</p>
           <.link
-            :for={{label, action, path} <- [{"General", :general, ~p"/app/settings"}, {"Inboxes", :inboxes, ~p"/app/settings/inboxes"}, {"Agents", :agents, ~p"/app/settings/agents"}]}
+            :for={{label, action, path} <- [{"General", :general, ~p"/app/settings"}, {"Inboxes", :inboxes, ~p"/app/settings/inboxes"}, {"Agents", :agents, ~p"/app/settings/agents"}, {"Profile", :profile, ~p"/app/settings/profile"}]}
             navigate={path}
             class={[
               "block rounded-lg px-3 py-2 text-sm",
@@ -152,11 +244,6 @@ defmodule ChatwooterWeb.SettingsLive do
           >
             {label}
           </.link>
-          <div class="border-t border-line pt-2">
-            <.link navigate={~p"/users/settings"} class="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
-              My profile
-            </.link>
-          </div>
         </nav>
 
         <main class="min-w-0 flex-1 overflow-y-auto p-8">
@@ -277,6 +364,40 @@ defmodule ChatwooterWeb.SettingsLive do
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+          <div :if={@live_action == :profile} class="max-w-xl space-y-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Profile</h2>
+              <p class="mb-6 text-sm text-slate-500">Your email address and password.</p>
+            </div>
+
+            <div class="rounded-xl border border-line bg-surface p-6">
+              <h3 class="mb-4 text-sm font-semibold text-slate-900">Email</h3>
+              <.form :let={f} for={@email_form} id="email_form" phx-submit="save-profile-email" phx-change="validate-profile-email" class="space-y-4">
+                <.input field={f[:email]} type="email" label="Email" autocomplete="username" spellcheck="false" required />
+                <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
+              </.form>
+            </div>
+
+            <div class="rounded-xl border border-line bg-surface p-6">
+              <h3 class="mb-4 text-sm font-semibold text-slate-900">Password</h3>
+              <.form
+                :let={f}
+                for={@password_form}
+                id="password_form"
+                action={~p"/app/update-password"}
+                method="post"
+                phx-change="validate-profile-password"
+                phx-submit="save-profile-password"
+                phx-trigger-action={@trigger_submit}
+                class="space-y-4"
+              >
+                <input name={f[:email].name} type="hidden" id="hidden_user_email" spellcheck="false" value={@current_email} />
+                <.input field={f[:password]} type="password" label="New password" autocomplete="new-password" spellcheck="false" required />
+                <.input field={f[:password_confirmation]} type="password" label="Confirm new password" autocomplete="new-password" spellcheck="false" />
+                <.button variant="primary" phx-disable-with="Saving...">Save Password</.button>
+              </.form>
             </div>
           </div>
         </main>

@@ -14,7 +14,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
   end
 
   test "redirects guests to login" do
-    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(build_conn(), ~p"/app")
+    assert {:error, {:redirect, %{to: "/app/login"}}} = live(build_conn(), ~p"/app")
   end
 
   test "lists conversations and sends a reply", %{conn: conn, account: account} do

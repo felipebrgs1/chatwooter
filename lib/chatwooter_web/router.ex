@@ -50,12 +50,6 @@ defmodule ChatwooterWeb.Router do
   scope "/", ChatwooterWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    live_session :require_authenticated_user,
-      on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}] do
-      live "/users/settings", UserLive.Settings, :edit
-      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
-    end
-
     live_session :dashboard,
       on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}],
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
@@ -63,9 +57,11 @@ defmodule ChatwooterWeb.Router do
       live "/app/settings", SettingsLive, :general
       live "/app/settings/inboxes", SettingsLive, :inboxes
       live "/app/settings/agents", SettingsLive, :agents
+      live "/app/settings/profile", SettingsLive, :profile
+      live "/app/settings/profile/confirm-email/:token", SettingsLive, :confirm_email
     end
 
-    post "/users/update-password", UserSessionController, :update_password
+    post "/app/update-password", UserSessionController, :update_password
   end
 
   scope "/", ChatwooterWeb do
@@ -74,12 +70,11 @@ defmodule ChatwooterWeb.Router do
     live_session :current_user,
       on_mount: [{ChatwooterWeb.UserAuth, :mount_current_scope}],
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
-      live "/users/register", UserLive.Registration, :new
-      live "/users/log-in", UserLive.Login, :new
-      live "/users/log-in/:token", UserLive.Confirmation, :new
+      live "/app/login", UserLive.Login, :new
+      live "/app/login/:token", UserLive.Confirmation, :new
     end
 
-    post "/users/log-in", UserSessionController, :create
-    delete "/users/log-out", UserSessionController, :delete
+    post "/app/login", UserSessionController, :create
+    delete "/app/logout", UserSessionController, :delete
   end
 end

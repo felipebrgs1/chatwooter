@@ -51,7 +51,7 @@ defmodule ChatwooterWeb.AppShell do
           </span>
           <p class="truncate text-xs text-slate-300">{@current_scope.user.email}</p>
         </div>
-        <.link href={~p"/users/log-out"} method="delete" class="mt-3 flex items-center gap-2 text-xs text-slate-400 hover:text-white">
+        <.link href={~p"/app/logout"} method="delete" class="mt-3 flex items-center gap-2 text-xs text-slate-400 hover:text-white">
           <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Log out
         </.link>
       </div>

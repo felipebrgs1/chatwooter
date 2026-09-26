@@ -49,12 +49,12 @@ defmodule ChatwooterWeb.Layouts do
           <.link navigate={~p"/app"} class="rounded-lg px-3 py-1.5 hover:bg-slate-100 hover:text-slate-900">
             Inbox
           </.link>
-          <.link navigate={~p"/users/settings"} class="rounded-lg px-3 py-1.5 hover:bg-slate-100 hover:text-slate-900">
+          <.link navigate={~p"/app/settings/profile"} class="rounded-lg px-3 py-1.5 hover:bg-slate-100 hover:text-slate-900">
             Settings
           </.link>
           <span :if={@current_scope} class="ml-2 flex items-center gap-2 border-l border-slate-200 pl-3">
             <span class="max-w-40 truncate text-xs text-slate-500">{@current_scope.user.email}</span>
-            <.link href={~p"/users/log-out"} method="delete" class="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+            <.link href={~p"/app/logout"} method="delete" class="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
               Log out
             </.link>
           </span>
