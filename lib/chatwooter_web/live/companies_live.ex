@@ -2,7 +2,7 @@ defmodule ChatwooterWeb.CompaniesLive do
   @moduledoc "Empresas estilo Chatwoot: cards + detalhe com contatos."
   use ChatwooterWeb, :live_view
 
-  alias Chatwooter.{Accounts, Companies}
+  alias Chatwooter.{Accounts, Companies, Conversations}
   alias Chatwooter.Companies.Company
   alias ChatwooterWeb.AppShell
 
@@ -16,6 +16,8 @@ defmodule ChatwooterWeb.CompaniesLive do
       |> assign(:companies, [])
       |> assign(:company, nil)
       |> assign(:company_contacts, [])
+      |> assign(:company_conversations, [])
+      |> assign(:custom_form, to_form(%{"key" => "", "value" => ""}, as: "custom"))
       |> assign(:search, "")
       |> assign(:modal_open, false)
       |> assign(:editing, nil)
@@ -36,7 +38,11 @@ defmodule ChatwooterWeb.CompaniesLive do
      socket
      |> assign(:live_action, :show)
      |> assign(:company, company)
-     |> assign(:company_contacts, Companies.list_company_contacts(company))}
+     |> assign(:company_contacts, Companies.list_company_contacts(company))
+     |> assign(
+       :company_conversations,
+       Conversations.list_company_conversations(account, company.id)
+     )}
   end
 
   def handle_params(_params, _uri, %{assigns: %{account: account}} = socket)
@@ -112,7 +118,8 @@ defmodule ChatwooterWeb.CompaniesLive do
 
         socket =
           if socket.assigns.live_action == :show do
-            assign(socket, :company, saved)
+            socket
+            |> assign(:company, saved)
             |> assign(:company_contacts, Companies.list_company_contacts(saved))
           else
             socket
@@ -127,6 +134,28 @@ defmodule ChatwooterWeb.CompaniesLive do
 
   def handle_event("close-modal", _params, socket) do
     {:noreply, socket |> assign(:modal_open, false) |> assign(:editing, nil)}
+  end
+
+  def handle_event("add-custom-attr", %{"custom" => %{"key" => key, "value" => value}}, socket) do
+    key = String.trim(key || "")
+
+    if key == "" do
+      {:noreply, put_flash(socket, :error, "Attribute name can't be blank.")}
+    else
+      {:ok, company} = Companies.set_custom_attribute(socket.assigns.company, key, value || "")
+
+      {:noreply,
+       socket
+       |> assign(:company, company)
+       |> assign(:custom_form, to_form(%{"key" => "", "value" => ""}, as: "custom"))
+       |> put_flash(:info, "Attribute saved.")}
+    end
+  end
+
+  def handle_event("remove-custom-attr", %{"key" => key}, socket) do
+    {:ok, company} = Companies.remove_custom_attribute(socket.assigns.company, key)
+
+    {:noreply, socket |> assign(:company, company) |> put_flash(:info, "Attribute removed.")}
   end
 
   def handle_event("delete", %{"id" => id}, %{assigns: %{account: account}} = socket) do
@@ -156,6 +185,31 @@ defmodule ChatwooterWeb.CompaniesLive do
       end
 
     assign(socket, :companies, filtered)
+  end
+
+  defp format_date(nil), do: "—"
+  defp format_date(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b %Y")
+
+  defp last_active([]), do: "—"
+
+  defp last_active([conv | _]) do
+    case conv.updated_at do
+      nil -> "—"
+      dt -> time_ago(dt)
+    end
+  end
+
+  defp time_ago(nil), do: "—"
+
+  defp time_ago(%DateTime{} = dt) do
+    seconds = DateTime.diff(DateTime.utc_now(), dt)
+
+    cond do
+      seconds < 60 -> "just now"
+      seconds < 3600 -> "#{div(seconds, 60)}m ago"
+      seconds < 86_400 -> "#{div(seconds, 3600)}h ago"
+      true -> "#{div(seconds, 86_400)}d ago"
+    end
   end
 
   @impl true
@@ -285,6 +339,11 @@ defmodule ChatwooterWeb.CompaniesLive do
             <p :if={@company.description} class="mt-4 text-sm text-slate-700">
               {@company.description}
             </p>
+            <p class="mt-3 text-xs text-slate-500">
+              Created {format_date(@company.inserted_at)} · Last active {last_active(
+                @company_conversations
+              )}
+            </p>
             <dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Contacts</dt>
@@ -294,7 +353,54 @@ defmodule ChatwooterWeb.CompaniesLive do
                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Domain</dt>
                 <dd class="mt-0.5 text-slate-900">{@company.domain || "—"}</dd>
               </div>
+              <div>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Conversations
+                </dt>
+                <dd class="mt-0.5 text-slate-900">{length(@company_conversations)}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Created</dt>
+                <dd class="mt-0.5 text-slate-900">{format_date(@company.inserted_at)}</dd>
+              </div>
             </dl>
+            <div class="mt-5 border-t border-slate-100 pt-4">
+              <h4 class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                Custom attributes
+              </h4>
+              <div :if={@company.custom_attributes == %{}} class="mb-2 text-xs text-slate-500">
+                No custom attributes yet.
+              </div>
+              <div
+                :for={{key, value} <- @company.custom_attributes}
+                id={"custom-#{key}"}
+                class="flex items-center justify-between gap-3 py-1 text-sm"
+              >
+                <p class="truncate"><span class="font-semibold">{key}:</span> {value}</p>
+                <button
+                  phx-click="remove-custom-attr"
+                  phx-value-key={key}
+                  class="shrink-0 text-xs font-semibold text-danger hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+              <.form
+                for={@custom_form}
+                id="custom-form"
+                phx-submit="add-custom-attr"
+                class="mt-2 flex items-end gap-2"
+              >
+                <.input field={@custom_form[:key]} type="text" label="Name" placeholder="industry" />
+                <.input field={@custom_form[:value]} type="text" label="Value" placeholder="tech" />
+                <button
+                  type="submit"
+                  class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
+                >
+                  Add
+                </button>
+              </.form>
+            </div>
             <div class="mt-5">
               <button
                 phx-click="delete"
@@ -330,6 +436,33 @@ defmodule ChatwooterWeb.CompaniesLive do
               </div>
               <.link
                 navigate={~p"/app/contacts/#{contact.id}"}
+                class="shrink-0 text-xs font-semibold text-brand hover:underline"
+              >
+                Open
+              </.link>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-surface p-6">
+            <h3 class="mb-3 text-sm font-bold text-slate-900">Recent conversations</h3>
+            <div :if={@company_conversations == []} class="text-sm text-slate-500">
+              No conversations yet.
+            </div>
+            <div
+              :for={conv <- @company_conversations}
+              id={"history-#{conv.id}"}
+              class="flex items-center justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-slate-900">
+                  {conv.contact_inbox.contact.name} via {conv.contact_inbox.inbox.name}
+                </p>
+                <p class="text-xs capitalize text-slate-500">
+                  {conv.status} · {time_ago(conv.updated_at)}
+                </p>
+              </div>
+              <.link
+                navigate={~p"/app?conversation_id=#{conv.id}"}
                 class="shrink-0 text-xs font-semibold text-brand hover:underline"
               >
                 Open

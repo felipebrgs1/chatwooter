@@ -70,6 +70,7 @@ defmodule ChatwooterWeb.CompaniesLiveTest do
 
     assert render(lv) =~ "Maria"
     assert render(lv) =~ ">1<"
+    assert render(lv) =~ "Created"
 
     lv |> element("#company-detail button[phx-click='edit']") |> render_click()
 
@@ -81,5 +82,26 @@ defmodule ChatwooterWeb.CompaniesLiveTest do
 
     assert Contacts.get_contact!(account, contact.id).additional_attributes["company_name"] ==
              "Acme Inc"
+  end
+
+  test "detail page manages custom attributes", %{conn: conn, account: account} do
+    {:ok, company} = Companies.create_company(account, %{name: "Acme"})
+    {:ok, lv, _html} = live(conn, ~p"/app/companies/#{company.id}")
+
+    assert render(lv) =~ "No custom attributes yet."
+
+    lv
+    |> form("#custom-form", custom: %{key: "industry", value: "tech"})
+    |> render_submit()
+
+    html = render(lv)
+    assert html =~ "industry"
+    assert html =~ "tech"
+
+    lv
+    |> element("#custom-industry button")
+    |> render_click()
+
+    assert render(lv) =~ "No custom attributes yet."
   end
 end

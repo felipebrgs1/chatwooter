@@ -117,6 +117,18 @@ defmodule Chatwooter.Conversations do
     |> Repo.all()
   end
 
+  @doc "Conversas de todos os contatos de uma empresa (histórico)."
+  def list_company_conversations(%Account{id: account_id}, company_id) do
+    Conversation
+    |> where([c], c.account_id == ^account_id)
+    |> join(:inner, [c], ci in assoc(c, :contact_inbox))
+    |> join(:inner, [_c, ci], contact in assoc(ci, :contact))
+    |> where([_c, _ci, contact], contact.company_id == ^company_id)
+    |> order_by([c], desc: c.updated_at)
+    |> preload(contact_inbox: [:contact, :inbox])
+    |> Repo.all()
+  end
+
   defp filter_search(query, search) when search in ["", nil], do: query
 
   defp filter_search(query, search) do

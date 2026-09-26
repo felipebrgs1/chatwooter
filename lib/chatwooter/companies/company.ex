@@ -9,6 +9,7 @@ defmodule Chatwooter.Companies.Company do
     field :domain, :string
     field :description, :string
     field :additional_attributes, :map, default: %{}
+    field :custom_attributes, :map, default: %{}
     field :contacts_count, :integer, virtual: true, default: 0
 
     belongs_to :account, Chatwooter.Accounts.Account
@@ -20,7 +21,7 @@ defmodule Chatwooter.Companies.Company do
   @doc false
   def changeset(company, attrs) do
     company
-    |> cast(attrs, [:name, :domain, :description, :additional_attributes])
+    |> cast(attrs, [:name, :domain, :description, :additional_attributes, :custom_attributes])
     |> update_change(:domain, &blank_to_nil/1)
     |> update_change(:description, &blank_to_nil/1)
     |> validate_required([:name])

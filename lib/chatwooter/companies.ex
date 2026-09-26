@@ -54,6 +54,24 @@ defmodule Chatwooter.Companies do
     Company.changeset(company, attrs)
   end
 
+  @doc "Define um atributo customizado (merge, como no Chatwoot)."
+  def set_custom_attribute(%Company{} = company, key, value) when is_binary(key) do
+    custom = Map.put(company.custom_attributes || %{}, key, value)
+
+    company
+    |> Company.changeset(%{custom_attributes: custom})
+    |> Repo.update()
+  end
+
+  @doc "Remove um atributo customizado."
+  def remove_custom_attribute(%Company{} = company, key) when is_binary(key) do
+    custom = Map.delete(company.custom_attributes || %{}, key)
+
+    company
+    |> Company.changeset(%{custom_attributes: custom})
+    |> Repo.update()
+  end
+
   @doc "Contatos vinculados à empresa."
   def list_company_contacts(%Company{} = company) do
     Contacts.list_company_contacts(company)

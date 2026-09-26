@@ -90,6 +90,18 @@ defmodule Chatwooter.CompaniesTest do
     assert contact.additional_attributes["company_name"] == "Acme Inc"
   end
 
+  test "set/remove_custom_attribute/2 manages custom attributes", %{account: account} do
+    {:ok, company} = Companies.create_company(account, %{name: "Acme"})
+
+    assert {:ok, %{custom_attributes: %{"industry" => "tech"}}} =
+             Companies.set_custom_attribute(company, "industry", "tech")
+
+    company = Companies.get_company!(account, company.id)
+
+    assert {:ok, %{custom_attributes: %{}}} =
+             Companies.remove_custom_attribute(company, "industry")
+  end
+
   test "delete_company/1 unlinks contacts", %{account: account} do
     {:ok, company} = Companies.create_company(account, %{name: "Acme"})
     {:ok, contact} = Contacts.create_contact(account, %{name: "Maria"})
