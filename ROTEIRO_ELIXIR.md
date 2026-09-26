@@ -4,6 +4,8 @@
 > **1:1 no escopo WhatsApp + Telegram**, permitindo **migração de conta do Chatwoot para cá**
 > (dados + integrações continuam funcionando). UI equivalente ao Chatwoot via LiveView.
 
+> **Prioridade atual:** [roadmap de paridade do banco](./ROADMAP_PARIDADE_BANCO.md). A Fase A abaixo é um resumo histórico; o novo roadmap detalha as 103 tabelas e os critérios para afirmar paridade 1:1.
+
 ## Decisões travadas (revisão 2026-09-26)
 
 1. **Canais: só WhatsApp Cloud API + Telegram Bot API.** Email, Instagram, Facebook, X, TikTok, Line,

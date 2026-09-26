@@ -17,6 +17,11 @@ defmodule ChatwooterWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias Chatwooter.Accounts
+  alias Chatwooter.Accounts.Scope
+  alias Chatwooter.AccountsFixtures
+  alias Chatwooter.DataCase
+
   using do
     quote do
       # The default endpoint for testing
@@ -32,7 +37,7 @@ defmodule ChatwooterWeb.ConnCase do
   end
 
   setup tags do
-    Chatwooter.DataCase.setup_sandbox(tags)
+    DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -45,8 +50,8 @@ defmodule ChatwooterWeb.ConnCase do
   test context.
   """
   def register_and_log_in_user(%{conn: conn} = context) do
-    user = Chatwooter.AccountsFixtures.user_fixture()
-    scope = Chatwooter.Accounts.Scope.for_user(user)
+    user = AccountsFixtures.user_fixture()
+    scope = Scope.for_user(user)
 
     opts =
       context
@@ -62,7 +67,7 @@ defmodule ChatwooterWeb.ConnCase do
   It returns an updated `conn`.
   """
   def log_in_user(conn, user, opts \\ []) do
-    token = Chatwooter.Accounts.generate_user_session_token(user)
+    token = Accounts.generate_user_session_token(user)
 
     maybe_set_token_authenticated_at(token, opts[:token_authenticated_at])
 
@@ -74,6 +79,6 @@ defmodule ChatwooterWeb.ConnCase do
   defp maybe_set_token_authenticated_at(_token, nil), do: nil
 
   defp maybe_set_token_authenticated_at(token, authenticated_at) do
-    Chatwooter.AccountsFixtures.override_token_authenticated_at(token, authenticated_at)
+    AccountsFixtures.override_token_authenticated_at(token, authenticated_at)
   end
 end

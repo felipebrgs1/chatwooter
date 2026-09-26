@@ -16,6 +16,9 @@ defmodule Chatwooter.DataCase do
 
   use ExUnit.CaseTemplate
 
+  alias Chatwooter.Repo
+  alias Ecto.Adapters.SQL.Sandbox
+
   using do
     quote do
       alias Chatwooter.Repo
@@ -28,7 +31,7 @@ defmodule Chatwooter.DataCase do
   end
 
   setup tags do
-    Chatwooter.DataCase.setup_sandbox(tags)
+    setup_sandbox(tags)
     :ok
   end
 
@@ -36,8 +39,8 @@ defmodule Chatwooter.DataCase do
   Sets up the sandbox based on the test tags.
   """
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Chatwooter.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(Repo, shared: not tags[:async])
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
   @doc """

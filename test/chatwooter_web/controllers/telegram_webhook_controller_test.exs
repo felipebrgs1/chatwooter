@@ -34,7 +34,7 @@ defmodule ChatwooterWeb.TelegramWebhookControllerTest do
     }
   end
 
-  defp post_update(conn, inbox_id, headers \\ []) do
+  defp post_update(conn, inbox_id, headers) do
     conn =
       Enum.reduce(headers, conn, fn {key, value}, conn ->
         put_req_header(conn, key, value)

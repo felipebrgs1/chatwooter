@@ -1,8 +1,10 @@
 defmodule Chatwooter.Accounts.UserNotifier do
+  @moduledoc "Delivers user authentication and account emails."
+
   import Swoosh.Email
 
-  alias Chatwooter.Mailer
   alias Chatwooter.Accounts.User
+  alias Chatwooter.Mailer
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do

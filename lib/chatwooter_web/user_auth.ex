@@ -1,4 +1,6 @@
 defmodule ChatwooterWeb.UserAuth do
+  @moduledoc "Session authentication and route guards for dashboard users."
+
   use ChatwooterWeb, :verified_routes
 
   import Plug.Conn

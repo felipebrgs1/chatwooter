@@ -4,10 +4,8 @@ defmodule Chatwooter.Accounts do
   """
 
   import Ecto.Query, warn: false
+  alias Chatwooter.Accounts.{Account, AccountUser, User, UserNotifier, UserToken}
   alias Chatwooter.Repo
-
-  alias Chatwooter.Accounts.{User, UserToken, UserNotifier}
-  alias Chatwooter.Accounts.{Account, AccountUser}
 
   ## Database getters
 
@@ -422,27 +420,30 @@ defmodule Chatwooter.Accounts do
     email = attrs[:email] || attrs["email"]
 
     case email && get_user_by_email(email) do
-      %User{} = user ->
-        case add_member(account, user, attrs[:role] || attrs["role"] || "agent") do
-          {:ok, _} -> {:ok, user}
-          {:error, _} = error -> error
-        end
+      %User{} = user -> add_existing_agent(account, user, attrs)
+      _ -> add_new_agent(account, attrs)
+    end
+  end
 
-      _ ->
-        with {:ok, user} <- %User{} |> User.agent_changeset(attrs) |> Repo.insert() do
-          membership_attrs = %{
-            account_id: account.id,
-            user_id: user.id,
-            role: attrs[:role] || attrs["role"] || "agent",
-            availability: attrs[:availability] || attrs["availability"] || "offline",
-            auto_offline: attrs[:auto_offline] || attrs["auto_offline"] || false
-          }
+  defp add_existing_agent(account, user, attrs) do
+    with {:ok, _} <- add_member(account, user, attrs[:role] || attrs["role"] || "agent") do
+      {:ok, user}
+    end
+  end
 
-          case %AccountUser{} |> AccountUser.changeset(membership_attrs) |> Repo.insert() do
-            {:ok, _} -> {:ok, user}
-            {:error, _} = error -> error
-          end
-        end
+  defp add_new_agent(account, attrs) do
+    with {:ok, user} <- %User{} |> User.agent_changeset(attrs) |> Repo.insert(),
+         {:ok, _} <-
+           %AccountUser{}
+           |> AccountUser.changeset(%{
+             account_id: account.id,
+             user_id: user.id,
+             role: attrs[:role] || attrs["role"] || "agent",
+             availability: attrs[:availability] || attrs["availability"] || "offline",
+             auto_offline: attrs[:auto_offline] || attrs["auto_offline"] || false
+           })
+           |> Repo.insert() do
+      {:ok, user}
     end
   end
 

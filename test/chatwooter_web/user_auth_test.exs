@@ -1,10 +1,10 @@
 defmodule ChatwooterWeb.UserAuthTest do
   use ChatwooterWeb.ConnCase, async: true
 
-  alias Phoenix.LiveView
   alias Chatwooter.Accounts
   alias Chatwooter.Accounts.Scope
   alias ChatwooterWeb.UserAuth
+  alias Phoenix.LiveView
 
   import Chatwooter.AccountsFixtures
 

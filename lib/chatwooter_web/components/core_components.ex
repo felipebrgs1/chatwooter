@@ -29,6 +29,7 @@ defmodule ChatwooterWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: ChatwooterWeb.Gettext
 
+  alias Phoenix.HTML.{Form, FormField}
   alias Phoenix.LiveView.JS
 
   @doc """
@@ -99,7 +100,11 @@ defmodule ChatwooterWeb.CoreComponents do
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any, default: nil, doc: "extra classes (width, margins…) — never colors or padding"
+
+  attr :class, :any,
+    default: nil,
+    doc: "extra classes (width, margins…) — never colors or padding"
+
   attr :variant, :string, default: "primary", values: ~w(primary secondary soft ghost danger)
   attr :size, :string, default: "md", values: ~w(sm md lg)
   slot :inner_block, required: true
@@ -127,7 +132,12 @@ defmodule ChatwooterWeb.CoreComponents do
 
     assigns =
       assign(assigns,
-        class: [base, Map.fetch!(variants, assigns.variant), Map.fetch!(sizes, assigns.size), assigns.class]
+        class: [
+          base,
+          Map.fetch!(variants, assigns.variant),
+          Map.fetch!(sizes, assigns.size),
+          assigns.class
+        ]
       )
 
     rest = assigns.rest
@@ -197,7 +207,7 @@ defmodule ChatwooterWeb.CoreComponents do
     values: ~w(checkbox color date datetime-local email file month number password
                search select tel text textarea time url week hidden)
 
-  attr :field, Phoenix.HTML.FormField,
+  attr :field, FormField,
     doc: "a form field struct retrieved from the form, for example: @form[:email]"
 
   attr :errors, :list, default: []
@@ -212,7 +222,7 @@ defmodule ChatwooterWeb.CoreComponents do
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                 multiple pattern placeholder readonly required rows size step)
 
-  def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+  def input(%{field: %FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
 
     assigns
@@ -232,7 +242,7 @@ defmodule ChatwooterWeb.CoreComponents do
   def input(%{type: "checkbox"} = assigns) do
     assigns =
       assign_new(assigns, :checked, fn ->
-        Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
+        Form.normalize_value("checkbox", assigns[:value])
       end)
 
     ~H"""
@@ -275,7 +285,7 @@ defmodule ChatwooterWeb.CoreComponents do
           {@rest}
         >
           <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
+          {Form.options_for_select(@options, @value)}
         </select>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
@@ -296,7 +306,7 @@ defmodule ChatwooterWeb.CoreComponents do
             @errors != [] && (@error_class || "textarea-error")
           ]}
           {@rest}
-        >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+        >{Form.normalize_value("textarea", @value)}</textarea>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -313,7 +323,7 @@ defmodule ChatwooterWeb.CoreComponents do
           type={@type}
           name={@name}
           id={@id}
-          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+          value={Form.normalize_value(@type, @value)}
           class={[
             @class || "w-full input",
             @errors != [] && (@error_class || "input-error")
