@@ -87,6 +87,60 @@ defmodule Chatwooter.InboxesTest do
              Inboxes.create_inbox(account, %{name: "TG", channel_type: "telegram"})
   end
 
+  test "update_inbox/2 merges provider_config instead of replacing", %{account: account} do
+    {:ok, tg} = Inboxes.create_inbox(account, %{name: "TG", channel_type: "telegram"})
+
+    {:ok, tg} =
+      Inboxes.update_inbox(tg, %{
+        provider_config: %{"bot_token" => "123:ABC", "webhook_secret" => "s3cr3t"}
+      })
+
+    assert {:ok, updated} =
+             Inboxes.update_inbox(tg, %{
+               name: "Novo",
+               provider_config: %{"bot_token" => "456:DEF"}
+             })
+
+    assert updated.name == "Novo"
+
+    assert updated.provider_config == %{
+             "bot_token" => "456:DEF",
+             "webhook_secret" => "s3cr3t"
+           }
+  end
+
+  test "update_inbox/2 rejects clearing the token while configured", %{account: account} do
+    {:ok, tg} = Inboxes.create_inbox(account, %{name: "TG", channel_type: "telegram"})
+
+    {:ok, tg} =
+      Inboxes.update_inbox(tg, %{
+        provider_config: %{"bot_token" => "123:ABC", "webhook_secret" => "s3cr3t"}
+      })
+
+    assert {:error, %Ecto.Changeset{} = changeset} =
+             Inboxes.update_inbox(tg, %{provider_config: %{"bot_token" => ""}})
+
+    assert %{provider_config: [_]} = errors_on(changeset)
+  end
+
+  test "ensure_webhook_secret/1 generates once and is stable", %{account: account} do
+    {:ok, tg} = Inboxes.create_inbox(account, %{name: "TG", channel_type: "telegram"})
+
+    {:ok, tg} = Inboxes.update_inbox(tg, %{provider_config: %{"bot_token" => "123:ABC"}})
+
+    assert {:ok, %{provider_config: %{"webhook_secret" => first}}} =
+             Inboxes.ensure_webhook_secret(tg)
+
+    assert byte_size(first) >= 32
+
+    tg = Inboxes.get_inbox!(account, tg.id)
+
+    assert {:ok, %{provider_config: %{"webhook_secret" => second}}} =
+             Inboxes.ensure_webhook_secret(tg)
+
+    assert first == second
+  end
+
   test "change_inbox/2 returns a changeset", %{account: account} do
     {:ok, inbox} =
       Inboxes.create_inbox(account, %{name: "Vendas", channel_type: "whatsapp"})

@@ -4,7 +4,7 @@ defmodule ChatwooterWeb.SettingsLiveTest do
   import Phoenix.LiveViewTest
   import Chatwooter.AccountsFixtures
 
-  alias Chatwooter.Accounts
+  alias Chatwooter.{Accounts, Inboxes}
 
   setup %{conn: conn} do
     user = user_fixture()
@@ -47,6 +47,124 @@ defmodule ChatwooterWeb.SettingsLiveTest do
 
     assert html =~ "Inbox updated"
     assert html =~ "Configured"
+  end
+
+  test "tests the telegram connection and stores the bot username", %{
+    conn: conn,
+    account: account
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(:chatwooter, :telegram_api_base, "http://localhost:#{bypass.port}")
+    on_exit(fn -> Application.delete_env(:chatwooter, :telegram_api_base) end)
+
+    Bypass.expect_once(bypass, "GET", "/bottest-token/getMe", fn conn ->
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.resp(
+        200,
+        Jason.encode!(%{
+          "ok" => true,
+          "result" => %{"id" => 123, "first_name" => "Acme", "username" => "acme_bot"}
+        })
+      )
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
+
+    lv
+    |> form("#inbox-form", inbox: %{name: "TG", channel_type: "telegram"})
+    |> render_submit()
+
+    lv |> element("button[phx-click='edit-inbox']") |> render_click()
+
+    lv
+    |> form("#inbox-edit-form", inbox: %{name: "TG", provider_config: %{bot_token: "test-token"}})
+    |> render_submit()
+
+    lv |> element("button[phx-click='edit-inbox']") |> render_click()
+
+    html =
+      lv
+      |> element("button[phx-click='test-telegram']")
+      |> render_click()
+
+    assert html =~ "Connected as @acme_bot"
+
+    assert %{"bot_username" => "acme_bot"} =
+             account |> Inboxes.list_inboxes() |> hd() |> Map.get(:provider_config)
+  end
+
+  test "connects the telegram webhook", %{conn: conn, account: account} do
+    bypass = Bypass.open()
+    test_pid = self()
+
+    Application.put_env(:chatwooter, :telegram_api_base, "http://localhost:#{bypass.port}")
+    Application.put_env(:chatwooter, :webhook_base_url, "https://example.com")
+
+    on_exit(fn ->
+      Application.delete_env(:chatwooter, :telegram_api_base)
+      Application.delete_env(:chatwooter, :webhook_base_url)
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
+
+    lv
+    |> form("#inbox-form", inbox: %{name: "TG", channel_type: "telegram"})
+    |> render_submit()
+
+    [%{id: inbox_id}] = Inboxes.list_inboxes(account)
+
+    Bypass.expect_once(bypass, "POST", "/bottest-token/setWebhook", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:webhook_body, Jason.decode!(body)})
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.resp(
+        200,
+        Jason.encode!(%{"ok" => true, "result" => true, "description" => "Webhook was set"})
+      )
+    end)
+
+    lv |> element("button[phx-click='edit-inbox']") |> render_click()
+
+    lv
+    |> form("#inbox-edit-form", inbox: %{name: "TG", provider_config: %{bot_token: "test-token"}})
+    |> render_submit()
+
+    lv |> element("button[phx-click='edit-inbox']") |> render_click()
+
+    html =
+      lv
+      |> element("button[phx-click='connect-telegram']")
+      |> render_click()
+
+    assert html =~ "webhook connected"
+    assert_received {:webhook_body, %{"url" => url, "secret_token" => secret}}
+    assert url == "https://example.com/webhooks/telegram/#{inbox_id}"
+    assert byte_size(secret) >= 32
+
+    assert %{"webhook_secret" => ^secret, "webhook_url" => ^url} =
+             account |> Inboxes.list_inboxes() |> hd() |> Map.get(:provider_config)
+  end
+
+  test "test without a saved token asks to save first", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
+
+    lv
+    |> form("#inbox-form", inbox: %{name: "TG", channel_type: "telegram"})
+    |> render_submit()
+
+    lv |> element("button[phx-click='edit-inbox']") |> render_click()
+
+    # Sem stubs: qualquer HTTP derruba o teste.
+    html =
+      lv
+      |> element("button[phx-click='test-telegram']")
+      |> render_click()
+
+    assert html =~ "Save a bot token first"
   end
 
   test "renames an inbox", %{conn: conn} do

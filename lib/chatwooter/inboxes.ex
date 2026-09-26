@@ -34,10 +34,24 @@ defmodule Chatwooter.Inboxes do
   end
 
   def update_inbox(%Inbox{} = inbox, attrs) do
+    attrs = normalize_attrs(attrs)
+
     with :ok <- validate_channel_unchanged(inbox, attrs) do
       inbox
-      |> Inbox.update_changeset(attrs)
+      |> Inbox.update_changeset(merge_provider_config(inbox, attrs))
       |> Repo.update()
+    end
+  end
+
+  @doc "Garante um segredo de webhook (gera e persiste se ausente)."
+  def ensure_webhook_secret(%Inbox{} = inbox) do
+    case (inbox.provider_config || %{})["webhook_secret"] do
+      secret when is_binary(secret) and secret != "" ->
+        {:ok, inbox}
+
+      _ ->
+        secret = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+        update_inbox(inbox, %{provider_config: %{"webhook_secret" => secret}})
     end
   end
 
@@ -46,6 +60,36 @@ defmodule Chatwooter.Inboxes do
     |> get_inbox!(id)
     |> Repo.delete()
   end
+
+  # provider_config mescla (nunca substitui): chaves em branco removem.
+  defp merge_provider_config(%Inbox{provider_config: current}, attrs) do
+    case Map.get(attrs, "provider_config") do
+      nil ->
+        attrs
+
+      new_config when is_map(new_config) ->
+        merged =
+          (current || %{})
+          |> stringify_config()
+          |> Map.merge(stringify_config(new_config))
+          |> Enum.reject(fn {_key, value} -> blank_config_value?(value) end)
+          |> Map.new()
+
+        Map.put(attrs, "provider_config", merged)
+    end
+  end
+
+  defp normalize_attrs(attrs) when is_map(attrs) do
+    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp stringify_config(config) do
+    Map.new(config, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp blank_config_value?(nil), do: true
+  defp blank_config_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_config_value?(_value), do: false
 
   defp validate_channel_unchanged(%Inbox{channel_type: current}, attrs) do
     case channel_from_attrs(attrs) do

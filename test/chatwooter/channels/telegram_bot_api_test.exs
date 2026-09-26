@@ -174,6 +174,75 @@ defmodule Chatwooter.Channels.Telegram.BotApiTest do
     end
   end
 
+  describe "set_webhook/3" do
+    test "registers url and secret", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/bottest-token/setWebhook", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        assert %{
+                 "url" => "https://example.com/webhooks/telegram/1",
+                 "secret_token" => "s3cr3t"
+               } = Jason.decode!(body)
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(
+          200,
+          Jason.encode!(%{"ok" => true, "result" => true, "description" => "Webhook was set"})
+        )
+      end)
+
+      assert {:ok, _} =
+               BotApi.set_webhook(
+                 inbox(),
+                 "https://example.com/webhooks/telegram/1",
+                 "s3cr3t"
+               )
+    end
+
+    test "returns error when telegram rejects", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/bottest-token/setWebhook", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(
+          200,
+          Jason.encode!(%{"ok" => false, "error_code" => 400, "description" => "Bad Request"})
+        )
+      end)
+
+      assert {:error, %{description: "Bad Request"}} =
+               BotApi.set_webhook(inbox(), "https://example.com/wh/1", "s3cr3t")
+    end
+
+    test "returns error without bot_token" do
+      inbox = %Inbox{channel_type: :telegram, provider_config: %{}}
+      assert {:error, :missing_bot_token} = BotApi.set_webhook(inbox, "https://x/1", "s")
+    end
+  end
+
+  describe "get_me/1" do
+    test "returns the bot identity", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/bottest-token/getMe", fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(
+          200,
+          Jason.encode!(%{
+            "ok" => true,
+            "result" => %{"id" => 123, "first_name" => "Acme", "username" => "acme_bot"}
+          })
+        )
+      end)
+
+      assert {:ok, %{username: "acme_bot"}} = BotApi.get_me(inbox())
+    end
+
+    test "returns error without bot_token" do
+      inbox = %Inbox{channel_type: :telegram, provider_config: %{}}
+      assert {:error, :missing_bot_token} = BotApi.get_me(inbox)
+    end
+  end
+
   describe "validate_webhook/2" do
     test "accepts when the secret token matches" do
       conn =

@@ -4,6 +4,7 @@ defmodule ChatwooterWeb.SettingsLive do
 
   alias Chatwooter.{Accounts, Inboxes}
   alias Chatwooter.Accounts.Account
+  alias Chatwooter.Channels.Telegram.BotApi
   alias ChatwooterWeb.AppShell
 
   @impl true
@@ -52,6 +53,8 @@ defmodule ChatwooterWeb.SettingsLive do
        |> assign(:editing_inbox_id, nil)
        |> assign(:editing_channel, nil)
        |> assign(:provider_token, nil)
+       |> assign(:webhook_url, nil)
+       |> assign(:editing_bot_username, nil)
        |> assign(:edit_form, nil)}
     else
       {:ok, socket}
@@ -110,7 +113,9 @@ defmodule ChatwooterWeb.SettingsLive do
      socket
      |> assign(:editing_inbox_id, inbox.id)
      |> assign(:editing_channel, inbox.channel_type)
-     |> assign(:provider_token, inbox.provider_config["bot_token"])
+     |> assign(:provider_token, (inbox.provider_config || %{})["bot_token"])
+     |> assign(:webhook_url, telegram_webhook_url(inbox))
+     |> assign(:editing_bot_username, (inbox.provider_config || %{})["bot_username"])
      |> assign(:edit_form, to_form(Inboxes.change_inbox(inbox), as: "inbox"))}
   end
 
@@ -140,6 +145,8 @@ defmodule ChatwooterWeb.SettingsLive do
          |> assign(:editing_inbox_id, nil)
          |> assign(:editing_channel, nil)
          |> assign(:provider_token, nil)
+         |> assign(:webhook_url, nil)
+         |> assign(:editing_bot_username, nil)
          |> assign(:edit_form, nil)
          |> put_flash(:info, "Inbox updated.")}
 
@@ -154,7 +161,33 @@ defmodule ChatwooterWeb.SettingsLive do
      |> assign(:editing_inbox_id, nil)
      |> assign(:editing_channel, nil)
      |> assign(:provider_token, nil)
+     |> assign(:webhook_url, nil)
+     |> assign(:editing_bot_username, nil)
      |> assign(:edit_form, nil)}
+  end
+
+  def handle_event("test-telegram", _params, socket) do
+    inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
+
+    case (inbox.provider_config || %{})["bot_token"] do
+      token when is_binary(token) and token != "" ->
+        test_saved_token(socket, inbox)
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Save a bot token first.")}
+    end
+  end
+
+  def handle_event("connect-telegram", _params, socket) do
+    inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
+
+    case (inbox.provider_config || %{})["bot_token"] do
+      token when is_binary(token) and token != "" ->
+        connect_saved_inbox(socket, inbox)
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Save a bot token first.")}
+    end
   end
 
   def handle_event("invite", %{"invite" => %{"email" => email}}, socket) do
@@ -280,6 +313,55 @@ defmodule ChatwooterWeb.SettingsLive do
     socket
     |> put_flash(:error, "You must re-authenticate to access this page.")
     |> push_navigate(to: ~p"/app/login")
+  end
+
+  defp test_saved_token(socket, inbox) do
+    case BotApi.get_me(inbox) do
+      {:ok, %{username: username}} when is_binary(username) ->
+        {:ok, _} = Inboxes.update_inbox(inbox, %{provider_config: %{"bot_username" => username}})
+
+        {:noreply,
+         socket
+         |> assign(:inboxes, Inboxes.list_inboxes(socket.assigns.account))
+         |> assign(:editing_bot_username, username)
+         |> put_flash(:info, "Connected as @#{username}.")}
+
+      {:ok, _} ->
+        {:noreply, put_flash(socket, :error, "Telegram answered without a username.")}
+
+      {:error, %{description: description}} when is_binary(description) ->
+        {:noreply, put_flash(socket, :error, "Telegram error: #{description}")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Telegram did not accept the token.")}
+    end
+  end
+
+  defp connect_saved_inbox(socket, inbox) do
+    with {:ok, inbox} <- Inboxes.ensure_webhook_secret(inbox),
+         url = telegram_webhook_url(inbox),
+         secret = (inbox.provider_config || %{})["webhook_secret"],
+         {:ok, _} <- BotApi.set_webhook(inbox, url, secret),
+         {:ok, _} <- Inboxes.update_inbox(inbox, %{provider_config: %{"webhook_url" => url}}) do
+      {:noreply,
+       socket
+       |> assign(:inboxes, Inboxes.list_inboxes(socket.assigns.account))
+       |> put_flash(:info, "Telegram webhook connected.")}
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :edit_form, to_form(changeset, as: "inbox", action: :update))}
+
+      {:error, %{description: description}} when is_binary(description) ->
+        {:noreply, put_flash(socket, :error, "Telegram error: #{description}")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not connect the webhook.")}
+    end
+  end
+
+  defp telegram_webhook_url(inbox) do
+    base = Application.get_env(:chatwooter, :webhook_base_url) || ChatwooterWeb.Endpoint.url()
+    "#{base}/webhooks/telegram/#{inbox.id}"
   end
 
   defp channel_badge(:whatsapp), do: {"WhatsApp", "bg-emerald-100 text-emerald-700"}
@@ -432,6 +514,36 @@ defmodule ChatwooterWeb.SettingsLive do
                         {msg}
                       </p>
                     </div>
+                    <div
+                      :if={@editing_channel == :telegram}
+                      class="space-y-2 rounded-lg border border-line bg-canvas p-4"
+                    >
+                      <div>
+                        <p class="text-xs font-semibold text-slate-700">Webhook URL</p>
+                        <code class="mt-1 block truncate rounded bg-ink px-2 py-1 text-[11px] text-white">
+                          {@webhook_url}
+                        </code>
+                      </div>
+                      <p :if={@editing_bot_username} class="text-xs text-slate-600">
+                        Connected as <span class="font-semibold">@{@editing_bot_username}</span>
+                      </p>
+                      <div class="flex gap-2">
+                        <button
+                          type="button"
+                          phx-click="test-telegram"
+                          class="cursor-pointer rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          Test connection
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="connect-telegram"
+                          class="cursor-pointer rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          Connect webhook
+                        </button>
+                      </div>
+                    </div>
                     <div class="flex gap-2">
                       <.button variant="primary">Save</.button>
                       <button
@@ -456,6 +568,12 @@ defmodule ChatwooterWeb.SettingsLive do
                     <% {label, pill} = channel_badge(inbox.channel_type) %>
                     <span class={"mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold #{pill}"}>
                       {label}
+                    </span>
+                    <span
+                      :if={(inbox.provider_config || %{})["bot_username"]}
+                      class="ml-1 mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
+                    >
+                      @{(inbox.provider_config || %{})["bot_username"]}
                     </span>
                     <span class={
                       if(configured?(inbox),

@@ -56,6 +56,48 @@ defmodule Chatwooter.Channels.Telegram.BotApi do
 
   def download_file(_inbox, _file_id), do: {:error, :missing_bot_token}
 
+  @doc "Registra o webhook do inbox no Telegram (com segredo anti-forgery)."
+  def set_webhook(%{provider_config: %{"bot_token" => token}}, url, secret)
+      when is_binary(token) and token != "" do
+    case Req.post("#{api_base()}/bot#{token}/setWebhook",
+           json: %{url: url, secret_token: secret}
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"ok" => true} = body}} ->
+        {:ok, %{description: body["description"]}}
+
+      {:ok, %Req.Response{body: %{"ok" => false} = body}} ->
+        {:error, %{code: body["error_code"], description: body["description"]}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, %{code: status, description: "unexpected telegram status"}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def set_webhook(_inbox, _url, _secret), do: {:error, :missing_bot_token}
+
+  @doc "Valida o token e retorna a identidade do bot."
+  def get_me(%{provider_config: %{"bot_token" => token}})
+      when is_binary(token) and token != "" do
+    case Req.get("#{api_base()}/bot#{token}/getMe") do
+      {:ok, %Req.Response{status: 200, body: %{"ok" => true, "result" => result}}} ->
+        {:ok, %{id: result["id"], username: result["username"], name: result["first_name"]}}
+
+      {:ok, %Req.Response{body: %{"ok" => false} = body}} ->
+        {:error, %{code: body["error_code"], description: body["description"]}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, %{code: status, description: "unexpected telegram status"}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def get_me(_inbox), do: {:error, :missing_bot_token}
+
   defp get_file(token, file_id) do
     case Req.get("#{api_base()}/bot#{token}/getFile", params: [file_id: file_id]) do
       {:ok, %Req.Response{status: 200, body: %{"ok" => true} = body}} -> {:ok, body}
