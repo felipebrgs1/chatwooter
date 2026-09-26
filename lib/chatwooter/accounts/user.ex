@@ -135,10 +135,11 @@ defmodule Chatwooter.Accounts.User do
   end
 
   defp default_name_from_email(changeset) do
-    name = get_change(changeset, :name)
+    current = get_field(changeset, :name)
+    had_name = changeset.data.name not in [nil, ""]
     email = get_change(changeset, :email) || get_field(changeset, :email)
 
-    if (is_nil(name) or String.trim(name) == "") and is_binary(email) do
+    if current in [nil, ""] and not had_name and is_binary(email) do
       put_change(changeset, :name, email |> String.split("@") |> hd())
     else
       changeset

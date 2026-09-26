@@ -3,7 +3,7 @@ defmodule ChatwooterWeb.SettingsLive do
   use ChatwooterWeb, :live_view
 
   alias Chatwooter.{Accounts, Inboxes}
-  alias Chatwooter.Accounts.Account
+  alias Chatwooter.Accounts.{Account, User}
   alias Chatwooter.Channels.Telegram.BotApi
   alias ChatwooterWeb.AppShell
 
@@ -53,6 +53,8 @@ defmodule ChatwooterWeb.SettingsLive do
          :invite_form,
          to_form(%{"name" => "", "email" => "", "role" => "agent"}, as: "invite")
        )
+       |> assign(:editing_agent, nil)
+       |> assign(:agent_form, nil)
        |> assign(:editing_inbox_id, nil)
        |> assign(:editing_channel, nil)
        |> assign(:provider_token, nil)
@@ -239,6 +241,67 @@ defmodule ChatwooterWeb.SettingsLive do
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not update role.")}
     end
+  end
+
+  def handle_event("edit-agent", %{"id" => user_id}, socket) do
+    user = Accounts.get_user!(String.to_integer(user_id))
+    membership = Enum.find(socket.assigns.members, &(&1.user_id == user.id))
+
+    params = %{
+      "name" => user.name || "",
+      "role" => to_string(membership.role),
+      "availability" => to_string(membership.availability),
+      "auto_offline" => membership.auto_offline
+    }
+
+    {:noreply,
+     socket
+     |> assign(:editing_agent, user)
+     |> assign(:agent_form, to_form(params, as: "agent"))}
+  end
+
+  def handle_event("close-agent-modal", _params, socket) do
+    {:noreply, socket |> assign(:editing_agent, nil) |> assign(:agent_form, nil)}
+  end
+
+  def handle_event(
+        "validate-agent",
+        %{"agent" => params},
+        %{assigns: %{editing_agent: user}} = socket
+      ) do
+    changeset =
+      User.agent_changeset(user, Map.put(params, "email", user.email), validate_unique: false)
+
+    {:noreply, assign(socket, :agent_form, to_form(changeset, as: "agent", action: :validate))}
+  end
+
+  def handle_event("save-agent", %{"agent" => params}, socket) do
+    user = socket.assigns.editing_agent
+    attrs = Map.put(params, "email", user.email)
+
+    case Accounts.update_agent(socket.assigns.account, user, attrs) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:members, Accounts.list_account_users(socket.assigns.account))
+         |> assign(:editing_agent, nil)
+         |> assign(:agent_form, nil)
+         |> put_flash(:info, "Agent updated.")}
+
+      {:error, :last_admin} ->
+        {:noreply, put_flash(socket, :error, "The account needs at least one admin.")}
+
+      {:error, changeset} ->
+        {:noreply,
+         assign(socket, :agent_form, to_form(changeset, as: "agent", action: :validate))}
+    end
+  end
+
+  def handle_event("send-login-link", %{"id" => user_id}, socket) do
+    user = Accounts.get_user!(String.to_integer(user_id))
+    Accounts.deliver_login_instructions(user, &url(~p"/app/login/#{&1}"))
+
+    {:noreply, put_flash(socket, :info, "Login link sent to #{user.email}.")}
   end
 
   def handle_event(
@@ -714,13 +777,17 @@ defmodule ChatwooterWeb.SettingsLive do
                     {AppShell.initials(m.user.name || m.user.email)}
                   </span>
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold text-slate-900">
+                    <button
+                      phx-click="edit-agent"
+                      phx-value-id={m.user_id}
+                      class="truncate text-sm font-semibold text-slate-900 hover:text-brand hover:underline"
+                    >
                       {m.user.name || m.user.email}
-                      <span
-                        :if={m.user_id == @current_scope.user.id}
-                        class="ml-1 rounded bg-highlight px-1.5 text-[10px]"
-                      >you</span>
-                    </p>
+                    </button>
+                    <span
+                      :if={m.user_id == @current_scope.user.id}
+                      class="ml-1 rounded bg-highlight px-1.5 text-[10px]"
+                    >you</span>
                     <p class="truncate text-xs text-slate-500">{m.user.email}</p>
                   </div>
                 </div>
@@ -754,6 +821,71 @@ defmodule ChatwooterWeb.SettingsLive do
                     Remove
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div
+              :if={@editing_agent}
+              id="agent-modal"
+              class="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4"
+            >
+              <div class="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl">
+                <h3 class="mb-1 text-base font-bold text-slate-900">
+                  Edit agent — {@editing_agent.name || @editing_agent.email}
+                </h3>
+                <p class="mb-4 truncate text-xs text-slate-500">{@editing_agent.email}</p>
+                <.form
+                  for={@agent_form}
+                  id="agent-form"
+                  phx-change="validate-agent"
+                  phx-submit="save-agent"
+                >
+                  <.input field={@agent_form[:name]} type="text" label="Name" />
+                  <div class="grid grid-cols-2 gap-3">
+                    <.input
+                      field={@agent_form[:role]}
+                      type="select"
+                      label="Role"
+                      options={[Agent: "agent", Admin: "admin"]}
+                    />
+                    <.input
+                      field={@agent_form[:availability]}
+                      type="select"
+                      label="Availability"
+                      options={[Online: "online", Busy: "busy", Offline: "offline"]}
+                    />
+                  </div>
+                  <.input
+                    field={@agent_form[:auto_offline]}
+                    type="checkbox"
+                    label="Set to offline automatically on logout"
+                  />
+                  <div class="mt-5 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      phx-click="send-login-link"
+                      phx-value-id={@editing_agent.id}
+                      class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      Send login link
+                    </button>
+                    <div class="flex gap-2">
+                      <button
+                        type="button"
+                        phx-click="close-agent-modal"
+                        class="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-slate-600"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </.form>
               </div>
             </div>
           </div>

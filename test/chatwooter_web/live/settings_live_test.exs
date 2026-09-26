@@ -236,6 +236,40 @@ defmodule ChatwooterWeb.SettingsLiveTest do
              Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
   end
 
+  test "opens agent edit modal and renames", %{conn: conn, account: account} do
+    {:ok, agent} = Accounts.create_agent(account, %{name: "Agent", email: "agent@acme.inc"})
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/agents")
+
+    lv |> element("#member-#{agent.id} button[phx-click='edit-agent']") |> render_click()
+    assert has_element?(lv, "#agent-form")
+    assert render(lv) =~ "agent@acme.inc"
+
+    lv
+    |> form("#agent-form", agent: %{name: "Agent Renamed", role: "admin", availability: "busy"})
+    |> render_submit()
+
+    html = render(lv)
+    assert html =~ "Agent Renamed"
+    refute has_element?(lv, "#agent-form")
+
+    updated = Accounts.get_user_by_email("agent@acme.inc")
+    assert updated.name == "Agent Renamed"
+  end
+
+  test "agent edit modal shows validation errors", %{conn: conn, account: account} do
+    {:ok, agent} = Accounts.create_agent(account, %{name: "Agent", email: "agent@acme.inc"})
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/agents")
+
+    lv |> element("#member-#{agent.id} button[phx-click='edit-agent']") |> render_click()
+
+    html =
+      lv
+      |> form("#agent-form", agent: %{name: "", role: "agent", availability: "online"})
+      |> render_submit()
+
+    assert html =~ "can&#39;t be blank" or html =~ "can't be blank"
+  end
+
   test "changes agent availability", %{conn: conn, account: account} do
     {:ok, agent} = Accounts.create_agent(account, %{name: "Agent", email: "agent@acme.inc"})
     {:ok, lv, _html} = live(conn, ~p"/app/settings/agents")
