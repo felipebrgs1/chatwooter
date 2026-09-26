@@ -66,4 +66,5 @@ USER nobody
 ENV PORT="4000"
 EXPOSE 4000
 
-CMD ["/app/bin/chatwooter", "start"]
+# Migra o banco automaticamente no boot e depois sobe o servidor
+CMD ["sh", "-c", "/app/bin/chatwooter eval Chatwooter.Release.migrate && /app/bin/chatwooter start"]
