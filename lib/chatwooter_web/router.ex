@@ -56,6 +56,15 @@ defmodule ChatwooterWeb.Router do
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end
 
+    live_session :dashboard,
+      on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}],
+      root_layout: {ChatwooterWeb.Layouts, :auth_root} do
+      live "/app", DashboardLive, :index
+      live "/app/settings", SettingsLive, :general
+      live "/app/settings/inboxes", SettingsLive, :inboxes
+      live "/app/settings/agents", SettingsLive, :agents
+    end
+
     post "/users/update-password", UserSessionController, :update_password
   end
 

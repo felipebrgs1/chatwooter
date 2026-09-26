@@ -517,6 +517,6 @@ And **never** do this:
   Direção única: `Channels -> Conversations -> Contacts -> Inboxes -> Accounts`. `ChatwooterWeb` nunca toca `Repo` direto.
 - **TDD:** teste primeiro (`test/chatwooter/*_test.exs`, ExUnit + Ecto Sandbox + ExMachina + Mox). `mix precommit` verde antes de cada push.
 - **Canais:** todo HTTP com Meta/Telegram via `Req` atrás do Behaviour `Chatwooter.Channels.Channel`. Tokens em `provider_config` criptografado. Efeitos colaterais só via Oban.
-- **CSS:** Tailwind v4 CSS-first em `assets/css/app.css`. Tokens do dashboard em `@theme` (`--color-primary: #1f93ff` etc.). **Não usar `@apply`**.
+- **CSS:** Tailwind v4 CSS-first. Cor SÓ via tokens em `assets/css/tokens.css` (nunca hex nos templates): `brand*`, `ink`, `canvas`, `surface`, `highlight`, `line`, `bubble-*`, `note*`, `wa`, `tg`, `danger*` — light em `:root`, dark em `[data-theme="dark"]`. Nomes `primary/secondary/base-*/info/...` são da daisyUI, NÃO usar. **Não usar `@apply**.
 - Escopo v1: só WhatsApp Cloud API + Telegram Bot API. Outros canais = backlog pós-v1.
 <!-- chatwooter-project-end -->

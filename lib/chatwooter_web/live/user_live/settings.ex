@@ -1,7 +1,9 @@
 defmodule ChatwooterWeb.UserLive.Settings do
   use ChatwooterWeb, :live_view
 
-  on_mount {ChatwooterWeb.UserAuth, :require_sudo_mode}
+  # Viewing settings only needs authentication; sudo is enforced
+  # per-action in update_email/update_password.
+  on_mount {ChatwooterWeb.UserAuth, :require_authenticated}
 
   alias Chatwooter.Accounts
 
@@ -114,21 +116,24 @@ defmodule ChatwooterWeb.UserLive.Settings do
   def handle_event("update_email", params, socket) do
     %{"user" => user_params} = params
     user = socket.assigns.current_scope.user
-    true = Accounts.sudo_mode?(user)
 
-    case Accounts.change_user_email(user, user_params) do
-      %{valid?: true} = changeset ->
-        Accounts.deliver_user_update_email_instructions(
-          Ecto.Changeset.apply_action!(changeset, :insert),
-          user.email,
-          &url(~p"/users/settings/confirm-email/#{&1}")
-        )
+    if Accounts.sudo_mode?(user, -10) do
+      case Accounts.change_user_email(user, user_params) do
+        %{valid?: true} = changeset ->
+          Accounts.deliver_user_update_email_instructions(
+            Ecto.Changeset.apply_action!(changeset, :insert),
+            user.email,
+            &url(~p"/users/settings/confirm-email/#{&1}")
+          )
 
-        info = "A link to confirm your email change has been sent to the new address."
-        {:noreply, socket |> put_flash(:info, info)}
+          info = "A link to confirm your email change has been sent to the new address."
+          {:noreply, socket |> put_flash(:info, info)}
 
-      changeset ->
-        {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+        changeset ->
+          {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+      end
+    else
+      {:noreply, require_sudo(socket)}
     end
   end
 
@@ -147,14 +152,23 @@ defmodule ChatwooterWeb.UserLive.Settings do
   def handle_event("update_password", params, socket) do
     %{"user" => user_params} = params
     user = socket.assigns.current_scope.user
-    true = Accounts.sudo_mode?(user)
 
-    case Accounts.change_user_password(user, user_params) do
-      %{valid?: true} = changeset ->
-        {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
+    if Accounts.sudo_mode?(user, -10) do
+      case Accounts.change_user_password(user, user_params) do
+        %{valid?: true} = changeset ->
+          {:noreply, assign(socket, trigger_submit: true, password_form: to_form(changeset))}
 
-      changeset ->
-        {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+        changeset ->
+          {:noreply, assign(socket, password_form: to_form(changeset, action: :insert))}
+      end
+    else
+      {:noreply, require_sudo(socket)}
     end
+  end
+
+  defp require_sudo(socket) do
+    socket
+    |> put_flash(:error, "You must re-authenticate to access this page.")
+    |> push_navigate(to: ~p"/users/log-in")
   end
 end

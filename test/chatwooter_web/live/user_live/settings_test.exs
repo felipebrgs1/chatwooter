@@ -24,16 +24,29 @@ defmodule ChatwooterWeb.UserLive.SettingsTest do
       assert %{"error" => "You must log in to access this page."} = flash
     end
 
-    test "redirects if user is not in sudo mode", %{conn: conn} do
-      {:ok, conn} =
+    test "renders even if user is not in sudo mode (sudo is per-action)", %{conn: conn} do
+      {:ok, _lv, html} =
         conn
         |> log_in_user(user_fixture(),
           token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
         )
         |> live(~p"/users/settings")
-        |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert conn.resp_body =~ "You must re-authenticate to access this page."
+      assert html =~ "Change Email"
+    end
+
+    test "update email redirects to login instead of crashing when sudo expired", %{conn: conn} do
+      {:ok, lv, _html} =
+        conn
+        |> log_in_user(user_fixture(),
+          token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+        )
+        |> live(~p"/users/settings")
+
+      assert {:error, {:live_redirect, %{to: "/users/log-in"}}} =
+               lv
+               |> form("#email_form", user: %{email: "new@example.com"})
+               |> render_submit()
     end
   end
 

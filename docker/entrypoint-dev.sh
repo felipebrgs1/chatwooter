@@ -5,6 +5,7 @@ set -e
 mix deps.get
 mix ecto.create
 mix ecto.migrate
+mix run priv/repo/seeds.exs
 mix assets.setup
 mix assets.build
 

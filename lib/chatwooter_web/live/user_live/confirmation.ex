@@ -6,11 +6,12 @@ defmodule ChatwooterWeb.UserLive.Confirmation do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm">
-        <div class="text-center">
-          <.header>Welcome {@user.email}</.header>
-        </div>
+    <div class="mx-auto max-w-sm space-y-6 px-6 py-12">
+      <div>
+        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Welcome {@user.email}</h2>
+      </div>
+
+      <Layouts.flash_group flash={@flash} />
 
         <.form
           :if={!@user.confirmed_at}
@@ -26,11 +27,12 @@ defmodule ChatwooterWeb.UserLive.Confirmation do
             name={@form[:remember_me].name}
             value="true"
             phx-disable-with="Confirming..."
-            class="btn btn-primary w-full"
+            variant="primary"
+            class="w-full"
           >
             Confirm and stay logged in
           </.button>
-          <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
+          <.button phx-disable-with="Confirming..." variant="secondary" class="w-full mt-2">
             Confirm and log in only this time
           </.button>
         </.form>
@@ -46,7 +48,7 @@ defmodule ChatwooterWeb.UserLive.Confirmation do
         >
           <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
           <%= if @current_scope do %>
-            <.button phx-disable-with="Logging in..." class="btn btn-primary w-full">
+            <.button phx-disable-with="Logging in..." variant="primary" class="w-full">
               Log in
             </.button>
           <% else %>
@@ -54,11 +56,12 @@ defmodule ChatwooterWeb.UserLive.Confirmation do
               name={@form[:remember_me].name}
               value="true"
               phx-disable-with="Logging in..."
-              class="btn btn-primary w-full"
+              variant="primary"
+              class="w-full"
             >
               Keep me logged in on this device
             </.button>
-            <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">
+            <.button phx-disable-with="Logging in..." variant="secondary" class="w-full mt-2">
               Log me in only this time
             </.button>
           <% end %>
@@ -67,8 +70,7 @@ defmodule ChatwooterWeb.UserLive.Confirmation do
         <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
           Tip: If you prefer passwords, you can enable them in the user settings.
         </p>
-      </div>
-    </Layouts.app>
+    </div>
     """
   end
 

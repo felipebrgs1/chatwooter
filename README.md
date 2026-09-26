@@ -76,7 +76,8 @@ elixir --version  # Elixir 1.20.x
 docker compose up --build -d   # primeira vez compila deps (~3-5 min)
 docker compose logs -f web     # acompanhe até "Running ChatwooterWeb.Endpoint"
 # -> http://localhost:4000
-# registro: http://localhost:4000/users/register (link mágico em /dev/mailbox)
+# login: http://localhost:4000/users/log-in
+# conta seed (criada pelo seeds.exs): john@acme.inc / Password123! (admin da "Acme Inc")
 ```
 
 ### Local (precisa Erlang/OTP completo + Postgres na 5432)
@@ -269,10 +270,10 @@ Auth API: `Authorization: Bearer <access_token>`. OpenAPI via `OpenApiSpex` (a g
 | Fase | Entrega | DoD |
 |---|---|---|
 | 0 (1–2 sem) | base Phoenix 1.8 + CI + auth | login + CI verde — ✅ base + auth LiveView (`Accounts/User`, 115 testes verdes); CI pendente |
-| 1 (3–5) | contexts core + LiveView 3 colunas | 2 agentes conversam realtime, cov >85% |
+| 1 (3–5) | contexts core + LiveView 3 colunas | 2 agentes conversam realtime, cov >85% — ✅ `Inboxes/Contacts/Conversations` + `/app` funcional com seeds demo |
 | 2 (6–7) | Telegram fim-a-fim | celular→inbox→resposta <3s |
 | 3 (8–10) | WhatsApp fim-a-fim + templates | receipts na UI + 24h/template ok |
-| 4 (11–12) | atribuição, labels, canned, API v1 | fluxo suporte sem SQL |
+| 4 (11–12) | atribuição, labels, canned, API v1 | fluxo suporte sem SQL — 🔄 settings da conta pronto (General/Inboxes/Agents); resto pendente |
 | 5 (13–14) | hardening + deploy | p95 webhook <400ms, 0 credo issues |
 
 Estimativa: ~14 sem (1 sênior) · ~8–9 sem (2 devs).

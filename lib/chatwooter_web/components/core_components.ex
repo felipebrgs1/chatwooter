@@ -89,24 +89,48 @@ defmodule ChatwooterWeb.CoreComponents do
   @doc """
   Renders a button with navigation support.
 
+  Chatwooter design system — do not style buttons ad-hoc in templates,
+  use `variant` + `size` here so every button in the app looks the same.
+
   ## Examples
 
       <.button>Send!</.button>
-      <.button phx-click="go" variant="primary">Send!</.button>
+      <.button variant="secondary" size="sm">Cancel</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :class, :any, default: nil, doc: "extra classes (width, margins…) — never colors or padding"
+  attr :variant, :string, default: "primary", values: ~w(primary secondary soft ghost danger)
+  attr :size, :string, default: "md", values: ~w(sm md lg)
   slot :inner_block, required: true
 
-  def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+  def button(assigns) do
+    base =
+      "inline-flex cursor-pointer items-center justify-center gap-2 font-semibold rounded-xl " <>
+        "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand " <>
+        "focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+
+    variants = %{
+      "primary" => "bg-brand text-white shadow-sm hover:bg-brand-strong active:bg-brand-deep",
+      "secondary" =>
+        "border border-slate-300 bg-surface text-slate-700 shadow-sm hover:bg-slate-50 active:bg-slate-100",
+      "soft" => "bg-brand/10 text-brand-deep hover:bg-brand/15 active:bg-brand/20",
+      "ghost" => "text-slate-600 hover:bg-slate-100 active:bg-slate-200",
+      "danger" => "bg-danger text-white shadow-sm hover:bg-danger-strong active:bg-danger-deep"
+    }
+
+    sizes = %{
+      "sm" => "px-3 py-1.5 text-[13px]",
+      "md" => "px-4 py-2.5 text-sm",
+      "lg" => "px-5 py-3 text-[15px]"
+    }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns,
+        class: [base, Map.fetch!(variants, assigns.variant), Map.fetch!(sizes, assigns.size), assigns.class]
+      )
+
+    rest = assigns.rest
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""

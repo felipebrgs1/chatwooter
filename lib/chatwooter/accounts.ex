@@ -342,4 +342,91 @@ defmodule Chatwooter.Accounts do
   def list_user_accounts(%User{id: user_id}) do
     Repo.all(from a in Account, join: m in assoc(a, :account_users), where: m.user_id == ^user_id)
   end
+
+  ## Account settings (Chatwoot-style)
+
+  def update_account(%Account{} = account, attrs) do
+    account
+    |> Account.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def add_member(%Account{} = account, %User{} = user, role \\ "agent") do
+    %AccountUser{}
+    |> AccountUser.changeset(%{account_id: account.id, user_id: user.id, role: role})
+    |> Repo.insert()
+  end
+
+  @doc """
+  Changes a member role. Refuses to demote the last admin.
+  """
+  def update_member_role(%Account{} = account, %User{} = user, role) do
+    case Repo.get_by(AccountUser, account_id: account.id, user_id: user.id) do
+      nil ->
+        {:error, :not_found}
+
+      %AccountUser{role: :admin} = membership ->
+        if to_string(role) != "admin" and admin_count(account) <= 1 do
+          {:error, :last_admin}
+        else
+          update_membership_role(membership, role)
+        end
+
+      %AccountUser{} = membership ->
+        update_membership_role(membership, role)
+    end
+  end
+
+  @doc """
+  Removes a member. Refuses to remove the last admin.
+  """
+  def remove_member(%Account{} = account, %User{} = user) do
+    case Repo.get_by(AccountUser, account_id: account.id, user_id: user.id) do
+      nil ->
+        {:error, :not_found}
+
+      %AccountUser{role: :admin} = membership ->
+        if admin_count(account) <= 1 do
+          {:error, :last_admin}
+        else
+          Repo.delete(membership)
+        end
+
+      %AccountUser{} = membership ->
+        Repo.delete(membership)
+    end
+  end
+
+  defp admin_count(%Account{id: account_id}) do
+    Repo.aggregate(
+      from(m in AccountUser, where: m.account_id == ^account_id and m.role == :admin),
+      :count
+    )
+  end
+
+  defp update_membership_role(membership, role) do
+    membership
+    |> AccountUser.changeset(%{role: role})
+    |> Repo.update()
+  end
+
+  @doc """
+  Invites someone by email: reuses the user if they exist, otherwise
+  registers them, then adds as `agent`. The caller sends the login email.
+  """
+  def invite_member(%Account{} = account, email) when is_binary(email) do
+    case get_user_by_email(email) do
+      nil ->
+        with {:ok, user} <- register_user(%{email: email}),
+             {:ok, _} <- add_member(account, user, "agent") do
+          {:ok, user}
+        end
+
+      %User{} = user ->
+        case add_member(account, user, "agent") do
+          {:ok, _} -> {:ok, user}
+          {:error, _} = error -> error
+        end
+    end
+  end
 end

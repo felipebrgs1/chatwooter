@@ -1,0 +1,101 @@
+/* ------------------------------------------------------------------
+   Chatwooter design tokens — fonte única de cor do projeto (estilo shadcn).
+   Tudo que for cor nova entra AQUI, nunca hardcodada nos templates.
+
+   Como usar: bg-brand, text-brand, bg-canvas, bg-surface, bg-ink,
+              bg-highlight, bg-wa, text-tg, bg-danger, ring-brand ...
+
+   ATENÇÃO: nomes `primary / secondary / base-* / info / success / warning /
+   error` pertencem à daisyUI — NÃO usar (ex: bg-primary é laranja da daisyUI).
+   Nossos tokens usam prefixos próprios: brand, ink, canvas, surface, wa, tg.
+
+   Troca light/dark em runtime via [data-theme] (ver root.html.heex).
+   Por isso o mapeamento usa `@theme inline` + var(): o valor é resolvido
+   no browser, não no build — dark mode funciona sem rebuild.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* brand — azul default */
+  --brand: #1f93ff;
+  --brand-strong: #1976cc; /* hover */
+  --brand-deep: #1565b0; /* active / texto sobre fundo claro */
+  --brand-soft: #e8f3fe; /* fundo claro */
+
+  /* superfícies */
+  --ink: #1f2937; /* sidebar, headings invertidos */
+  --canvas: #f8fafc; /* fundo do app */
+  --surface: #ffffff; /* cards, painéis, thread */
+  --highlight: #e9eff5; /* seleção, bolha do agente */
+  --line: #e5e7eb; /* bordas sutis */
+
+  /* bolhas e notas */
+  --bubble-agent: #e9eff5;
+  --bubble-contact: #ffffff;
+  --note: #fef3c7;
+  --note-border: #fcd34d;
+
+  /* canais */
+  --wa: #25d366; /* whatsapp */
+  --tg: #229ed9; /* telegram */
+
+  /* perigo */
+  --danger: #dc2626;
+  --danger-strong: #b91c1c;
+  --danger-deep: #991b1b;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --brand: #38a4ff;
+  --brand-strong: #1f93ff;
+  --brand-deep: #7cc4ff;
+  --brand-soft: #12395c;
+
+  --ink: #0b1220;
+  --canvas: #0f172a;
+  --surface: #1e293b;
+  --highlight: #1c3a5a;
+  --line: #334155;
+
+  --bubble-agent: #24405e;
+  --bubble-contact: #1e293b;
+  --note: #4a3a12;
+  --note-border: #92690e;
+
+  --wa: #25d366;
+  --tg: #229ed9;
+
+  --danger: #f87171;
+  --danger-strong: #ef4444;
+  --danger-deep: #dc2626;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-ink: var(--ink);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-highlight: var(--highlight);
+  --color-line: var(--line);
+
+  --color-bubble-agent: var(--bubble-agent);
+  --color-bubble-contact: var(--bubble-contact);
+  --color-note: var(--note);
+  --color-note-border: var(--note-border);
+
+  --color-wa: var(--wa);
+  --color-tg: var(--tg);
+
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-danger-deep: var(--danger-deep);
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}

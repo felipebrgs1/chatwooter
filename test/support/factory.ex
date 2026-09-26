@@ -10,6 +10,9 @@ defmodule Chatwooter.Factory do
   use ExMachina.Ecto, repo: Chatwooter.Repo
 
   alias Chatwooter.Accounts.{Account, User}
+  alias Chatwooter.Contacts.Contact
+  alias Chatwooter.Conversations.{Conversation, Message}
+  alias Chatwooter.Inboxes.Inbox
 
   def user_factory do
     %User{
@@ -22,6 +25,31 @@ defmodule Chatwooter.Factory do
   def account_factory do
     %Account{
       name: sequence(:account_name, &"Account #{&1}")
+    }
+  end
+
+  def inbox_factory do
+    %Inbox{
+      name: sequence(:inbox_name, &"Inbox #{&1}"),
+      channel_type: :whatsapp
+    }
+  end
+
+  def contact_factory do
+    %Contact{
+      name: "Maria Silva",
+      phone_number: sequence(:phone_number, &"+55119#{10_000_000 + &1}")
+    }
+  end
+
+  def conversation_factory do
+    %Conversation{status: :open}
+  end
+
+  def message_factory do
+    %Message{
+      content: sequence(:message_content, &"Message #{&1}"),
+      message_type: :incoming
     }
   end
 end

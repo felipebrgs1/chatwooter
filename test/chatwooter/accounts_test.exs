@@ -426,4 +426,59 @@ defmodule Chatwooter.AccountsTest do
       assert [] = Accounts.list_user_accounts(outsider)
     end
   end
+
+  describe "account settings" do
+    setup do
+      owner = insert(:user)
+      {:ok, account} = Accounts.create_account(%{name: "Acme"}, owner)
+      %{account: account, owner: owner}
+    end
+
+    test "update_account/2 renames the account", %{account: account} do
+      assert {:ok, %Account{name: "Acme Inc"}} =
+               Accounts.update_account(account, %{name: "Acme Inc"})
+    end
+
+    test "update_member_role/3 promotes an agent", %{account: account} do
+      agent = insert(:user)
+      {:ok, _} = Accounts.add_member(account, agent, "agent")
+
+      assert {:ok, %AccountUser{role: :admin}} =
+               Accounts.update_member_role(account, agent, "admin")
+    end
+
+    test "update_member_role/3 refuses to demote the last admin", %{
+      account: account,
+      owner: owner
+    } do
+      assert {:error, :last_admin} = Accounts.update_member_role(account, owner, "agent")
+    end
+
+    test "remove_member/2 removes an agent", %{account: account} do
+      agent = insert(:user)
+      {:ok, _} = Accounts.add_member(account, agent, "agent")
+
+      assert {:ok, _} = Accounts.remove_member(account, agent)
+      assert [%AccountUser{role: :admin}] = Accounts.list_account_users(account)
+    end
+
+    test "remove_member/2 refuses to remove the last admin", %{
+      account: account,
+      owner: owner
+    } do
+      assert {:error, :last_admin} = Accounts.remove_member(account, owner)
+    end
+
+    test "invite_member/2 creates a user and adds them as agent", %{account: account} do
+      assert {:ok, user} = Accounts.invite_member(account, "agent@acme.inc")
+      assert user.email == "agent@acme.inc"
+
+      assert [%AccountUser{role: :admin}, %AccountUser{role: :agent}] =
+               Enum.sort_by(Accounts.list_account_users(account), & &1.role)
+    end
+
+    test "invite_member/2 errors when already a member", %{account: account, owner: owner} do
+      assert {:error, _} = Accounts.invite_member(account, owner.email)
+    end
+  end
 end
