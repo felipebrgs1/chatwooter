@@ -414,22 +414,70 @@ defmodule Chatwooter.Accounts do
   end
 
   @doc """
+  Creates an agent like Chatwoot's `AgentBuilder`: reuses the user by email
+  (blank name defaults to the email prefix), otherwise registers them, then
+  adds the membership with role/availability. The caller sends the login email.
+  """
+  def create_agent(%Account{} = account, attrs) do
+    email = attrs[:email] || attrs["email"]
+
+    case email && get_user_by_email(email) do
+      %User{} = user ->
+        case add_member(account, user, attrs[:role] || attrs["role"] || "agent") do
+          {:ok, _} -> {:ok, user}
+          {:error, _} = error -> error
+        end
+
+      _ ->
+        with {:ok, user} <- %User{} |> User.agent_changeset(attrs) |> Repo.insert() do
+          membership_attrs = %{
+            account_id: account.id,
+            user_id: user.id,
+            role: attrs[:role] || attrs["role"] || "agent",
+            availability: attrs[:availability] || attrs["availability"] || "offline",
+            auto_offline: attrs[:auto_offline] || attrs["auto_offline"] || false
+          }
+
+          case %AccountUser{} |> AccountUser.changeset(membership_attrs) |> Repo.insert() do
+            {:ok, _} -> {:ok, user}
+            {:error, _} = error -> error
+          end
+        end
+    end
+  end
+
+  @doc """
+  Updates an agent like Chatwoot's agents controller: the user name plus the
+  membership role/availability. Refuses to demote the last admin.
+  """
+  def update_agent(%Account{} = account, %User{} = user, attrs) do
+    membership = Repo.get_by(AccountUser, account_id: account.id, user_id: user.id)
+
+    with %AccountUser{} <- membership || {:error, :not_found},
+         :ok <- check_last_admin(account, membership, attrs),
+         {:ok, user} <- user |> User.agent_changeset(attrs) |> Repo.update(),
+         {:ok, _} <- membership |> AccountUser.membership_changeset(attrs) |> Repo.update() do
+      {:ok, user}
+    end
+  end
+
+  defp check_last_admin(account, %AccountUser{role: :admin}, attrs) do
+    role = attrs[:role] || attrs["role"]
+
+    if (role && to_string(role) != "admin") and admin_count(account) <= 1 do
+      {:error, :last_admin}
+    else
+      :ok
+    end
+  end
+
+  defp check_last_admin(_account, _membership, _attrs), do: :ok
+
+  @doc """
   Invites someone by email: reuses the user if they exist, otherwise
   registers them, then adds as `agent`. The caller sends the login email.
   """
   def invite_member(%Account{} = account, email) when is_binary(email) do
-    case get_user_by_email(email) do
-      nil ->
-        with {:ok, user} <- register_user(%{email: email}),
-             {:ok, _} <- add_member(account, user, "agent") do
-          {:ok, user}
-        end
-
-      %User{} = user ->
-        case add_member(account, user, "agent") do
-          {:ok, _} -> {:ok, user}
-          {:error, _} = error -> error
-        end
-    end
+    create_agent(account, %{email: email})
   end
 end

@@ -65,9 +65,11 @@ defmodule ChatwooterWeb.AppShell do
       <div class="border-t border-white/10 p-4">
         <div class="flex items-center gap-3">
           <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-            {initials(@current_scope.user.email)}
+            {initials(@current_scope.user.name || @current_scope.user.email)}
           </span>
-          <p class="truncate text-xs text-slate-300">{@current_scope.user.email}</p>
+          <p class="truncate text-xs text-slate-300">
+            {@current_scope.user.name || @current_scope.user.email}
+          </p>
         </div>
         <.link
           href={~p"/app/logout"}

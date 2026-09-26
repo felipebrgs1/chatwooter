@@ -3,6 +3,7 @@ defmodule Chatwooter.Accounts.User do
   import Ecto.Changeset
 
   schema "users" do
+    field :name, :string
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
@@ -101,6 +102,44 @@ defmodule Chatwooter.Accounts.User do
       # would keep the database transaction open longer and hurt performance.
       |> put_change(:hashed_password, Bcrypt.hash_pwd_salt(password))
       |> delete_change(:password)
+    else
+      changeset
+    end
+  end
+
+  @doc """
+  Changeset for agent profile (name + email), mirroring Chatwoot's
+  `AgentBuilder` (blank name defaults to the email prefix).
+  """
+  def agent_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:name, :email])
+    |> default_name_from_email()
+    |> validate_required([:name, :email])
+    |> validate_length(:name, min: 2, max: 160)
+    |> validate_format(:email, ~r/^[^@,;\s]+@[^@,;\s]+$/,
+      message: "must have the @ sign and no spaces"
+    )
+    |> validate_length(:email, max: 160)
+    |> maybe_validate_unique_email(opts)
+  end
+
+  defp maybe_validate_unique_email(changeset, opts) do
+    if Keyword.get(opts, :validate_unique, true) do
+      changeset
+      |> unsafe_validate_unique(:email, Chatwooter.Repo)
+      |> unique_constraint(:email)
+    else
+      changeset
+    end
+  end
+
+  defp default_name_from_email(changeset) do
+    name = get_change(changeset, :name)
+    email = get_change(changeset, :email) || get_field(changeset, :email)
+
+    if (is_nil(name) or String.trim(name) == "") and is_binary(email) do
+      put_change(changeset, :name, email |> String.split("@") |> hd())
     else
       changeset
     end

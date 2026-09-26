@@ -49,7 +49,10 @@ defmodule ChatwooterWeb.SettingsLive do
        |> assign(:members, Accounts.list_account_users(account))
        |> assign(:account_form, to_form(Account.changeset(account, %{}), as: "account"))
        |> assign(:inbox_form, to_form(%{"name" => "", "channel_type" => "whatsapp"}, as: "inbox"))
-       |> assign(:invite_form, to_form(%{"email" => ""}, as: "invite"))
+       |> assign(
+         :invite_form,
+         to_form(%{"name" => "", "email" => "", "role" => "agent"}, as: "invite")
+       )
        |> assign(:editing_inbox_id, nil)
        |> assign(:editing_channel, nil)
        |> assign(:provider_token, nil)
@@ -190,26 +193,40 @@ defmodule ChatwooterWeb.SettingsLive do
     end
   end
 
-  def handle_event("invite", %{"invite" => %{"email" => email}}, socket) do
-    case Accounts.invite_member(socket.assigns.account, String.trim(email)) do
+  def handle_event("invite", %{"invite" => params}, socket) do
+    attrs = %{
+      "name" => String.trim(params["name"] || ""),
+      "email" => String.trim(params["email"] || ""),
+      "role" => params["role"] || "agent"
+    }
+
+    case Accounts.create_agent(socket.assigns.account, attrs) do
       {:ok, user} ->
         Accounts.deliver_login_instructions(user, &url(~p"/app/login/#{&1}"))
 
         {:noreply,
          socket
          |> assign(:members, Accounts.list_account_users(socket.assigns.account))
-         |> assign(:invite_form, to_form(%{"email" => ""}, as: "invite"))
+         |> assign(
+           :invite_form,
+           to_form(%{"name" => "", "email" => "", "role" => "agent"}, as: "invite")
+         )
          |> put_flash(:info, "Invitation sent to #{user.email}.")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not invite (already a member?).")}
+        {:noreply,
+         put_flash(socket, :error, "Could not invite (invalid data or already a member?).")}
     end
   end
 
   def handle_event("change-role", %{"role" => role, "id" => user_id}, socket) do
     user = Accounts.get_user!(String.to_integer(user_id))
 
-    case Accounts.update_member_role(socket.assigns.account, user, role) do
+    case Accounts.update_agent(socket.assigns.account, user, %{
+           role: role,
+           email: user.email,
+           name: user.name || ""
+         }) do
       {:ok, _} ->
         {:noreply,
          socket
@@ -221,6 +238,29 @@ defmodule ChatwooterWeb.SettingsLive do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not update role.")}
+    end
+  end
+
+  def handle_event(
+        "change-availability",
+        %{"availability" => availability, "id" => user_id},
+        socket
+      ) do
+    user = Accounts.get_user!(String.to_integer(user_id))
+
+    case Accounts.update_agent(socket.assigns.account, user, %{
+           availability: availability,
+           email: user.email,
+           name: user.name || ""
+         }) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:members, Accounts.list_account_users(socket.assigns.account))
+         |> put_flash(:info, "Availability updated.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not update availability.")}
     end
   end
 
@@ -629,7 +669,6 @@ defmodule ChatwooterWeb.SettingsLive do
             <div class="mb-6 rounded-xl border border-line bg-surface p-6">
               <h3 class="mb-4 text-sm font-semibold text-slate-900">Invite agent</h3>
               <.form
-                :let={f}
                 for={@invite_form}
                 id="invite-form"
                 phx-submit="invite"
@@ -637,11 +676,27 @@ defmodule ChatwooterWeb.SettingsLive do
               >
                 <div class="flex-1">
                   <.input
-                    field={f[:email]}
+                    field={@invite_form[:name]}
+                    type="text"
+                    label="Name"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+                <div class="flex-1">
+                  <.input
+                    field={@invite_form[:email]}
                     type="email"
                     label="Email"
                     placeholder="agent@acme.inc"
                     required
+                  />
+                </div>
+                <div>
+                  <.input
+                    field={@invite_form[:role]}
+                    type="select"
+                    label="Role"
+                    options={[Agent: "agent", Admin: "admin"]}
                   />
                 </div>
                 <.button variant="primary">Send invite</.button>
@@ -656,19 +711,30 @@ defmodule ChatwooterWeb.SettingsLive do
               >
                 <div class="flex min-w-0 items-center gap-3">
                   <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-                    {AppShell.initials(m.user.email)}
+                    {AppShell.initials(m.user.name || m.user.email)}
                   </span>
                   <div class="min-w-0">
                     <p class="truncate text-sm font-semibold text-slate-900">
-                      {m.user.email}
+                      {m.user.name || m.user.email}
                       <span
                         :if={m.user_id == @current_scope.user.id}
                         class="ml-1 rounded bg-highlight px-1.5 text-[10px]"
                       >you</span>
                     </p>
+                    <p class="truncate text-xs text-slate-500">{m.user.email}</p>
                   </div>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
+                  <select
+                    name="availability"
+                    phx-change="change-availability"
+                    phx-value-id={m.user_id}
+                    class="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold"
+                  >
+                    <option value="online" selected={m.availability == :online}>Online</option>
+                    <option value="busy" selected={m.availability == :busy}>Busy</option>
+                    <option value="offline" selected={m.availability == :offline}>Offline</option>
+                  </select>
                   <select
                     name="role"
                     phx-change="change-role"

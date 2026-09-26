@@ -213,21 +213,41 @@ defmodule ChatwooterWeb.SettingsLiveTest do
 
     html =
       lv
-      |> form("#invite-form", invite: %{email: "agent@acme.inc"})
+      |> form("#invite-form", invite: %{name: "Agent", email: "agent@acme.inc", role: "agent"})
       |> render_submit()
 
+    assert html =~ "Agent"
     assert html =~ "agent@acme.inc"
 
     member = Accounts.get_user_by_email("agent@acme.inc")
+    assert member.name == "Agent"
+
+    assert [%{role: :agent, availability: :offline}] =
+             Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
 
     html =
       lv
-      |> element("#member-#{member.id} select")
+      |> element("#member-#{member.id} select[name='role']")
       |> render_change(%{"role" => "admin", "id" => to_string(member.id)})
 
     assert html =~ "admin"
 
     assert [%{role: :admin}] =
              Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
+  end
+
+  test "changes agent availability", %{conn: conn, account: account} do
+    {:ok, agent} = Accounts.create_agent(account, %{name: "Agent", email: "agent@acme.inc"})
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/agents")
+
+    html =
+      lv
+      |> element("#member-#{agent.id} select[name='availability']")
+      |> render_change(%{"availability" => "busy", "id" => to_string(agent.id)})
+
+    assert html =~ "Availability updated." or html =~ "busy"
+
+    assert [%{availability: :busy}] =
+             Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == agent.id))
   end
 end
