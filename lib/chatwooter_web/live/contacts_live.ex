@@ -2,7 +2,7 @@ defmodule ChatwooterWeb.ContactsLive do
   @moduledoc "Contatos estilo Chatwoot: cards expansíveis + página de detalhe."
   use ChatwooterWeb, :live_view
 
-  alias Chatwooter.{Accounts, Contacts, Conversations}
+  alias Chatwooter.{Accounts, Companies, Contacts, Conversations}
   alias Chatwooter.Contacts.Contact
   alias ChatwooterWeb.AppShell
 
@@ -17,6 +17,7 @@ defmodule ChatwooterWeb.ContactsLive do
       |> assign(:contact, nil)
       |> assign(:contact_conversations, [])
       |> assign(:search, "")
+      |> assign(:company_options, [])
       |> assign(:expanded_id, nil)
       |> assign(:modal_open, false)
       |> assign(
@@ -74,8 +75,12 @@ defmodule ChatwooterWeb.ContactsLive do
   end
 
   def handle_event("save", %{"contact" => params}, %{assigns: %{account: account}} = socket) do
+    {company_id, params} = Map.pop(params, "company_id")
+
     case Contacts.create_contact(account, merge_extras(params, %{})) do
-      {:ok, _contact} ->
+      {:ok, contact} ->
+        _linked = link_company(account, contact, company_id)
+
         {:noreply,
          socket
          |> assign(:modal_open, false)
@@ -115,10 +120,14 @@ defmodule ChatwooterWeb.ContactsLive do
   end
 
   def handle_event("quick-save", %{"contact" => params}, socket) do
-    contact = Contacts.get_contact!(socket.assigns.account, socket.assigns.expanded_id)
+    account = socket.assigns.account
+    contact = Contacts.get_contact!(account, socket.assigns.expanded_id)
+    {company_id, params} = Map.pop(params, "company_id")
 
     case Contacts.update_contact(contact, merge_extras(params, contact)) do
-      {:ok, updated} ->
+      {:ok, contact} ->
+        updated = link_company(account, contact, company_id)
+
         socket =
           socket
           |> assign(:expanded_id, nil)
@@ -157,6 +166,11 @@ defmodule ChatwooterWeb.ContactsLive do
 
   defp load_contacts(%{assigns: %{account: account, search: q}} = socket) do
     contacts = Contacts.list_contacts(account)
+
+    options =
+      [{"No company", ""}] ++ Enum.map(Companies.list_companies(account), &{&1.name, &1.id})
+
+    socket = assign(socket, :company_options, options)
     query = String.downcase(String.trim(q))
 
     filtered =
@@ -204,6 +218,26 @@ defmodule ChatwooterWeb.ContactsLive do
   defp contact_additional(%Contact{additional_attributes: attrs}) when is_map(attrs), do: attrs
   defp contact_additional(_contact), do: %{}
 
+  defp link_company(_account, contact, company_id) when company_id in [nil, ""] do
+    if contact.company_id do
+      {:ok, unlinked} =
+        Contacts.update_contact(contact, %{
+          company_id: nil,
+          additional_attributes: Map.delete(contact.additional_attributes || %{}, "company_name")
+        })
+
+      unlinked
+    else
+      contact
+    end
+  end
+
+  defp link_company(account, contact, company_id) do
+    company = Companies.get_company!(account, company_id)
+    {:ok, linked} = Contacts.assign_company(contact, company)
+    linked
+  end
+
   defp flatten(%Contact{} = contact) do
     extra = contact_additional(contact)
 
@@ -211,7 +245,7 @@ defmodule ChatwooterWeb.ContactsLive do
       "name" => contact.name || "",
       "phone_number" => contact.phone_number || "",
       "email" => contact.email || "",
-      "company" => extra["company_name"] || "",
+      "company_id" => if(contact.company_id, do: to_string(contact.company_id), else: ""),
       "city" => extra["city"] || "",
       "country" => extra["country"] || ""
     }
@@ -340,7 +374,12 @@ defmodule ChatwooterWeb.ContactsLive do
                     <.input field={@quick_form[:name]} type="text" label="Name" />
                     <.input field={@quick_form[:email]} type="email" label="Email" />
                     <.input field={@quick_form[:phone_number]} type="text" label="Phone" />
-                    <.input field={@quick_form[:company]} type="text" label="Company" />
+                    <.input
+                      field={@quick_form[:company_id]}
+                      type="select"
+                      label="Company"
+                      options={@company_options}
+                    />
                     <.input field={@quick_form[:city]} type="text" label="City" />
                     <.input field={@quick_form[:country]} type="text" label="Country" />
                   </div>
@@ -424,7 +463,12 @@ defmodule ChatwooterWeb.ContactsLive do
                   <.input field={@quick_form[:name]} type="text" label="Name" />
                   <.input field={@quick_form[:email]} type="email" label="Email" />
                   <.input field={@quick_form[:phone_number]} type="text" label="Phone" />
-                  <.input field={@quick_form[:company]} type="text" label="Company" />
+                  <.input
+                    field={@quick_form[:company_id]}
+                    type="select"
+                    label="Company"
+                    options={@company_options}
+                  />
                   <.input field={@quick_form[:city]} type="text" label="City" />
                   <.input field={@quick_form[:country]} type="text" label="Country" />
                 </div>
@@ -500,7 +544,12 @@ defmodule ChatwooterWeb.ContactsLive do
               placeholder="+5511999990001"
             />
             <.input field={@form[:email]} type="email" label="Email" placeholder="maria@example.com" />
-            <.input field={@form[:company]} type="text" label="Company" />
+            <.input
+              field={@form[:company_id]}
+              type="select"
+              label="Company"
+              options={@company_options}
+            />
             <div class="grid grid-cols-2 gap-3">
               <.input field={@form[:city]} type="text" label="City" />
               <.input field={@form[:country]} type="text" label="Country" />

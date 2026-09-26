@@ -17,6 +17,8 @@ defmodule ChatwooterWeb.ContactsLiveTest do
   end
 
   test "lists contacts as cards and creates one via modal", %{conn: conn, account: account} do
+    {:ok, other_co} = Chatwooter.Companies.create_company(account, %{name: "Other"})
+
     {:ok, _} =
       Contacts.create_contact(account, %{
         name: "Maria",
@@ -40,7 +42,7 @@ defmodule ChatwooterWeb.ContactsLiveTest do
 
     lv
     |> form("#contact-form",
-      contact: %{name: "João", phone_number: "+5511922222222", company: "Other"}
+      contact: %{name: "João", phone_number: "+5511922222222", company_id: other_co.id}
     )
     |> render_submit()
 

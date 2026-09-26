@@ -5,6 +5,7 @@ defmodule Chatwooter.Contacts do
   alias Chatwooter.Repo
 
   alias Chatwooter.Accounts.Account
+  alias Chatwooter.Companies.Company
   alias Chatwooter.Contacts.{Contact, ContactInbox}
   alias Chatwooter.Inboxes.Inbox
 
@@ -41,6 +42,39 @@ defmodule Chatwooter.Contacts do
   @doc "Changeset para formulários (sem persistir)."
   def change_contact(%Contact{} = contact, attrs \\ %{}) do
     Contact.changeset(contact, attrs)
+  end
+
+  @doc "Contatos vinculados a uma empresa."
+  def list_company_contacts(%Company{id: company_id}) do
+    Contact
+    |> where([c], c.company_id == ^company_id)
+    |> order_by([c], asc: c.name)
+    |> Repo.all()
+  end
+
+  @doc "Vincula um contato à empresa (sincroniza o nome da empresa)."
+  def assign_company(%Contact{} = contact, %Company{id: company_id, name: name}) do
+    contact
+    |> Contact.changeset(%{
+      company_id: company_id,
+      additional_attributes: Map.put(contact.additional_attributes || %{}, "company_name", name)
+    })
+    |> Repo.update()
+  end
+
+  @doc "Atualiza o nome denormalizado da empresa nos contatos vinculados."
+  def sync_company_name(company_id, name) do
+    contacts = Repo.all(from c in Contact, where: c.company_id == ^company_id)
+
+    Enum.each(contacts, fn contact ->
+      contact
+      |> Contact.changeset(%{
+        additional_attributes: Map.put(contact.additional_attributes || %{}, "company_name", name)
+      })
+      |> Repo.update!()
+    end)
+
+    {:ok, length(contacts)}
   end
 
   @doc """

@@ -11,6 +11,7 @@ defmodule Chatwooter.Contacts.Contact do
     field :additional_attributes, :map, default: %{}
 
     belongs_to :account, Chatwooter.Accounts.Account
+    belongs_to :company, Chatwooter.Companies.Company
     has_many :contact_inboxes, Chatwooter.Contacts.ContactInbox
 
     timestamps(type: :utc_datetime)
@@ -19,7 +20,8 @@ defmodule Chatwooter.Contacts.Contact do
   @doc false
   def changeset(contact, attrs) do
     contact
-    |> cast(attrs, [:name, :phone_number, :email, :additional_attributes])
+    |> cast(attrs, [:name, :phone_number, :email, :additional_attributes, :company_id])
+    |> foreign_key_constraint(:company_id)
     |> validate_required([:name])
     |> validate_length(:name, min: 2, max: 160)
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/)

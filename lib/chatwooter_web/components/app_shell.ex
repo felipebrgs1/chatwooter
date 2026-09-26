@@ -4,7 +4,10 @@ defmodule ChatwooterWeb.AppShell do
 
   attr :current_scope, :map, required: true
   attr :account_name, :string, default: nil
-  attr :active, :atom, default: :conversations, values: [:conversations, :contacts, :settings]
+
+  attr :active, :atom,
+    default: :conversations,
+    values: [:conversations, :contacts, :companies, :settings]
 
   def sidebar(assigns) do
     ~H"""
@@ -49,6 +52,16 @@ defmodule ChatwooterWeb.AppShell do
           ]}
         >
           <.icon name="hero-users" class="size-5" /> Contacts
+        </.link>
+        <.link
+          navigate={~p"/app/companies"}
+          class={[
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
+            @active == :companies && "bg-white/10 font-semibold text-white",
+            @active != :companies && "hover:bg-white/5 hover:text-white"
+          ]}
+        >
+          <.icon name="hero-building-office" class="size-5" /> Companies
         </.link>
         <.link
           navigate={~p"/app/settings"}
