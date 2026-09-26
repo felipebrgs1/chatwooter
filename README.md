@@ -73,6 +73,7 @@ elixir --version  # Elixir 1.20.x
 ### Via Docker (recomendado — sobe app + Postgres)
 
 ```bash
+cp .env.example .env   # ajuste WEBHOOK_BASE_URL se for usar Telegram (ver abaixo)
 docker compose up --build -d   # primeira vez compila deps (~3-5 min)
 docker compose logs -f web     # acompanhe até "Running ChatwooterWeb.Endpoint"
 # -> http://localhost:4000

@@ -1,9 +1,11 @@
 services:
   db:
     image: postgres:16
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-postgres}
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -13,9 +15,11 @@ services:
     command: server /data --address :9000
     ports:
       - "9000:9000"
+    env_file:
+      - .env
     environment:
-      RUSTFS_ACCESS_KEY: rustfsadmin
-      RUSTFS_SECRET_KEY: rustfsadmin123
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin123}
     volumes:
       - rustfsdata:/data
 
@@ -24,16 +28,23 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "4000:4000"
+      - "${PORT:-4000}:4000"
+    env_file:
+      - .env
     environment:
       MIX_ENV: dev
-      PGHOST: db
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      RUSTFS_ACCESS_KEY: rustfsadmin
-      RUSTFS_SECRET_KEY: rustfsadmin123
-      STORAGE_ENDPOINT: http://rustfs:9000
-      STORAGE_PUBLIC_URL: http://localhost:9000
+      PGHOST: ${PGHOST:-db}
+      PGUSER: ${PGUSER:-postgres}
+      PGPASSWORD: ${PGPASSWORD:-postgres}
+      PGDATABASE: ${PGDATABASE:-chatwooter_dev}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin123}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://rustfs:9000}
+      STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL:-http://localhost:9000}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-chatwooter-dev}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      PORT: ${PORT:-4000}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
     volumes:
       - .:/app
       - app_deps:/app/deps
