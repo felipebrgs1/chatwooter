@@ -59,24 +59,36 @@ defmodule Chatwooter.Channels.Telegram.BotApi do
   @doc "Registra o webhook do inbox no Telegram (com segredo anti-forgery)."
   def set_webhook(%{provider_config: %{"bot_token" => token}}, url, secret)
       when is_binary(token) and token != "" do
-    case Req.post("#{api_base()}/bot#{token}/setWebhook",
-           json: %{url: url, secret_token: secret}
-         ) do
-      {:ok, %Req.Response{status: 200, body: %{"ok" => true} = body}} ->
-        {:ok, %{description: body["description"]}}
+    with :ok <- validate_webhook_url(url) do
+      case Req.post("#{api_base()}/bot#{token}/setWebhook",
+             json: %{url: url, secret_token: secret}
+           ) do
+        {:ok, %Req.Response{status: 200, body: %{"ok" => true} = body}} ->
+          {:ok, %{description: body["description"]}}
 
-      {:ok, %Req.Response{body: %{"ok" => false} = body}} ->
-        {:error, %{code: body["error_code"], description: body["description"]}}
+        {:ok, %Req.Response{body: %{"ok" => false} = body}} ->
+          {:error, %{code: body["error_code"], description: body["description"]}}
 
-      {:ok, %Req.Response{status: status}} ->
-        {:error, %{code: status, description: "unexpected telegram status"}}
+        {:ok, %Req.Response{status: status}} ->
+          {:error, %{code: status, description: "unexpected telegram status"}}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
   def set_webhook(_inbox, _url, _secret), do: {:error, :missing_bot_token}
+
+  defp validate_webhook_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: "https", host: host} when is_binary(host) and host != "" -> :ok
+      _ -> {:error, %{code: 400, description: "webhook_url must be a public HTTPS URL"}}
+    end
+  end
+
+  defp validate_webhook_url(_url),
+    do: {:error, %{code: 400, description: "webhook_url must be a public HTTPS URL"}}
 
   @doc "Valida o token e retorna a identidade do bot."
   def get_me(%{provider_config: %{"bot_token" => token}})

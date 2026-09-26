@@ -352,12 +352,26 @@ defmodule ChatwooterWeb.SettingsLive do
         {:noreply, assign(socket, :edit_form, to_form(changeset, as: "inbox", action: :update))}
 
       {:error, %{description: description}} when is_binary(description) ->
-        {:noreply, put_flash(socket, :error, "Telegram error: #{description}")}
+        {:noreply, put_flash(socket, :error, friendly_telegram_error(description))}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not connect the webhook.")}
     end
   end
+
+  defp friendly_telegram_error("webhook_url must be a public HTTPS URL"),
+    do:
+      "Telegram requires a public HTTPS URL. Expose the app (ex.: ngrok) and set WEBHOOK_BASE_URL=https://... then retry."
+
+  defp friendly_telegram_error("Bad Request: " <> _ = description) do
+    if String.contains?(description, "HTTPS URL") do
+      "Telegram requires a public HTTPS URL. Expose the app (ex.: ngrok) and set WEBHOOK_BASE_URL=https://... then retry."
+    else
+      "Telegram error: #{description}"
+    end
+  end
+
+  defp friendly_telegram_error(description), do: "Telegram error: #{description}"
 
   defp telegram_webhook_url(inbox) do
     base = Application.get_env(:chatwooter, :webhook_base_url) || ChatwooterWeb.Endpoint.url()

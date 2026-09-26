@@ -44,6 +44,12 @@ config :chatwooter, :storage,
 config :chatwooter, ChatwooterWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# URL pública (HTTPS) usada para registrar webhooks nos providers (Telegram exige HTTPS).
+# Ex.: WEBHOOK_BASE_URL=https://abc123.ngrok-free.app mix phx.server
+if base_url = System.get_env("WEBHOOK_BASE_URL") do
+  config :chatwooter, :webhook_base_url, base_url
+end
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :chatwooter, ChatwooterWeb.Endpoint,
