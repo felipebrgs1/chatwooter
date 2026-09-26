@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4000:4000"
+    environment:
+      MIX_ENV: dev
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    volumes:
+      - .:/app
+      - app_deps:/app/deps
+      - app_build:/app/_build
+    depends_on:
+      - db
+    stdin_open: true
+    tty: true
+
+volumes:
+  pgdata:
+  app_deps:
+  app_build:

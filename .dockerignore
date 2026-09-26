@@ -1,0 +1,10 @@
+# Nunca mandar a referência Rails nem artefatos locais pro build.
+chatwoot/
+.git/
+deps/
+_build/
+cover/
+doc/
+tmp/
+priv/static/assets/
+.elixir_ls/
