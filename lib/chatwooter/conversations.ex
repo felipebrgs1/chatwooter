@@ -88,11 +88,13 @@ defmodule Chatwooter.Conversations do
   def list_conversations(%Account{id: account_id}, opts \\ []) do
     status = Keyword.get(opts, :status, "all")
     search = Keyword.get(opts, :search, "")
+    inbox_id = Keyword.get(opts, :inbox_id)
     messages_query = from(m in Message, order_by: [asc: m.id])
 
     Conversation
     |> where([c], c.account_id == ^account_id)
     |> filter_status(status)
+    |> filter_inbox(inbox_id)
     |> filter_search(search)
     |> order_by([c], desc: c.updated_at)
     |> preload(
@@ -102,6 +104,9 @@ defmodule Chatwooter.Conversations do
     |> Repo.all()
     |> Repo.preload(messages: :attachments)
   end
+
+  defp filter_inbox(query, nil), do: query
+  defp filter_inbox(query, inbox_id), do: where(query, [c], c.inbox_id == ^inbox_id)
 
   defp filter_status(query, status) when status in ["all", "", nil], do: query
   defp filter_status(query, status), do: where(query, [c], c.status == ^status)

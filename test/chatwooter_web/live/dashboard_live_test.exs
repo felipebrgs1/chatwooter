@@ -3,7 +3,6 @@ defmodule ChatwooterWeb.DashboardLiveTest do
 
   import Phoenix.LiveViewTest
   import Chatwooter.AccountsFixtures
-  import Chatwooter.Factory
 
   alias Chatwooter.{Accounts, Contacts, Conversations, Inboxes}
 
@@ -28,27 +27,75 @@ defmodule ChatwooterWeb.DashboardLiveTest do
 
     {:ok, _} = Conversations.add_message(conv, %{content: "Olá", message_type: "incoming"})
 
-    {:ok, lv, html} = live(conn, ~p"/app")
-    assert html =~ "Maria"
-    assert html =~ "Olá"
+    {:ok, lv, _html} = live(conn, ~p"/app")
+    assert has_element?(lv, "#conv-#{conv.id}")
 
-    html =
-      lv
-      |> element("#conv-#{conv.id}")
-      |> render_click()
+    lv |> element("#conv-#{conv.id}") |> render_click()
 
-    assert html =~ "via Vendas"
+    assert has_element?(lv, "#conversation-header")
+    assert has_element?(lv, "#thread", "Olá")
 
     lv
     |> form("#composer", message: %{content: "Oi, Maria!"})
     |> render_submit()
 
-    assert render(lv) =~ "Oi, Maria!"
+    assert has_element?(lv, "#thread", "Oi, Maria!")
+  end
+
+  test "filters conversations by status and inbox, preserving the selected filter", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, sales} = Inboxes.create_inbox(account, %{name: "Vendas", channel_type: "whatsapp"})
+    {:ok, support} = Inboxes.create_inbox(account, %{name: "Suporte", channel_type: "telegram"})
+    {:ok, maria} = Contacts.get_or_create_contact(account, %{name: "Maria"})
+    {:ok, joao} = Contacts.get_or_create_contact(account, %{name: "João"})
+
+    {:ok, open_conv} =
+      Conversations.open_conversation(account, sales, maria, %{source_id: "maria"})
+
+    {:ok, resolved_conv} =
+      Conversations.open_conversation(account, support, joao, %{source_id: "joao"})
+
+    {:ok, _} = Conversations.set_status(resolved_conv, "resolved")
+
+    {:ok, lv, _} = live(conn, ~p"/app?status=resolved")
+    assert has_element?(lv, "#conv-#{resolved_conv.id}")
+    refute has_element?(lv, "#conv-#{open_conv.id}")
+    assert has_element?(lv, "#filter-resolved[aria-current=page]")
+
+    lv |> element("#inbox-#{sales.id}") |> render_click()
+    assert has_element?(lv, "#conv-#{open_conv.id}")
+    refute has_element?(lv, "#conv-#{resolved_conv.id}")
+    assert has_element?(lv, "#inbox-#{sales.id}[aria-current=page]")
+
+    lv |> element("#conv-#{open_conv.id}") |> render_click()
+    assert has_element?(lv, "#conversation-header")
+    assert has_element?(lv, "#contact-panel")
+    assert has_element?(lv, "#inbox-#{sales.id}[aria-current=page]")
+  end
+
+  test "private notes stay in the thread without creating an outgoing reply", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, inbox} = Inboxes.create_inbox(account, %{name: "TG", channel_type: "telegram"})
+    {:ok, contact} = Contacts.get_or_create_contact(account, %{name: "Maria"})
+    {:ok, conv} = Conversations.open_conversation(account, inbox, contact, %{source_id: "555"})
+    {:ok, lv, _} = live(conn, ~p"/app?conversation_id=#{conv.id}")
+
+    lv |> element("#composer-note") |> render_click()
+    lv |> form("#composer", message: %{content: "Verificar cadastro"}) |> render_submit()
+
+    assert has_element?(lv, "#thread .bubble-private")
+
+    assert [%{private: true, message_type: :outgoing, content: "Verificar cadastro"}] =
+             Conversations.get_conversation!(account, conv.id).messages
   end
 
   test "shows empty state without conversations", %{conn: conn} do
-    {:ok, _lv, html} = live(conn, ~p"/app")
-    assert html =~ "No conversations yet"
+    {:ok, lv, _html} = live(conn, ~p"/app")
+    assert has_element?(lv, "#conversation-empty")
   end
 
   test "renders image attachments in the thread", %{conn: conn, account: account} do
@@ -78,10 +125,8 @@ defmodule ChatwooterWeb.DashboardLiveTest do
     |> element("#conv-#{conv.id}")
     |> render_click()
 
-    html = render(lv)
-    assert html =~ "olha"
-    assert html =~ "<img"
-    assert html =~ "f1.jpg"
+    assert has_element?(lv, "#thread", "olha")
+    assert has_element?(lv, "#thread img[src$='f1.jpg']")
   end
 
   test "sends a reply to telegram and stores the external id", %{conn: conn, account: account} do
@@ -128,7 +173,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
     |> form("#composer", message: %{content: "Oi!"})
     |> render_submit()
 
-    assert render(lv) =~ "Oi!"
+    assert has_element?(lv, "#thread", "Oi!")
 
     assert [%{source_id: "77"}] =
              Conversations.get_conversation!(account, conv.id).messages
