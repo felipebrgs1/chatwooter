@@ -62,6 +62,7 @@ defmodule ChatwooterWeb.Router do
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
       live "/app", DashboardLive, :index
       live "/app/contacts", ContactsLive, :index
+      live "/app/contacts/:id", ContactsLive, :show
       live "/app/settings", SettingsLive, :general
       live "/app/settings/inboxes", SettingsLive, :inboxes
       live "/app/settings/agents", SettingsLive, :agents

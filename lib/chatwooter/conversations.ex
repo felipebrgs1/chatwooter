@@ -106,6 +106,17 @@ defmodule Chatwooter.Conversations do
   defp filter_status(query, status) when status in ["all", "", nil], do: query
   defp filter_status(query, status), do: where(query, [c], c.status == ^status)
 
+  @doc "Histórico de conversas de um contato (aba History do Chatwoot)."
+  def list_contact_conversations(%Account{id: account_id}, %Contact{id: contact_id}) do
+    Conversation
+    |> where([c], c.account_id == ^account_id)
+    |> join(:inner, [c], ci in assoc(c, :contact_inbox))
+    |> where([_c, ci], ci.contact_id == ^contact_id)
+    |> order_by([c], desc: c.updated_at)
+    |> preload(contact_inbox: [:inbox], messages: [])
+    |> Repo.all()
+  end
+
   defp filter_search(query, search) when search in ["", nil], do: query
 
   defp filter_search(query, search) do
