@@ -25,6 +25,14 @@ defmodule Chatwooter.Contacts do
     end
   end
 
+  @doc "Busca a identidade do contato no inbox (origem do ingest de webhooks)."
+  def fetch_contact_inbox(%Inbox{id: inbox_id}, source_id) do
+    case Repo.get_by(ContactInbox, inbox_id: inbox_id, source_id: source_id) do
+      %ContactInbox{} = contact_inbox -> {:ok, contact_inbox}
+      nil -> {:error, :not_found}
+    end
+  end
+
   def get_or_create_contact_inbox(%Contact{} = contact, %Inbox{} = inbox, source_id) do
     case Repo.get_by(ContactInbox,
            contact_id: contact.id,

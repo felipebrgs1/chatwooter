@@ -7,6 +7,18 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # Object storage S3-compatível (anexos de mensagens).
+  rustfs:
+    image: rustfs/rustfs:latest
+    command: server /data --address :9000
+    ports:
+      - "9000:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin123
+    volumes:
+      - rustfsdata:/data
+
   web:
     build:
       context: .
@@ -18,16 +30,22 @@ services:
       PGHOST: db
       PGUSER: postgres
       PGPASSWORD: postgres
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin123
+      STORAGE_ENDPOINT: http://rustfs:9000
+      STORAGE_PUBLIC_URL: http://localhost:9000
     volumes:
       - .:/app
       - app_deps:/app/deps
       - app_build:/app/_build
     depends_on:
       - db
+      - rustfs
     stdin_open: true
     tty: true
 
 volumes:
   pgdata:
+  rustfsdata:
   app_deps:
   app_build:

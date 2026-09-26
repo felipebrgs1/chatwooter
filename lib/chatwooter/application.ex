@@ -12,6 +12,7 @@ defmodule Chatwooter.Application do
       Chatwooter.Repo,
       {DNSCluster, query: Application.get_env(:chatwooter, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Chatwooter.PubSub},
+      {Oban, Application.fetch_env!(:chatwooter, Oban)},
       # Start a worker by calling: Chatwooter.Worker.start_link(arg)
       # {Chatwooter.Worker, arg},
       # Start to serve requests, typically the last entry

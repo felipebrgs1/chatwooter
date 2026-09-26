@@ -80,13 +80,17 @@ config :logger, :default_formatter,
 config :phoenix, :json_library, Jason
 
 # --- Chatwooter: Oban (jobs) ---
-# Descomente na Fase 1, DEPOIS de `mix ecto.migrate` com a migração do Oban
-# (`mix ecto.gen.migration add_oban_jobs` + `Oban.Migration.up/1`).
-# Manter comentado permite `mix phx.server` bootar sem a tabela oban_jobs.
-# config :chatwooter, Oban,
-#   repo: Chatwooter.Repo,
-#   plugins: [Oban.Plugins.Pruner],
-#   queues: [webhook_ingest: 20, senders: 10, outgoing_webhooks: 10, notifications: 5, maintenance: 2]
+# Filas: ingest de webhooks, envio p/ providers, webhooks de saída, notificações, manutenção.
+config :chatwooter, Oban,
+  repo: Chatwooter.Repo,
+  plugins: [Oban.Plugins.Pruner],
+  queues: [
+    webhook_ingest: 20,
+    senders: 10,
+    outgoing_webhooks: 10,
+    notifications: 5,
+    maintenance: 2
+  ]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

@@ -28,6 +28,13 @@ defmodule ChatwooterWeb.Router do
   #   pipe_through :api
   # end
 
+  # Webhooks dos providers (sem sessão — autenticados por segredo/assinatura).
+  scope "/webhooks", ChatwooterWeb do
+    pipe_through :api
+
+    post "/telegram/:inbox_id", TelegramWebhookController, :create
+  end
+
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:chatwooter, :dev_routes) do
     # If you want to use the LiveDashboard in production, you should put

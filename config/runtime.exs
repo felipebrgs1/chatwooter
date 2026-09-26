@@ -20,6 +20,27 @@ if System.get_env("PHX_SERVER") do
   config :chatwooter, ChatwooterWeb.Endpoint, server: true
 end
 
+# --- Chatwooter: object storage S3-compatível (RustFS) p/ anexos ---
+# Upload pelo endpoint interno; <img> usa a URL pública (browser).
+storage_endpoint = System.get_env("STORAGE_ENDPOINT", "http://localhost:9000")
+storage_uri = URI.parse(storage_endpoint)
+
+config :ex_aws,
+  http_client: ExAws.Request.Req,
+  json_codec: Jason,
+  access_key_id: System.get_env("RUSTFS_ACCESS_KEY", "rustfsadmin"),
+  secret_access_key: System.get_env("RUSTFS_SECRET_KEY", "rustfsadmin123")
+
+config :ex_aws, :s3,
+  scheme: "#{storage_uri.scheme}://",
+  host: storage_uri.host,
+  port: storage_uri.port,
+  region: System.get_env("AWS_REGION", "us-east-1")
+
+config :chatwooter, :storage,
+  bucket: System.get_env("STORAGE_BUCKET", "chatwooter-dev"),
+  public_url: System.get_env("STORAGE_PUBLIC_URL", "http://localhost:9000")
+
 config :chatwooter, ChatwooterWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 

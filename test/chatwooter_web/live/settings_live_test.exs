@@ -29,6 +29,49 @@ defmodule ChatwooterWeb.SettingsLiveTest do
     assert Chatwooter.Repo.get!(Chatwooter.Accounts.Account, account.id).name == "Acme Inc"
   end
 
+  test "configures the telegram bot token", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
+
+    lv
+    |> form("#inbox-form", inbox: %{name: "TG", channel_type: "telegram"})
+    |> render_submit()
+
+    lv
+    |> element("button[phx-click='edit-inbox']")
+    |> render_click()
+
+    html =
+      lv
+      |> form("#inbox-edit-form", inbox: %{provider_config: %{bot_token: "123:ABC"}})
+      |> render_submit()
+
+    assert html =~ "Inbox updated"
+    assert html =~ "Configured"
+  end
+
+  test "renames an inbox", %{conn: conn} do
+    {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
+
+    lv
+    |> form("#inbox-form", inbox: %{name: "Suporte", channel_type: "telegram"})
+    |> render_submit()
+
+    html =
+      lv
+      |> element("button[phx-click='edit-inbox']")
+      |> render_click()
+
+    assert html =~ "Save"
+
+    html =
+      lv
+      |> form("#inbox-edit-form", inbox: %{name: "Vendas", greeting_message: "Olá!"})
+      |> render_submit()
+
+    assert html =~ "Vendas"
+    assert html =~ "Inbox updated"
+  end
+
   test "creates and deletes an inbox", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/app/settings/inboxes")
 
@@ -65,6 +108,8 @@ defmodule ChatwooterWeb.SettingsLiveTest do
       |> render_change(%{"role" => "admin", "id" => to_string(member.id)})
 
     assert html =~ "admin"
-    assert [%{role: :admin}] = Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
+
+    assert [%{role: :admin}] =
+             Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
   end
 end

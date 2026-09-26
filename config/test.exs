@@ -12,7 +12,8 @@ config :chatwooter, Chatwooter.Repo,
   username: System.get_env("PGUSER", "postgres"),
   password: System.get_env("PGPASSWORD", "postgres"),
   hostname: System.get_env("PGHOST", "localhost"),
-  database: System.get_env("PGDATABASE_TEST", "chatwooter_test#{System.get_env("MIX_TEST_PARTITION")}"),
+  database:
+    System.get_env("PGDATABASE_TEST", "chatwooter_test#{System.get_env("MIX_TEST_PARTITION")}"),
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
@@ -43,6 +44,6 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-# --- Chatwooter: Oban em modo teste (descomente junto com o config de Oban) ---
-# Jobs rodam inline via `Oban.Testing` — ver ROTEIRO_ELIXIR.md §4.
-# config :chatwooter, Oban, testing: :manual
+# --- Chatwooter: Oban em modo teste ---
+# Jobs rodam inline: `Oban.insert` executa o perform na hora, sem polling.
+config :chatwooter, Oban, testing: :inline

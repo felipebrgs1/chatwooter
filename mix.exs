@@ -40,7 +40,8 @@ defmodule Chatwooter.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:bcrypt_elixir, "~> 3.0"}, # hashing de senha (phx.gen.auth)
+      # hashing de senha (phx.gen.auth)
+      {:bcrypt_elixir, "~> 3.0"},
       {:phoenix, "~> 1.8.15"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
@@ -67,7 +68,11 @@ defmodule Chatwooter.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
-      {:req, "~> 0.5"}, # HTTP client p/ adapters WhatsApp/Telegram (mockado com Bypass/Mox nos testes)
+      # HTTP client p/ adapters WhatsApp/Telegram (mockado com Bypass/Mox nos testes)
+      {:req, "~> 0.5"},
+      # S3-compatível (RustFS) p/ anexos
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
@@ -75,9 +80,14 @@ defmodule Chatwooter.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       # --- Chatwooter: domínio + qualidade (Fase 0) ---
-      {:oban, "~> 2.19"}, # jobs (substitui Sidekiq: ingest, senders, webhooks)
-      {:mox, "~> 1.0", only: :test}, # mocks dos Behaviours de canal
-      {:ex_machina, "~> 2.7", only: :test}, # factories p/ TDD
+      # jobs (substitui Sidekiq: ingest, senders, webhooks)
+      {:oban, "~> 2.19"},
+      # mocks dos Behaviours de canal
+      {:mox, "~> 1.0", only: :test},
+      # HTTP fake p/ Meta/Telegram (integração via Req)
+      {:bypass, "~> 2.1", only: :test},
+      # factories p/ TDD
+      {:ex_machina, "~> 2.7", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}
@@ -103,7 +113,13 @@ defmodule Chatwooter.MixProject do
         "esbuild chatwooter --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "credo --strict", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "format",
+        "credo --strict",
+        "test"
+      ]
     ]
   end
 end

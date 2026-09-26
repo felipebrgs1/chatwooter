@@ -31,7 +31,10 @@ defmodule ChatwooterWeb.SettingsLive do
     socket =
       socket
       |> assign(:current_email, user.email)
-      |> assign(:email_form, to_form(Accounts.change_user_email(user, %{}, validate_unique: false)))
+      |> assign(
+        :email_form,
+        to_form(Accounts.change_user_email(user, %{}, validate_unique: false))
+      )
       |> assign(
         :password_form,
         to_form(Accounts.change_user_password(user, %{}, hash_password: false))
@@ -45,7 +48,11 @@ defmodule ChatwooterWeb.SettingsLive do
        |> assign(:members, Accounts.list_account_users(account))
        |> assign(:account_form, to_form(Account.changeset(account, %{}), as: "account"))
        |> assign(:inbox_form, to_form(%{"name" => "", "channel_type" => "whatsapp"}, as: "inbox"))
-       |> assign(:invite_form, to_form(%{"email" => ""}, as: "invite"))}
+       |> assign(:invite_form, to_form(%{"email" => ""}, as: "invite"))
+       |> assign(:editing_inbox_id, nil)
+       |> assign(:editing_channel, nil)
+       |> assign(:provider_token, nil)
+       |> assign(:edit_form, nil)}
     else
       {:ok, socket}
     end
@@ -65,7 +72,8 @@ defmodule ChatwooterWeb.SettingsLive do
          |> put_flash(:info, "Account updated.")}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :account_form, to_form(changeset, as: "account", action: :update))}
+        {:noreply,
+         assign(socket, :account_form, to_form(changeset, as: "account", action: :update))}
     end
   end
 
@@ -75,7 +83,10 @@ defmodule ChatwooterWeb.SettingsLive do
         {:noreply,
          socket
          |> assign(:inboxes, Inboxes.list_inboxes(socket.assigns.account))
-         |> assign(:inbox_form, to_form(%{"name" => "", "channel_type" => "whatsapp"}, as: "inbox"))
+         |> assign(
+           :inbox_form,
+           to_form(%{"name" => "", "channel_type" => "whatsapp"}, as: "inbox")
+         )
          |> put_flash(:info, "Inbox #{inbox.name} created.")}
 
       {:error, changeset} ->
@@ -90,6 +101,60 @@ defmodule ChatwooterWeb.SettingsLive do
      socket
      |> assign(:inboxes, Inboxes.list_inboxes(socket.assigns.account))
      |> put_flash(:info, "Inbox deleted.")}
+  end
+
+  def handle_event("edit-inbox", %{"id" => id}, socket) do
+    inbox = Inboxes.get_inbox!(socket.assigns.account, id)
+
+    {:noreply,
+     socket
+     |> assign(:editing_inbox_id, inbox.id)
+     |> assign(:editing_channel, inbox.channel_type)
+     |> assign(:provider_token, inbox.provider_config["bot_token"])
+     |> assign(:edit_form, to_form(Inboxes.change_inbox(inbox), as: "inbox"))}
+  end
+
+  def handle_event("validate-inbox", %{"inbox" => params}, socket) do
+    inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
+
+    {:noreply,
+     socket
+     |> assign(
+       :provider_token,
+       get_in(params, ["provider_config", "bot_token"]) || socket.assigns.provider_token
+     )
+     |> assign(
+       :edit_form,
+       to_form(Inboxes.change_inbox(inbox, params), as: "inbox", action: :validate)
+     )}
+  end
+
+  def handle_event("save-inbox", %{"inbox" => params}, socket) do
+    inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
+
+    case Inboxes.update_inbox(inbox, params) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:inboxes, Inboxes.list_inboxes(socket.assigns.account))
+         |> assign(:editing_inbox_id, nil)
+         |> assign(:editing_channel, nil)
+         |> assign(:provider_token, nil)
+         |> assign(:edit_form, nil)
+         |> put_flash(:info, "Inbox updated.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :edit_form, to_form(changeset, as: "inbox", action: :update))}
+    end
+  end
+
+  def handle_event("cancel-edit", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_inbox_id, nil)
+     |> assign(:editing_channel, nil)
+     |> assign(:provider_token, nil)
+     |> assign(:edit_form, nil)}
   end
 
   def handle_event("invite", %{"invite" => %{"email" => email}}, socket) do
@@ -220,6 +285,19 @@ defmodule ChatwooterWeb.SettingsLive do
   defp channel_badge(:whatsapp), do: {"WhatsApp", "bg-emerald-100 text-emerald-700"}
   defp channel_badge(:telegram), do: {"Telegram", "bg-sky-100 text-sky-700"}
 
+  defp configured?(%{channel_type: :telegram, provider_config: %{"bot_token" => t}})
+       when is_binary(t) and t != "",
+       do: true
+
+  defp configured?(%{
+         channel_type: :whatsapp,
+         provider_config: %{"phone_number_id" => p, "access_token" => t}
+       })
+       when is_binary(p) and p != "" and is_binary(t) and t != "",
+       do: true
+
+  defp configured?(_inbox), do: false
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -232,9 +310,18 @@ defmodule ChatwooterWeb.SettingsLive do
 
       <div class="flex min-w-0 flex-1">
         <nav class="w-56 shrink-0 space-y-1 border-r border-line bg-surface p-4">
-          <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Settings</p>
+          <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Settings
+          </p>
           <.link
-            :for={{label, action, path} <- [{"General", :general, ~p"/app/settings"}, {"Inboxes", :inboxes, ~p"/app/settings/inboxes"}, {"Agents", :agents, ~p"/app/settings/agents"}, {"Profile", :profile, ~p"/app/settings/profile"}]}
+            :for={
+              {label, action, path} <- [
+                {"General", :general, ~p"/app/settings"},
+                {"Inboxes", :inboxes, ~p"/app/settings/inboxes"},
+                {"Agents", :agents, ~p"/app/settings/agents"},
+                {"Profile", :profile, ~p"/app/settings/profile"}
+              ]
+            }
             navigate={path}
             class={[
               "block rounded-lg px-3 py-2 text-sm",
@@ -253,13 +340,19 @@ defmodule ChatwooterWeb.SettingsLive do
             <h2 class="text-lg font-bold text-slate-900">General</h2>
             <p class="mb-6 text-sm text-slate-500">Account name and preferences.</p>
             <div class="rounded-xl border border-line bg-surface p-6">
-              <.form :let={f} for={@account_form} id="account-form" phx-submit="save-account" class="space-y-4">
+              <.form
+                :let={f}
+                for={@account_form}
+                id="account-form"
+                phx-submit="save-account"
+                class="space-y-4"
+              >
                 <.input field={f[:name]} type="text" label="Account name" required />
                 <.input
                   field={f[:locale]}
                   type="select"
                   label="Language"
-                  options={["Português (BR)": "pt-BR", "English": "en"]}
+                  options={["Português (BR)": "pt-BR", English: "en"]}
                 />
                 <.button variant="primary">Save changes</.button>
               </.form>
@@ -272,7 +365,13 @@ defmodule ChatwooterWeb.SettingsLive do
 
             <div class="mb-6 rounded-xl border border-line bg-surface p-6">
               <h3 class="mb-4 text-sm font-semibold text-slate-900">New inbox</h3>
-              <.form :let={f} for={@inbox_form} id="inbox-form" phx-submit="create-inbox" class="flex items-end gap-3">
+              <.form
+                :let={f}
+                for={@inbox_form}
+                id="inbox-form"
+                phx-submit="create-inbox"
+                class="flex items-end gap-3"
+              >
                 <div class="flex-1">
                   <.input field={f[:name]} type="text" label="Name" placeholder="Sales" required />
                 </div>
@@ -281,7 +380,7 @@ defmodule ChatwooterWeb.SettingsLive do
                     field={f[:channel_type]}
                     type="select"
                     label="Channel"
-                    options={["WhatsApp": "whatsapp", "Telegram": "telegram"]}
+                    options={[WhatsApp: "whatsapp", Telegram: "telegram"]}
                   />
                 </div>
                 <.button variant="primary">Create</.button>
@@ -292,22 +391,101 @@ defmodule ChatwooterWeb.SettingsLive do
               <div :if={@inboxes == []} class="p-8 text-center text-sm text-slate-500">
                 No inboxes yet. Create one above to start receiving messages.
               </div>
-              <div :for={inbox <- @inboxes} class="flex items-center justify-between border-b border-line px-5 py-3 last:border-0">
-                <div>
-                  <p class="text-sm font-semibold text-slate-900">{inbox.name}</p>
-                  <% {label, pill} = channel_badge(inbox.channel_type) %>
-                  <span class={"mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold #{pill}"}>
-                    {label}
-                  </span>
+              <div :for={inbox <- @inboxes} class="border-b border-line px-5 py-3 last:border-0">
+                <div :if={@editing_inbox_id == inbox.id}>
+                  <.form
+                    :let={f}
+                    for={@edit_form}
+                    id="inbox-edit-form"
+                    phx-change="validate-inbox"
+                    phx-submit="save-inbox"
+                    class="space-y-3"
+                  >
+                    <.input field={f[:name]} type="text" label="Name" required />
+                    <.input
+                      field={f[:greeting_message]}
+                      type="textarea"
+                      rows="2"
+                      label="Greeting message"
+                      placeholder="Olá! Como posso ajudar?"
+                    />
+                    <div :if={@editing_channel == :telegram} class="fieldset mb-2">
+                      <label for="inbox_bot_token">
+                        <span class="label mb-1">Bot token</span>
+                        <input
+                          type="password"
+                          name="inbox[provider_config][bot_token]"
+                          id="inbox_bot_token"
+                          value={@provider_token}
+                          placeholder="123456:ABC-DEF..."
+                          autocomplete="off"
+                          class={[
+                            "w-full input",
+                            @edit_form[:provider_config].errors != [] && "input-error"
+                          ]}
+                        />
+                      </label>
+                      <p
+                        :for={{msg, _} <- @edit_form[:provider_config].errors}
+                        class="mt-1 text-xs text-error"
+                      >
+                        {msg}
+                      </p>
+                    </div>
+                    <div class="flex gap-2">
+                      <.button variant="primary">Save</.button>
+                      <button
+                        type="button"
+                        phx-click="cancel-edit"
+                        class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </.form>
                 </div>
-                <button
-                  phx-click="delete-inbox"
-                  phx-value-id={inbox.id}
-                  data-confirm="Delete this inbox and all its conversations?"
-                  class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger hover:text-white"
-                >
-                  Delete
-                </button>
+                <div :if={@editing_inbox_id != inbox.id} class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{inbox.name}</p>
+                    <p
+                      :if={inbox.greeting_message}
+                      class="mt-0.5 max-w-md truncate text-xs text-slate-500"
+                    >
+                      {inbox.greeting_message}
+                    </p>
+                    <% {label, pill} = channel_badge(inbox.channel_type) %>
+                    <span class={"mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold #{pill}"}>
+                      {label}
+                    </span>
+                    <span class={
+                      if(configured?(inbox),
+                        do:
+                          "ml-1 mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700",
+                        else:
+                          "ml-1 mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500"
+                      )
+                    }>
+                      {if configured?(inbox), do: "Configured", else: "Not configured"}
+                    </span>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <button
+                      phx-click="edit-inbox"
+                      phx-value-id={inbox.id}
+                      class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      phx-click="delete-inbox"
+                      phx-value-id={inbox.id}
+                      data-confirm="Delete this inbox and all its conversations?"
+                      class="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger hover:text-white"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -318,9 +496,21 @@ defmodule ChatwooterWeb.SettingsLive do
 
             <div class="mb-6 rounded-xl border border-line bg-surface p-6">
               <h3 class="mb-4 text-sm font-semibold text-slate-900">Invite agent</h3>
-              <.form :let={f} for={@invite_form} id="invite-form" phx-submit="invite" class="flex items-end gap-3">
+              <.form
+                :let={f}
+                for={@invite_form}
+                id="invite-form"
+                phx-submit="invite"
+                class="flex items-end gap-3"
+              >
                 <div class="flex-1">
-                  <.input field={f[:email]} type="email" label="Email" placeholder="agent@acme.inc" required />
+                  <.input
+                    field={f[:email]}
+                    type="email"
+                    label="Email"
+                    placeholder="agent@acme.inc"
+                    required
+                  />
                 </div>
                 <.button variant="primary">Send invite</.button>
               </.form>
@@ -339,7 +529,10 @@ defmodule ChatwooterWeb.SettingsLive do
                   <div class="min-w-0">
                     <p class="truncate text-sm font-semibold text-slate-900">
                       {m.user.email}
-                      <span :if={m.user_id == @current_scope.user.id} class="ml-1 rounded bg-highlight px-1.5 text-[10px]">you</span>
+                      <span
+                        :if={m.user_id == @current_scope.user.id}
+                        class="ml-1 rounded bg-highlight px-1.5 text-[10px]"
+                      >you</span>
                     </p>
                   </div>
                 </div>
@@ -374,8 +567,22 @@ defmodule ChatwooterWeb.SettingsLive do
 
             <div class="rounded-xl border border-line bg-surface p-6">
               <h3 class="mb-4 text-sm font-semibold text-slate-900">Email</h3>
-              <.form :let={f} for={@email_form} id="email_form" phx-submit="save-profile-email" phx-change="validate-profile-email" class="space-y-4">
-                <.input field={f[:email]} type="email" label="Email" autocomplete="username" spellcheck="false" required />
+              <.form
+                :let={f}
+                for={@email_form}
+                id="email_form"
+                phx-submit="save-profile-email"
+                phx-change="validate-profile-email"
+                class="space-y-4"
+              >
+                <.input
+                  field={f[:email]}
+                  type="email"
+                  label="Email"
+                  autocomplete="username"
+                  spellcheck="false"
+                  required
+                />
                 <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
               </.form>
             </div>
@@ -393,9 +600,28 @@ defmodule ChatwooterWeb.SettingsLive do
                 phx-trigger-action={@trigger_submit}
                 class="space-y-4"
               >
-                <input name={f[:email].name} type="hidden" id="hidden_user_email" spellcheck="false" value={@current_email} />
-                <.input field={f[:password]} type="password" label="New password" autocomplete="new-password" spellcheck="false" required />
-                <.input field={f[:password_confirmation]} type="password" label="Confirm new password" autocomplete="new-password" spellcheck="false" />
+                <input
+                  name={f[:email].name}
+                  type="hidden"
+                  id="hidden_user_email"
+                  spellcheck="false"
+                  value={@current_email}
+                />
+                <.input
+                  field={f[:password]}
+                  type="password"
+                  label="New password"
+                  autocomplete="new-password"
+                  spellcheck="false"
+                  required
+                />
+                <.input
+                  field={f[:password_confirmation]}
+                  type="password"
+                  label="Confirm new password"
+                  autocomplete="new-password"
+                  spellcheck="false"
+                />
                 <.button variant="primary" phx-disable-with="Saving...">Save Password</.button>
               </.form>
             </div>
@@ -405,5 +631,4 @@ defmodule ChatwooterWeb.SettingsLive do
     </div>
     """
   end
-
 end

@@ -3,6 +3,7 @@ defmodule ChatwooterWeb.DashboardLive do
   use ChatwooterWeb, :live_view
 
   alias Chatwooter.{Accounts, Conversations, Inboxes}
+  alias Chatwooter.Workers.TelegramSender
   alias ChatwooterWeb.AppShell
 
   @impl true
@@ -67,12 +68,15 @@ defmodule ChatwooterWeb.DashboardLive do
     if content == "" do
       {:noreply, socket}
     else
-      {:ok, _} =
-        Conversations.add_message(socket.assigns.selected, %{
+      {:ok, message} =
+        Conversations.send_message(socket.assigns.selected, %{
           content: content,
-          message_type: "outgoing",
           sender_id: socket.assigns.current_scope.user.id
         })
+
+      if telegram_inbox?(socket.assigns.selected) do
+        {:ok, _} = TelegramSender.enqueue(message)
+      end
 
       {:noreply, assign(socket, :message_form, to_form(%{"content" => ""}, as: "message"))}
     end
@@ -84,7 +88,10 @@ defmodule ChatwooterWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(:selected, Conversations.get_conversation!(socket.assigns.account, conv.id))
-     |> assign(:messages, Conversations.get_conversation!(socket.assigns.account, conv.id).messages)
+     |> assign(
+       :messages,
+       Conversations.get_conversation!(socket.assigns.account, conv.id).messages
+     )
      |> load_conversations()}
   end
 
@@ -100,6 +107,17 @@ defmodule ChatwooterWeb.DashboardLive do
     {:noreply, load_conversations(socket)}
   end
 
+  def handle_info({:message_updated, message}, socket) do
+    socket =
+      if socket.assigns.selected && message.conversation_id == socket.assigns.selected.id do
+        update(socket, :messages, &replace_message(&1, message))
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
   def handle_info({:conversation_updated, _id}, socket) do
     socket =
       if socket.assigns.selected do
@@ -112,11 +130,20 @@ defmodule ChatwooterWeb.DashboardLive do
     {:noreply, load_conversations(socket)}
   end
 
+  defp replace_message(messages, updated) do
+    Enum.map(messages, fn
+      %{id: id} when id == updated.id -> updated
+      other -> other
+    end)
+  end
+
   defp load_conversations(%{assigns: %{account: nil}} = socket),
     do: assign(socket, :conversations, [])
 
   defp load_conversations(socket) do
-    assign(socket, :conversations,
+    assign(
+      socket,
+      :conversations,
       Conversations.list_conversations(socket.assigns.account,
         status: socket.assigns.filter_status,
         search: socket.assigns.search
@@ -129,6 +156,8 @@ defmodule ChatwooterWeb.DashboardLive do
   defp status_badge(:resolved), do: {"Resolved", "bg-slate-200 text-slate-600"}
 
   defp contact_of(conv), do: conv.contact_inbox.contact
+
+  defp telegram_inbox?(conv), do: conv.contact_inbox.inbox.channel_type == :telegram
 
   defp last_message(conv), do: List.last(conv.messages || [])
 
@@ -155,7 +184,6 @@ defmodule ChatwooterWeb.DashboardLive do
         account_name={@account && @account.name}
         active={:conversations}
       />
-
 
       <section class="flex w-80 shrink-0 flex-col border-r border-slate-200 bg-surface">
         <div class="space-y-3 border-b border-slate-200 p-4">
@@ -263,9 +291,28 @@ defmodule ChatwooterWeb.DashboardLive do
           </div>
 
           <div id="thread" class="flex-1 space-y-3 overflow-y-auto px-6 py-4">
-            <div :for={msg <- @messages} class={["flex", msg.message_type == :outgoing && "justify-end"]}>
-              <div class={["max-w-xl", msg.message_type == :outgoing && "bubble-agent", msg.message_type != :outgoing && "bubble-contact"]}>
+            <div
+              :for={msg <- @messages}
+              class={["flex", msg.message_type == :outgoing && "justify-end"]}
+            >
+              <div class={[
+                "max-w-xl",
+                msg.message_type == :outgoing && "bubble-agent",
+                msg.message_type != :outgoing && "bubble-contact"
+              ]}>
+                <img
+                  :for={att <- msg.attachments}
+                  src={att.url}
+                  alt="attachment"
+                  class="mb-2 max-h-64 rounded-lg"
+                />
                 <p class="text-sm text-slate-800">{msg.content}</p>
+                <p
+                  :if={msg.status == :failed}
+                  class="mt-1 text-right text-[10px] font-semibold text-danger"
+                >
+                  Not delivered
+                </p>
                 <p class="mt-1 text-right text-[10px] text-slate-400">
                   {Calendar.strftime(msg.inserted_at, "%d/%m %H:%M")}
                 </p>
@@ -273,7 +320,13 @@ defmodule ChatwooterWeb.DashboardLive do
             </div>
           </div>
 
-          <.form :let={f} for={@message_form} id="composer" phx-submit="send" class="border-t border-slate-200 bg-surface p-4">
+          <.form
+            :let={f}
+            for={@message_form}
+            id="composer"
+            phx-submit="send"
+            class="border-t border-slate-200 bg-surface p-4"
+          >
             <div class="flex items-end gap-2">
               <div class="flex-1">
                 <.input

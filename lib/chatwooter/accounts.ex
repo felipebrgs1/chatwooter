@@ -343,6 +343,9 @@ defmodule Chatwooter.Accounts do
     Repo.all(from a in Account, join: m in assoc(a, :account_users), where: m.user_id == ^user_id)
   end
 
+  @doc "Busca uma conta por id (ingest de webhooks)."
+  def get_account!(id), do: Repo.get!(Account, id)
+
   ## Account settings (Chatwoot-style)
 
   def update_account(%Account{} = account, attrs) do
