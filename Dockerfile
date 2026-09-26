@@ -2,8 +2,8 @@
 # Multi-stage com imagens pré-compiladas (rápido em ARM64).
 # Uso no Dokploy: Build Type = Dockerfile, Dockerfile Path = ./Dockerfile
 ARG ELIXIR_VERSION=1.20.2
-ARG OTP_VERSION=29.0
-ARG DEBIAN_VERSION=trixie-20250910-slim
+ARG OTP_VERSION=29.0.4
+ARG DEBIAN_VERSION=trixie-20260713-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
