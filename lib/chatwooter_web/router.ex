@@ -61,6 +61,7 @@ defmodule ChatwooterWeb.Router do
       on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}],
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
       live "/app", DashboardLive, :index
+      live "/app/contacts", ContactsLive, :index
       live "/app/settings", SettingsLive, :general
       live "/app/settings/inboxes", SettingsLive, :inboxes
       live "/app/settings/agents", SettingsLive, :agents

@@ -8,6 +8,41 @@ defmodule Chatwooter.Contacts do
   alias Chatwooter.Contacts.{Contact, ContactInbox}
   alias Chatwooter.Inboxes.Inbox
 
+  @doc "Lista os contatos da conta em ordem alfabética."
+  def list_contacts(%Account{id: account_id}) do
+    Contact
+    |> where([c], c.account_id == ^account_id)
+    |> order_by([c], asc: c.name)
+    |> Repo.all()
+  end
+
+  @doc "Busca um contato da conta (levanta se for de outra conta)."
+  def get_contact!(%Account{id: account_id}, id) do
+    Repo.get_by!(Contact, id: id, account_id: account_id)
+  end
+
+  @doc "Cadastra um contato manualmente (nome + telefone/email)."
+  def create_contact(%Account{} = account, attrs) do
+    %Contact{account_id: account.id}
+    |> Contact.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Atualiza um contato."
+  def update_contact(%Contact{} = contact, attrs) do
+    contact
+    |> Contact.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc "Remove um contato."
+  def delete_contact(%Contact{} = contact), do: Repo.delete(contact)
+
+  @doc "Changeset para formulários (sem persistir)."
+  def change_contact(%Contact{} = contact, attrs \\ %{}) do
+    Contact.changeset(contact, attrs)
+  end
+
   @doc """
   Busca por telefone dentro da conta; cria se não existir (idempotente).
   """

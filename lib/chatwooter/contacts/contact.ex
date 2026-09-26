@@ -22,7 +22,8 @@ defmodule Chatwooter.Contacts.Contact do
     |> cast(attrs, [:name, :phone_number, :email, :additional_attributes])
     |> validate_required([:name])
     |> validate_length(:name, min: 2, max: 160)
-    |> unique_constraint([:account_id, :phone_number])
+    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+    |> unique_constraint(:phone_number, name: :contacts_account_id_phone_number_index)
     |> foreign_key_constraint(:account_id)
   end
 end
