@@ -322,4 +322,12 @@ defmodule Chatwooter.Conversations do
         error
     end
   end
+
+  def list_canned_responses(%Account{id: account_id}) do
+    Repo.all(
+      from r in Chatwooter.Conversations.CannedResponse,
+        where: r.account_id == ^account_id,
+        order_by: r.id
+    )
+  end
 end

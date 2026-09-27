@@ -121,4 +121,27 @@ defmodule Chatwooter.Contacts do
         {:ok, contact_inbox}
     end
   end
+
+  @doc "Reads labels from a restored database, scoped to the destination account."
+  def list_labels(%Account{id: account_id}) do
+    Repo.all(
+      from l in Chatwooter.Contacts.Label, where: l.account_id == ^account_id, order_by: l.id
+    )
+  end
+
+  def list_custom_attribute_definitions(%Account{id: account_id}) do
+    Repo.all(
+      from d in Chatwooter.Contacts.CustomAttributeDefinition,
+        where: d.account_id == ^account_id,
+        order_by: d.id
+    )
+  end
+
+  def list_notes(%Account{id: account_id}, contact_id) do
+    Repo.all(
+      from n in Chatwooter.Contacts.Note,
+        where: n.account_id == ^account_id and n.contact_id == ^contact_id,
+        order_by: [asc: n.created_at, asc: n.id]
+    )
+  end
 end

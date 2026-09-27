@@ -10,6 +10,7 @@ defmodule Chatwooter.SchemaParityTest do
   test "catalogs all upstream tables, columns, indexes, foreign keys and extensions" do
     snapshot = Snapshot.load!(@schema)
 
+    assert snapshot.tables["labels"].columns["title"].type == "character varying"
     assert snapshot.version == "2026_09_24_000000"
     assert map_size(snapshot.tables) == 103
     assert "vector" in snapshot.extensions
@@ -85,7 +86,7 @@ defmodule Chatwooter.SchemaParityTest do
     assert "channel_whatsapp" in report.missing_tables
     assert map_size(report.tables) == 103
     assert report.tables["teams"].status == :present
-    assert report.tables["teams"].columns["name"].status == :equal
+    assert report.tables["teams"].columns["name"].status == :different
     assert "users_tokens" in report.local_tables
     assert "display_id" in report.tables["conversations"].missing_columns
     assert report.tables["conversations"].columns["status"].expected.type == "integer"
@@ -112,7 +113,7 @@ defmodule Chatwooter.SchemaParityTest do
 
     assert report.tables["inboxes"].foreign_keys["account_id"].status == :local_only
     assert report.tables["inboxes"].columns["account_id"].status == :different
-    assert report.tables["accounts"].columns["name"].status == :equal
+    assert report.tables["accounts"].columns["name"].status == :different
     assert report.triggers["conversations_before_insert_row_tr"].status == :missing
   end
 end

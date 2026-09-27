@@ -54,12 +54,16 @@ alias Chatwooter.{Contacts, Conversations, Inboxes}
 if Conversations.list_conversations(account) == [] do
   demo = [
     {"Maria Silva", "+5511987654321",
-     [{"incoming", "Olá! Vocês entregam no fim de semana?"}, {"outgoing", "Olá, Maria! Sim, entregamos aos sábados até 12h."}],
-     "open"},
+     [
+       {"incoming", "Olá! Vocês entregam no fim de semana?"},
+       {"outgoing", "Olá, Maria! Sim, entregamos aos sábados até 12h."}
+     ], "open"},
     {"João Pedro", "+5511912345678", [{"incoming", "Meu pedido ainda não chegou 😟"}], "pending"},
     {"Ana Costa", "+5511977778888",
-     [{"incoming", "Obrigada pelo suporte!"}, {"outgoing", "De nada, Ana! Conte sempre conosco."}],
-     "resolved"}
+     [
+       {"incoming", "Obrigada pelo suporte!"},
+       {"outgoing", "De nada, Ana! Conte sempre conosco."}
+     ], "resolved"}
   ]
 
   for {name, phone, messages, status} <- demo do

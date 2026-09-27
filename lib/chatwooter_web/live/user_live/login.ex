@@ -16,7 +16,15 @@ defmodule ChatwooterWeb.UserLive.Login do
         <div class="relative flex h-full flex-col justify-between p-12">
           <div class="flex items-center gap-3">
             <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-wa">
-              <svg viewBox="0 0 24 24" class="h-6 w-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                class="h-6 w-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" />
                 <circle cx="9" cy="12" r="0.5" fill="currentColor" />
                 <circle cx="13" cy="12" r="0.5" fill="currentColor" />
@@ -60,7 +68,15 @@ defmodule ChatwooterWeb.UserLive.Login do
         <div class="w-full max-w-sm space-y-6">
           <div class="flex items-center gap-3 lg:hidden">
             <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-wa">
-              <svg viewBox="0 0 24 24" class="h-6 w-6 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                class="h-6 w-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" />
               </svg>
             </span>

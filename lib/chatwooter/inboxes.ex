@@ -135,4 +135,12 @@ defmodule Chatwooter.Inboxes do
     |> Ecto.Changeset.change()
     |> Ecto.Changeset.add_error(:channel_type, "cannot be changed after creation")
   end
+
+  def list_working_hours(%Account{id: account_id}, inbox_id) do
+    Repo.all(
+      from h in Chatwooter.Inboxes.WorkingHour,
+        where: h.account_id == ^account_id and h.inbox_id == ^inbox_id,
+        order_by: [asc: h.day_of_week, asc: h.id]
+    )
+  end
 end

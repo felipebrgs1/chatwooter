@@ -160,7 +160,7 @@ defmodule Chatwooter.SchemaParity.Snapshot do
     do:
       if(l = option(options, "limit"),
         do: "character varying(#{l})",
-        else: "character varying(255)"
+        else: "character varying"
       )
 
   defp column_type("datetime", options) do
