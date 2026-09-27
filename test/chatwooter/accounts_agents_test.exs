@@ -37,7 +37,7 @@ defmodule Chatwooter.AccountsAgentsTest do
              Accounts.create_agent(account, %{
                name: "Boss",
                email: "boss@example.com",
-               role: "admin",
+               role: "administrator",
                availability: "busy"
              })
 
@@ -47,7 +47,7 @@ defmodule Chatwooter.AccountsAgentsTest do
         user_id: Repo.get_by!(User, email: "boss@example.com").id
       )
 
-    assert membership.role == :admin
+    assert membership.role == :administrator
     assert membership.availability == :busy
   end
 
@@ -92,12 +92,12 @@ defmodule Chatwooter.AccountsAgentsTest do
              Accounts.update_agent(account, user, %{
                name: "Maria Silva",
                email: "maria@example.com",
-               role: "admin",
+               role: "administrator",
                availability: "busy"
              })
 
     membership = Repo.get_by!(AccountUser, account_id: account.id, user_id: user.id)
-    assert membership.role == :admin
+    assert membership.role == :administrator
     assert membership.availability == :busy
   end
 

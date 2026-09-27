@@ -50,7 +50,7 @@ defmodule Chatwooter.WidgetSessionParityFixture do
 
   def insert!(repo) do
     repo.query!(
-      "INSERT INTO users (id, email, inserted_at, updated_at) VALUES (7002, 'session-fixture@example.test', now(), now()) ON CONFLICT (id) DO NOTHING"
+      "INSERT INTO users (id, name, email, created_at, updated_at) VALUES (7002, 'Session fixture', 'session-fixture@example.test', now(), now()) ON CONFLICT (id) DO NOTHING"
     )
 
     for {schema, attrs, _defaults} <- rows() do

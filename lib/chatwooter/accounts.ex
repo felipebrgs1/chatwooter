@@ -32,7 +32,23 @@ defmodule Chatwooter.Accounts do
 
   """
   def get_user_by_email(email) when is_binary(email) do
-    Repo.get_by(User, email: email)
+    find_user_by_email(email)
+  end
+
+  defp find_user_by_email(email) do
+    users =
+      Repo.all(
+        from(user in User,
+          where: fragment("lower(?)", user.email) == ^String.downcase(email),
+          limit: 2
+        )
+      )
+
+    # Restored providers can share email; never authenticate an arbitrary matching identity.
+    case users do
+      [user] -> user
+      _ -> nil
+    end
   end
 
   @doc """
@@ -49,7 +65,7 @@ defmodule Chatwooter.Accounts do
   """
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: email)
+    user = find_user_by_email(email)
     if User.valid_password?(user, password), do: user
   end
 
@@ -326,7 +342,7 @@ defmodule Chatwooter.Accounts do
       AccountUser.changeset(%AccountUser{}, %{
         account_id: account.id,
         user_id: owner.id,
-        role: :admin
+        role: :administrator
       })
     end)
     |> Repo.transaction()
@@ -415,8 +431,8 @@ defmodule Chatwooter.Accounts do
       nil ->
         {:error, :not_found}
 
-      %AccountUser{role: :admin} = membership ->
-        if to_string(role) != "admin" and admin_count(account) <= 1 do
+      %AccountUser{role: :administrator} = membership ->
+        if to_string(role) != "administrator" and admin_count(account) <= 1 do
           {:error, :last_admin}
         else
           update_membership_role(membership, role)
@@ -435,7 +451,7 @@ defmodule Chatwooter.Accounts do
       nil ->
         {:error, :not_found}
 
-      %AccountUser{role: :admin} = membership ->
+      %AccountUser{role: :administrator} = membership ->
         if admin_count(account) <= 1 do
           {:error, :last_admin}
         else
@@ -449,7 +465,7 @@ defmodule Chatwooter.Accounts do
 
   defp admin_count(%Account{id: account_id}) do
     Repo.aggregate(
-      from(m in AccountUser, where: m.account_id == ^account_id and m.role == :admin),
+      from(m in AccountUser, where: m.account_id == ^account_id and m.role == :administrator),
       :count
     )
   end
@@ -520,10 +536,10 @@ defmodule Chatwooter.Accounts do
     end
   end
 
-  defp check_last_admin(account, %AccountUser{role: :admin}, attrs) do
+  defp check_last_admin(account, %AccountUser{role: :administrator}, attrs) do
     role = attrs[:role] || attrs["role"]
 
-    if (role && to_string(role) != "admin") and admin_count(account) <= 1 do
+    if (role && to_string(role) != "administrator") and admin_count(account) <= 1 do
       {:error, :last_admin}
     else
       :ok

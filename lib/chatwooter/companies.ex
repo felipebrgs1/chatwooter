@@ -8,6 +8,7 @@ defmodule Chatwooter.Companies do
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Companies.Company
   alias Chatwooter.Contacts
+  alias Chatwooter.Contacts.Contact
 
   @doc "Lista as empresas da conta com contagem de contatos."
   def list_companies(%Account{id: account_id}) do
@@ -47,7 +48,18 @@ defmodule Chatwooter.Companies do
   end
 
   @doc "Remove uma empresa (contatos vinculados são desvinculados)."
-  def delete_company(%Company{} = company), do: Repo.delete(company)
+  def delete_company(%Company{} = company) do
+    Repo.transaction(fn ->
+      Repo.update_all(from(c in Contact, where: c.company_id == ^company.id),
+        set: [company_id: nil]
+      )
+
+      case Repo.delete(company) do
+        {:ok, deleted} -> deleted
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
 
   @doc "Changeset para formulários (sem persistir)."
   def change_company(%Company{} = company, attrs \\ %{}) do

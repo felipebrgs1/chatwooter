@@ -12,14 +12,29 @@ defmodule Chatwooter.Inboxes.Inbox do
 
   schema "inboxes" do
     field :name, :string
-    field :channel_type, Ecto.Enum, values: @channel_types
-    field :provider_config, :map, default: %{}
+    field :channel_type, Chatwooter.Types.InboxChannel
+    field :channel_id, :integer, default: 0
+    field :provider_config, :map, virtual: true, default: %{}, redact: true
     field :greeting_message, :string
+    field :allow_messages_after_resolved, :boolean, default: true
+    field :auto_assignment_config, :map, default: %{}
+    field :business_name, :string
+    field :csat_config, :map, default: %{}
+    field :csat_survey_enabled, :boolean, default: false
+    field :email_address, :string
+    field :enable_auto_assignment, :boolean, default: true
+    field :enable_email_collect, :boolean, default: true
+    field :greeting_enabled, :boolean, default: false
+    field :lock_to_single_conversation, :boolean, default: false
+    field :out_of_office_message, :string
+    field :sender_name_type, :integer, default: 0
+    field :timezone, :string, default: "UTC"
+    field :working_hours_enabled, :boolean, default: false
 
     belongs_to :account, Chatwooter.Accounts.Account
     has_many :contact_inboxes, Chatwooter.Contacts.ContactInbox
 
-    timestamps(type: :utc_datetime)
+    timestamps(type: :utc_datetime_usec, inserted_at_source: :created_at)
   end
 
   @doc false
@@ -31,7 +46,6 @@ defmodule Chatwooter.Inboxes.Inbox do
     |> validate_length(:greeting_message, max: 1000)
     |> validate_inclusion(:channel_type, @channel_types)
     |> validate_provider_config()
-    |> foreign_key_constraint(:account_id)
   end
 
   @doc """
@@ -45,7 +59,6 @@ defmodule Chatwooter.Inboxes.Inbox do
     |> validate_length(:name, min: 2, max: 160)
     |> validate_length(:greeting_message, max: 1000)
     |> validate_provider_config()
-    |> foreign_key_constraint(:account_id)
   end
 
   defp validate_provider_config(changeset) do

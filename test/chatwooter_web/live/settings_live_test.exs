@@ -228,11 +228,11 @@ defmodule ChatwooterWeb.SettingsLiveTest do
     html =
       lv
       |> element("#member-#{member.id} select[name='role']")
-      |> render_change(%{"role" => "admin", "id" => to_string(member.id)})
+      |> render_change(%{"role" => "administrator", "id" => to_string(member.id)})
 
-    assert html =~ "admin"
+    assert html =~ "administrator"
 
-    assert [%{role: :admin}] =
+    assert [%{role: :administrator}] =
              Accounts.list_account_users(account) |> Enum.filter(&(&1.user_id == member.id))
   end
 
@@ -245,7 +245,9 @@ defmodule ChatwooterWeb.SettingsLiveTest do
     assert render(lv) =~ "agent@acme.inc"
 
     lv
-    |> form("#agent-form", agent: %{name: "Agent Renamed", role: "admin", availability: "busy"})
+    |> form("#agent-form",
+      agent: %{name: "Agent Renamed", role: "administrator", availability: "busy"}
+    )
     |> render_submit()
 
     html = render(lv)

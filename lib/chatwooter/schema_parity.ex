@@ -22,7 +22,13 @@ defmodule Chatwooter.SchemaParity do
          ARRAY(SELECT pg_get_indexdef(i.indexrelid, n, true)
                FROM generate_series(1, i.indnkeyatts) AS n), i.indisprimary,
        ARRAY(SELECT opc.opcname FROM unnest(i.indclass::oid[]) WITH ORDINALITY AS cls(oid, pos)
-             JOIN pg_opclass opc ON opc.oid = cls.oid ORDER BY cls.pos)
+             JOIN pg_opclass opc ON opc.oid = cls.oid ORDER BY cls.pos),
+       ARRAY(SELECT CASE WHEN am.amname = 'btree' THEN
+         (CASE WHEN (opt.value & 1) = 1 THEN 'DESC' ELSE 'ASC' END) ||
+         (CASE WHEN (opt.value & 2) = 2 THEN ' NULLS FIRST' ELSE ' NULLS LAST' END)
+         ELSE NULL END
+         FROM unnest(i.indoption::smallint[]) WITH ORDINALITY AS opt(value, pos)
+         ORDER BY opt.pos)
   FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid
   JOIN pg_namespace ns ON ns.oid = c.relnamespace
   JOIN pg_class ic ON ic.oid = i.indexrelid JOIN pg_am am ON am.oid = ic.relam
@@ -116,7 +122,7 @@ defmodule Chatwooter.SchemaParity do
       limitations: [
         "Enums Rails, transforms de importacao e dados nao constam do schema.rb",
         "Corpos das funcoes de triggers nao sao verificados pelo catalogo",
-        "Indices sao comparados por nome, chaves, unicidade, metodo e predicado; revisar opclasses e ordens especiais"
+        "Indices comparados por nome, chaves, unicidade, metodo, predicado, opclasses declaradas e ordem por coluna"
       ],
       extensions: extension_diffs,
       triggers: trigger_diffs,
@@ -223,9 +229,16 @@ defmodule Chatwooter.SchemaParity do
         do: normalize_sql(expected.expression) == normalize_sql(Enum.join(actual.keys, ", ")),
         else: Enum.map(expected.keys, &normalize_sql/1) == Enum.map(actual.keys, &normalize_sql/1)
       ) and
-      (is_nil(expected.opclass) or expected.opclass in actual.opclasses) and
-      (is_nil(expected.order) or Enum.any?(actual.keys, &String.contains?(&1, expected.order)))
+      (is_nil(expected.opclass) or Enum.all?(actual.opclasses, &(&1 == expected.opclass))) and
+      index_orders(expected, actual) == actual.orders
   end
+
+  defp index_orders(%{using: "btree"} = expected, actual) do
+    keys = if expected.expression, do: actual.keys, else: expected.keys
+    Enum.map(keys, &Map.get(expected.order, &1, "ASC NULLS LAST"))
+  end
+
+  defp index_orders(_expected, actual), do: Enum.map(actual.keys, fn _key -> nil end)
 
   defp normalize_sql(nil), do: nil
 
@@ -296,7 +309,8 @@ defmodule Chatwooter.SchemaParity do
                                                            where,
                                                            keys,
                                                            primary,
-                                                           opclasses
+                                                           opclasses,
+                                                           orders
                                                          ],
                                                          acc ->
         if primary do
@@ -310,7 +324,8 @@ defmodule Chatwooter.SchemaParity do
             using: using,
             where: where,
             keys: keys,
-            opclasses: opclasses
+            opclasses: opclasses,
+            orders: orders
           })
         end
       end)

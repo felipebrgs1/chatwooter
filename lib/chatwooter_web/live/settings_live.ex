@@ -2,9 +2,12 @@ defmodule ChatwooterWeb.SettingsLive do
   @moduledoc "Configurações da conta estilo Chatwoot: General, Inboxes, Agents."
   use ChatwooterWeb, :live_view
 
-  alias Chatwooter.{Accounts, Inboxes}
-  alias Chatwooter.Accounts.{Account, User}
+  alias Chatwooter.Accounts
+  alias Chatwooter.Accounts.Account
+  alias Chatwooter.Accounts.User
   alias Chatwooter.Channels.Telegram.BotApi
+  alias Chatwooter.Inboxes
+  alias Chatwooter.Platform.RecordDeletion
   alias ChatwooterWeb.AppShell
 
   @impl true
@@ -103,7 +106,7 @@ defmodule ChatwooterWeb.SettingsLive do
   end
 
   def handle_event("delete-inbox", %{"id" => id}, socket) do
-    {:ok, _} = Inboxes.delete_inbox(socket.assigns.account, id)
+    {:ok, _} = RecordDeletion.delete_inbox(socket.assigns.account, id)
 
     {:noreply,
      socket
@@ -118,9 +121,9 @@ defmodule ChatwooterWeb.SettingsLive do
      socket
      |> assign(:editing_inbox_id, inbox.id)
      |> assign(:editing_channel, inbox.channel_type)
-     |> assign(:provider_token, (inbox.provider_config || %{})["bot_token"])
+     |> assign(:provider_token, inbox.provider_config["bot_token"])
      |> assign(:webhook_url, telegram_webhook_url(inbox))
-     |> assign(:editing_bot_username, (inbox.provider_config || %{})["bot_username"])
+     |> assign(:editing_bot_username, inbox.provider_config["bot_username"])
      |> assign(:edit_form, to_form(Inboxes.change_inbox(inbox), as: "inbox"))}
   end
 
@@ -174,7 +177,7 @@ defmodule ChatwooterWeb.SettingsLive do
   def handle_event("test-telegram", _params, socket) do
     inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
 
-    case (inbox.provider_config || %{})["bot_token"] do
+    case inbox.provider_config["bot_token"] do
       token when is_binary(token) and token != "" ->
         test_saved_token(socket, inbox)
 
@@ -186,7 +189,7 @@ defmodule ChatwooterWeb.SettingsLive do
   def handle_event("connect-telegram", _params, socket) do
     inbox = Inboxes.get_inbox!(socket.assigns.account, socket.assigns.editing_inbox_id)
 
-    case (inbox.provider_config || %{})["bot_token"] do
+    case inbox.provider_config["bot_token"] do
       token when is_binary(token) and token != "" ->
         connect_saved_inbox(socket, inbox)
 
@@ -443,7 +446,7 @@ defmodule ChatwooterWeb.SettingsLive do
   defp connect_saved_inbox(socket, inbox) do
     with {:ok, inbox} <- Inboxes.ensure_webhook_secret(inbox),
          url = telegram_webhook_url(inbox),
-         secret = (inbox.provider_config || %{})["webhook_secret"],
+         secret = inbox.provider_config["webhook_secret"],
          {:ok, _} <- BotApi.set_webhook(inbox, url, secret),
          {:ok, _} <- Inboxes.update_inbox(inbox, %{provider_config: %{"webhook_url" => url}}) do
       {:noreply,
@@ -551,7 +554,7 @@ defmodule ChatwooterWeb.SettingsLive do
                   field={f[:locale]}
                   type="select"
                   label="Language"
-                  options={["Português (BR)": "pt-BR", English: "en"]}
+                  options={["Português (BR)": 16, English: 0]}
                 />
                 <.button variant="primary">Save changes</.button>
               </.form>
@@ -687,10 +690,10 @@ defmodule ChatwooterWeb.SettingsLive do
                       {label}
                     </span>
                     <span
-                      :if={(inbox.provider_config || %{})["bot_username"]}
+                      :if={inbox.provider_config["bot_username"]}
                       class="ml-1 mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
                     >
-                      @{(inbox.provider_config || %{})["bot_username"]}
+                      @{inbox.provider_config["bot_username"]}
                     </span>
                     <span class={
                       if(configured?(inbox),
@@ -759,7 +762,7 @@ defmodule ChatwooterWeb.SettingsLive do
                     field={@invite_form[:role]}
                     type="select"
                     label="Role"
-                    options={[Agent: "agent", Admin: "admin"]}
+                    options={[Agent: "agent", Admin: "administrator"]}
                   />
                 </div>
                 <.button variant="primary">Send invite</.button>
@@ -808,7 +811,7 @@ defmodule ChatwooterWeb.SettingsLive do
                     phx-value-id={m.user_id}
                     class="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold"
                   >
-                    <option value="admin" selected={m.role == :admin}>Admin</option>
+                    <option value="administrator" selected={m.role == :administrator}>Admin</option>
                     <option value="agent" selected={m.role == :agent}>Agent</option>
                   </select>
                   <button
@@ -846,7 +849,7 @@ defmodule ChatwooterWeb.SettingsLive do
                       field={@agent_form[:role]}
                       type="select"
                       label="Role"
-                      options={[Agent: "agent", Admin: "admin"]}
+                      options={[Agent: "agent", Admin: "administrator"]}
                     />
                     <.input
                       field={@agent_form[:availability]}

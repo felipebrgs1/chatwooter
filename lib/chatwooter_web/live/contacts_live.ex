@@ -2,8 +2,12 @@ defmodule ChatwooterWeb.ContactsLive do
   @moduledoc "Contatos estilo Chatwoot: cards expansíveis + página de detalhe."
   use ChatwooterWeb, :live_view
 
-  alias Chatwooter.{Accounts, Companies, Contacts, Conversations}
+  alias Chatwooter.Accounts
+  alias Chatwooter.Companies
+  alias Chatwooter.Contacts
   alias Chatwooter.Contacts.Contact
+  alias Chatwooter.Conversations
+  alias Chatwooter.Platform.RecordDeletion
   alias ChatwooterWeb.AppShell
 
   @impl true
@@ -150,7 +154,7 @@ defmodule ChatwooterWeb.ContactsLive do
   end
 
   def handle_event("delete", %{"id" => id}, %{assigns: %{account: account}} = socket) do
-    account |> Contacts.get_contact!(id) |> Contacts.delete_contact()
+    RecordDeletion.delete_contact(account, id)
 
     socket =
       socket

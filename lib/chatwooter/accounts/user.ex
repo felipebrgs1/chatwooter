@@ -1,16 +1,47 @@
 defmodule Chatwooter.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   schema "users" do
-    field :name, :string
+    field :provider, :string, default: "email"
+    field :uid, :string, default: ""
+
+    field :hashed_password, Chatwooter.Types.PasswordHash,
+      source: :encrypted_password,
+      redact: true
+
+    field :reset_password_token, :string, redact: true
+    field :reset_password_sent_at, :utc_datetime_usec
+    field :remember_created_at, :utc_datetime_usec
+    field :sign_in_count, :integer
+    field :current_sign_in_at, :utc_datetime_usec
+    field :last_sign_in_at, :utc_datetime_usec
+    field :current_sign_in_ip, :string
+    field :last_sign_in_ip, :string
+    field :confirmation_token, :string, redact: true
+    field :confirmed_at, :utc_datetime_usec
+    field :confirmation_sent_at, :utc_datetime_usec
+    field :unconfirmed_email, :string
+    field :name, :string, default: ""
+    field :display_name, :string
     field :email, :string
+    field :tokens, Chatwooter.Types.JsonValue, redact: true
+    field :pubsub_token, :string, redact: true
+    field :availability, :integer
+    field :ui_settings, Chatwooter.Types.JsonValue
+    field :custom_attributes, Chatwooter.Types.JsonValue
+    field :type, :string
+    field :message_signature, :string
+    field :otp_secret, :string, redact: true
+    field :consumed_timestep, :integer
+    field :otp_required_for_login, :boolean
+    field :otp_backup_codes, :string, redact: true
+    field :device_trust_version, :integer
     field :password, :string, virtual: true, redact: true
-    field :hashed_password, :string, redact: true
-    field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
 
-    timestamps(type: :utc_datetime)
+    timestamps(type: :utc_datetime_usec, inserted_at_source: :created_at)
   end
 
   @doc """
@@ -27,6 +58,7 @@ defmodule Chatwooter.Accounts.User do
   def email_changeset(user, attrs, opts \\ []) do
     user
     |> cast(attrs, [:email])
+    |> synchronize_uid()
     |> validate_email(opts)
   end
 
@@ -41,9 +73,36 @@ defmodule Chatwooter.Accounts.User do
 
     if Keyword.get(opts, :validate_unique, true) do
       changeset
-      |> unsafe_validate_unique(:email, Chatwooter.Repo)
-      |> unique_constraint(:email)
+      |> validate_email_uniqueness()
+      |> unique_constraint(:email, name: :index_users_on_uid_and_provider)
       |> validate_email_changed()
+    else
+      changeset
+    end
+  end
+
+  defp synchronize_uid(changeset) do
+    case get_change(changeset, :email) do
+      email when is_binary(email) -> put_change(changeset, :uid, String.downcase(email))
+      _ -> changeset
+    end
+  end
+
+  defp validate_email_uniqueness(changeset) do
+    email = get_field(changeset, :email)
+    id = changeset.data.id
+
+    if is_binary(email) do
+      query =
+        from(user in __MODULE__,
+          where: fragment("lower(?)", user.email) == ^String.downcase(email)
+        )
+
+      query = if id, do: where(query, [user], user.id != ^id), else: query
+
+      if Chatwooter.Repo.exists?(query),
+        do: add_error(changeset, :email, "has already been taken"),
+        else: changeset
     else
       changeset
     end
@@ -114,6 +173,7 @@ defmodule Chatwooter.Accounts.User do
   def agent_changeset(user, attrs, opts \\ []) do
     user
     |> cast(attrs, [:name, :email])
+    |> synchronize_uid()
     |> default_name_from_email()
     |> validate_required([:name, :email])
     |> validate_length(:name, min: 2, max: 160)
@@ -127,8 +187,8 @@ defmodule Chatwooter.Accounts.User do
   defp maybe_validate_unique_email(changeset, opts) do
     if Keyword.get(opts, :validate_unique, true) do
       changeset
-      |> unsafe_validate_unique(:email, Chatwooter.Repo)
-      |> unique_constraint(:email)
+      |> validate_email_uniqueness()
+      |> unique_constraint(:email, name: :index_users_on_uid_and_provider)
     else
       changeset
     end
@@ -150,7 +210,7 @@ defmodule Chatwooter.Accounts.User do
   Confirms the account by setting `confirmed_at`.
   """
   def confirm_changeset(user) do
-    now = DateTime.utc_now(:second)
+    now = DateTime.utc_now()
     change(user, confirmed_at: now)
   end
 

@@ -91,40 +91,81 @@ defmodule Chatwooter.SchemaParityTest do
     end
   end
 
-  test "compares five critical tables against migrated PostgreSQL, including mismatched types and defaults" do
+  test "all present upstream tables match the migrated physical contract" do
     report = SchemaParity.compare(Repo, @schema)
     assert report.summary.upstream_tables == 103
-    assert report.tables["channel_whatsapp"].status == :present
-    assert map_size(report.tables) == 103
-    assert report.tables["teams"].status == :present
-    assert report.tables["teams"].columns["name"].status == :different
+    assert report.summary.compared_tables == 78
+    assert report.summary.missing_tables == 25
     assert "users_tokens" in report.local_tables
-    assert "display_id" in report.tables["conversations"].missing_columns
-    assert report.tables["conversations"].columns["status"].expected.type == "integer"
-
-    assert report.tables["conversations"].columns["status"].actual.type ==
-             "character varying(255)"
-
-    assert "content_attributes" in report.tables["messages"].missing_columns
-    assert "channel_id" in report.tables["inboxes"].missing_columns
-    assert "identifier" in report.tables["contacts"].missing_columns
-    assert "support_email" in report.tables["accounts"].missing_columns
     refute report.summary.parity?
+
+    for {name, table} <- report.tables, table.status == :present do
+      assert table.primary_key.status == :equal, name
+      assert table.missing_columns == [], name
+      assert table.local_columns == [], name
+
+      for kind <- [:columns, :indexes, :foreign_keys, :checks],
+          {key, diff} <- Map.fetch!(table, kind) do
+        assert diff.status == :equal, "#{name}.#{kind}.#{key}: #{inspect(diff)}"
+      end
+    end
   end
 
-  test "detects constraints and indexes from the physical database, not Ecto structs" do
+  test "detects altered physical defaults and missing indexes" do
+    Repo.query!("ALTER TABLE contacts ALTER COLUMN blocked SET DEFAULT true")
+    Repo.query!("DROP INDEX index_contacts_on_blocked")
     report = SchemaParity.compare(Repo, @schema)
+    assert report.tables["contacts"].columns["blocked"].status == :different
+    assert report.tables["contacts"].indexes["index_contacts_on_blocked"].status == :missing
 
-    assert report.tables["contacts"].indexes["contacts_account_id_phone_number_index"].status ==
-             :local_only
+    # Presence is proven; bodies are not verifiable from the catalog.
+    for name <-
+          ~w(accounts_after_insert_row_tr conversations_before_insert_row_tr camp_dpid_before_insert) do
+      assert report.triggers[name].status == :body_unverified, name
+    end
 
-    assert report.tables["conversations"].indexes[
-             "index_conversations_on_account_id_and_display_id"
-           ].status == :missing
+    # campaigns_before_insert_row_tr needs the campaigns table, still absent.
+    assert report.triggers["campaigns_before_insert_row_tr"].status == :missing
+  end
 
-    assert report.tables["inboxes"].foreign_keys["account_id"].status == :local_only
-    assert report.tables["inboxes"].columns["account_id"].status == :different
-    assert report.tables["accounts"].columns["name"].status == :different
-    assert report.triggers["conversations_before_insert_row_tr"].status == :missing
+  test "compares sort direction and null placement for the correct index column" do
+    Repo.query!("DROP INDEX index_contacts_on_account_id_and_last_activity_at")
+
+    Repo.query!("""
+    CREATE INDEX index_contacts_on_account_id_and_last_activity_at
+    ON contacts (account_id DESC NULLS LAST, last_activity_at ASC NULLS LAST)
+    """)
+
+    report = SchemaParity.compare(Repo, @schema)
+    index = report.tables["contacts"].indexes["index_contacts_on_account_id_and_last_activity_at"]
+    assert index.status == :different
+    assert index.actual.orders == ["DESC NULLS LAST", "ASC NULLS LAST"]
+  end
+
+  test "requires the declared operator class on every indexed column" do
+    Repo.query!("CREATE TABLE parity_index_probe (first varchar, second varchar)")
+
+    Repo.query!("""
+    CREATE INDEX parity_index_probe_idx ON parity_index_probe
+      (first text_pattern_ops, second text_ops)
+    """)
+
+    path = Path.join(System.tmp_dir!(), "index-parity-#{System.unique_integer([:positive])}.rb")
+
+    File.write!(path, """
+    ActiveRecord::Schema[7.1].define(version: 1) do
+      create_table "parity_index_probe", id: false do |t|
+        t.string "first"
+        t.string "second"
+        t.index ["first", "second"], name: "parity_index_probe_idx", opclass: :text_pattern_ops
+      end
+    end
+    """)
+
+    on_exit(fn -> File.rm(path) end)
+    report = SchemaParity.compare(Repo, path)
+
+    assert report.tables["parity_index_probe"].indexes["parity_index_probe_idx"].status ==
+             :different
   end
 end

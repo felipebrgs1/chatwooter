@@ -7,7 +7,7 @@ defmodule Chatwooter.Conversations do
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Contacts
   alias Chatwooter.Contacts.Contact
-  alias Chatwooter.Conversations.{Attachment, Conversation, Message}
+  alias Chatwooter.Conversations.{Attachment, AttachmentStorage, Conversation, Message}
   alias Chatwooter.Inboxes.Inbox
 
   @doc """
@@ -22,13 +22,26 @@ defmodule Chatwooter.Conversations do
     source_id =
       Map.get(attrs, :source_id) || Map.get(attrs, "source_id") || contact.phone_number
 
+    # display_id comes from the per-account sequence via
+    # conversations_before_insert_row_tr; Postgres RETURNING surfaces it.
+    Repo.transaction(fn ->
+      case do_open_conversation(account, inbox, contact, attrs, source_id) do
+        {:ok, conversation} -> conversation
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  defp do_open_conversation(account, inbox, contact, attrs, source_id) do
     with {:ok, contact_inbox} <-
            Contacts.get_or_create_contact_inbox(contact, inbox, source_id) do
       %Conversation{
         account_id: account.id,
         inbox_id: inbox.id,
         contact_inbox_id: contact_inbox.id,
-        last_activity_at: DateTime.utc_now(:second)
+        contact_id: contact.id,
+        uuid: Ecto.UUID.generate(),
+        last_activity_at: DateTime.utc_now()
       }
       |> Conversation.changeset(attrs)
       |> Repo.insert()
@@ -42,18 +55,21 @@ defmodule Chatwooter.Conversations do
       messages: {from(m in Message, order_by: [asc: m.id]), :attachments},
       contact_inbox: [:contact, :inbox]
     )
+    |> hydrate_conversation()
   end
 
   @doc "Busca mensagem com anexos (thread)."
   def get_message!(id) do
-    Message |> Repo.get!(id) |> Repo.preload(:attachments)
+    Message |> Repo.get!(id) |> Repo.preload(:attachments) |> hydrate_message()
   end
 
   @doc """
   Anexa um arquivo já hospedado no storage à mensagem e avisa os assinantes.
   """
   def create_attachment(%Message{} = message, attrs) do
-    case %Attachment{message_id: message.id} |> Attachment.changeset(attrs) |> Repo.insert() do
+    result = Repo.transaction(fn -> insert_attachment_with_storage(message, attrs) end)
+
+    case result do
       {:ok, attachment} ->
         full = get_message!(message.id)
         broadcast_message(full, {:message_updated, full})
@@ -64,15 +80,53 @@ defmodule Chatwooter.Conversations do
     end
   end
 
+  defp insert_attachment_with_storage(message, attrs) do
+    changeset =
+      %Attachment{message_id: message.id, account_id: message.account_id}
+      |> Attachment.changeset(attrs)
+
+    with {:ok, attachment} <- Repo.insert(changeset),
+         {:ok, _storage} <- insert_attachment_storage(attachment, message.id) do
+      attachment
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp insert_attachment_storage(attachment, message_id) do
+    storage = %AttachmentStorage{
+      attachment_id: attachment.id,
+      message_id: message_id,
+      key: attachment.key,
+      url: attachment.url,
+      content_type: attachment.content_type,
+      size_bytes: attachment.size_bytes,
+      metadata: attachment.metadata
+    }
+
+    storage
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.unique_constraint([:message_id, :key],
+      name: :chatwooter_attachment_storage_message_key
+    )
+    |> Repo.insert()
+  end
+
   @doc "Lista os anexos de uma mensagem."
   def list_attachments(%Message{id: id}) do
     Repo.all(from a in Attachment, where: a.message_id == ^id, order_by: [asc: a.id])
+    |> Enum.map(&hydrate_attachment/1)
   end
 
   @doc "Busca anexo pela chave de storage (idempotência de download)."
   def fetch_attachment(message_id, key) do
-    case Repo.get_by(Attachment, message_id: message_id, key: key) do
-      %Attachment{} = attachment -> {:ok, attachment}
+    case Repo.one(
+           from a in Attachment,
+             join: st in AttachmentStorage,
+             on: st.attachment_id == a.id,
+             where: st.message_id == ^message_id and st.key == ^key
+         ) do
+      %Attachment{} = attachment -> {:ok, hydrate_attachment(attachment)}
       nil -> {:error, :not_found}
     end
   end
@@ -80,7 +134,7 @@ defmodule Chatwooter.Conversations do
   @doc "Busca mensagem por id (workers de envio)."
   def fetch_message(id) do
     case Repo.get(Message, id) do
-      %Message{} = message -> {:ok, message}
+      %Message{} = message -> {:ok, Message.hydrate(message)}
       nil -> {:error, :not_found}
     end
   end
@@ -103,6 +157,7 @@ defmodule Chatwooter.Conversations do
     )
     |> Repo.all()
     |> Repo.preload(messages: :attachments)
+    |> Enum.map(&hydrate_conversation/1)
   end
 
   defp filter_inbox(query, nil), do: query
@@ -120,6 +175,7 @@ defmodule Chatwooter.Conversations do
     |> order_by([c], desc: c.updated_at)
     |> preload(contact_inbox: [:inbox], messages: [])
     |> Repo.all()
+    |> Enum.map(&hydrate_conversation/1)
   end
 
   @doc "Conversas de todos os contatos de uma empresa (histórico)."
@@ -132,6 +188,7 @@ defmodule Chatwooter.Conversations do
     |> order_by([c], desc: c.updated_at)
     |> preload(contact_inbox: [:contact, :inbox])
     |> Repo.all()
+    |> Enum.map(&hydrate_conversation/1)
   end
 
   defp filter_search(query, search) when search in ["", nil], do: query
@@ -166,7 +223,7 @@ defmodule Chatwooter.Conversations do
   (`conversation:<id>` para a thread, `account:<id>` para a lista).
   """
   def add_message(%Conversation{} = conversation, attrs) do
-    now = DateTime.utc_now(:second)
+    now = DateTime.utc_now()
 
     %Message{
       conversation_id: conversation.id,
@@ -181,7 +238,7 @@ defmodule Chatwooter.Conversations do
         |> Conversation.changeset(%{last_activity_at: now})
         |> Repo.update()
 
-        message = Repo.preload(message, :attachments)
+        message = Repo.preload(message, :attachments) |> hydrate_message()
         broadcast(conversation, {:new_message, message})
         {:ok, message}
 
@@ -225,7 +282,7 @@ defmodule Chatwooter.Conversations do
   defp update_message_delivery(%Message{} = message, attrs) do
     case message |> Message.changeset(attrs) |> Repo.update() do
       {:ok, message} ->
-        message = Repo.preload(message, :attachments)
+        message = Repo.preload(message, :attachments) |> hydrate_message()
         broadcast_message(message, {:message_updated, message})
         {:ok, message}
 
@@ -244,7 +301,16 @@ defmodule Chatwooter.Conversations do
   def receive_message(%Account{} = account, %Inbox{} = inbox, normalized) do
     with {:ok, contact_inbox} <- ingest_contact_inbox(account, inbox, normalized),
          {:ok, conversation} <- reuse_or_open_conversation(account, inbox, contact_inbox) do
-      insert_or_find_message(conversation, normalized)
+      Repo.transaction(fn -> receive_locked_message(conversation, normalized) end)
+    end
+  end
+
+  defp receive_locked_message(conversation, normalized) do
+    Repo.query!("SELECT id FROM conversations WHERE id = $1 FOR UPDATE", [conversation.id])
+
+    case insert_or_find_message(conversation, normalized) do
+      {:ok, result} -> result
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 
@@ -320,6 +386,80 @@ defmodule Chatwooter.Conversations do
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  def delete_contact_data(account_id, contact_id) do
+    query =
+      from c in Conversation,
+        left_join: ci in Chatwooter.Contacts.ContactInbox,
+        on: ci.id == c.contact_inbox_id,
+        where:
+          c.account_id == ^account_id and
+            (c.contact_id == ^contact_id or ci.contact_id == ^contact_id),
+        select: c.id
+
+    delete_conversation_data(Repo.all(query))
+  end
+
+  def delete_inbox_data(account_id, inbox_id) do
+    ids =
+      Repo.all(
+        from c in Conversation,
+          where: c.account_id == ^account_id and c.inbox_id == ^inbox_id,
+          select: c.id
+      )
+
+    delete_conversation_data(ids)
+  end
+
+  defp delete_conversation_data(ids) do
+    Repo.transaction(fn ->
+      messages = from m in Message, where: m.conversation_id in ^ids, select: m.id
+      Repo.delete_all(from s in AttachmentStorage, where: s.message_id in subquery(messages))
+      Repo.delete_all(from a in Attachment, where: a.message_id in subquery(messages))
+      Repo.delete_all(from m in Message, where: m.conversation_id in ^ids)
+      Repo.delete_all(from c in Conversation, where: c.id in ^ids)
+    end)
+  end
+
+  defp hydrate_attachment(attachment) do
+    case Repo.get(AttachmentStorage, attachment.id) do
+      nil ->
+        %{attachment | url: attachment.external_url}
+
+      storage ->
+        fields = Map.take(storage, [:key, :url, :content_type, :size_bytes, :metadata])
+        struct(attachment, fields)
+    end
+  end
+
+  defp hydrate_message(message) do
+    message = Message.hydrate(message)
+
+    if Ecto.assoc_loaded?(message.attachments) do
+      %{message | attachments: Enum.map(message.attachments, &hydrate_attachment/1)}
+    else
+      message
+    end
+  end
+
+  defp hydrate_conversation(conversation) do
+    conversation =
+      if Ecto.assoc_loaded?(conversation.messages),
+        do: %{conversation | messages: Enum.map(conversation.messages, &hydrate_message/1)},
+        else: conversation
+
+    if (Ecto.assoc_loaded?(conversation.contact_inbox) and conversation.contact_inbox) &&
+         Ecto.assoc_loaded?(conversation.contact_inbox.inbox) do
+      ci = conversation.contact_inbox
+
+      %{
+        conversation
+        | contact_inbox: %{ci | inbox: Chatwooter.Inboxes.load_provider_config(ci.inbox)}
+      }
+    else
+      conversation
     end
   end
 

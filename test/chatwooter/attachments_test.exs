@@ -53,6 +53,29 @@ defmodule Chatwooter.AttachmentsTest do
              Conversations.create_attachment(message, %{file_type: "image"})
   end
 
+  test "duplicate storage keys roll back the attachment row", %{message: message} do
+    assert {:ok, original} = Conversations.create_attachment(message, attachment_attrs())
+
+    assert {:error, %Ecto.Changeset{}} =
+             Conversations.create_attachment(message, attachment_attrs())
+
+    assert [%Attachment{id: id}] = Conversations.list_attachments(message)
+    assert id == original.id
+
+    assert {:ok, %Attachment{id: ^id}} =
+             Conversations.fetch_attachment(message.id, "telegram/1/2/f1.jpg")
+  end
+
+  test "media type survives message reload without changing the upstream enum", %{
+    message: message
+  } do
+    assert %{content_type: :image, upstream_content_type: :text} =
+             Conversations.get_message!(message.id)
+
+    assert [[0]] =
+             Repo.query!("SELECT content_type FROM messages WHERE id = $1", [message.id]).rows
+  end
+
   test "attachments are preloaded with the conversation", %{
     account: account,
     conv: conv,

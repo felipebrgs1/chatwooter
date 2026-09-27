@@ -136,7 +136,7 @@ defmodule Chatwooter.Imports do
     do: if(Inboxes.get_inbox(account, id), do: :ok, else: {:error, :not_found})
 
   defp role(0), do: {:ok, "agent"}
-  defp role(1), do: {:ok, "admin"}
+  defp role(1), do: {:ok, "administrator"}
   defp role(_), do: {:error, :invalid_source}
 
   defp availability(0), do: {:ok, "online"}

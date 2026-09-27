@@ -104,6 +104,6 @@ defmodule Chatwooter.AccountsTeamsTest do
     assert report.tables["inbox_members"].columns["updated_at"].status == :equal
     assert report.tables["inbox_members"].primary_key.actual.type == "integer"
     assert report.tables["teams"].columns["account_id"].actual.type == "bigint"
-    assert report.tables["inbox_members"].columns["user_id"].status == :different
+    assert report.tables["inbox_members"].columns["user_id"].status == :equal
   end
 end

@@ -109,7 +109,7 @@ defmodule Chatwooter.ImportsTest do
     assert {:ok, %User{id: ^id}} = Imports.import_agent(account, row)
     assert %User{hashed_password: nil, confirmed_at: nil} = Repo.get!(User, id)
 
-    assert %AccountUser{role: :admin, availability: :offline} =
+    assert %AccountUser{role: :administrator, availability: :offline} =
              Repo.get_by!(AccountUser, account_id: account.id, user_id: id)
 
     assert Imports.resolve(account, "users", 123) == id
@@ -126,7 +126,7 @@ defmodule Chatwooter.ImportsTest do
 
     assert id == owner.id
 
-    assert %AccountUser{role: :admin} =
+    assert %AccountUser{role: :administrator} =
              Repo.get_by!(AccountUser, account_id: account.id, user_id: id)
 
     assert Repo.get!(User, id).hashed_password == owner.hashed_password
@@ -151,7 +151,7 @@ defmodule Chatwooter.ImportsTest do
     assert %AccountUser{role: :agent, availability: :busy} =
              Repo.get_by!(AccountUser, account_id: account.id, user_id: id)
 
-    assert %AccountUser{role: :admin} =
+    assert %AccountUser{role: :administrator} =
              Repo.get_by!(AccountUser, account_id: other.id, user_id: id)
   end
 

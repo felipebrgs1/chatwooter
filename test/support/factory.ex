@@ -15,10 +15,14 @@ defmodule Chatwooter.Factory do
   alias Chatwooter.Inboxes.Inbox
 
   def user_factory do
+    email = sequence(:email, &"user#{&1}@example.com")
+
     %User{
-      email: sequence(:email, &"user#{&1}@example.com"),
+      email: email,
+      uid: email,
+      name: "Synthetic user",
       hashed_password: Bcrypt.hash_pwd_salt("hello world!"),
-      confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      confirmed_at: DateTime.utc_now()
     }
   end
 
@@ -31,7 +35,8 @@ defmodule Chatwooter.Factory do
   def inbox_factory do
     %Inbox{
       name: sequence(:inbox_name, &"Inbox #{&1}"),
-      channel_type: :whatsapp
+      channel_type: :whatsapp,
+      channel_id: 0
     }
   end
 
@@ -43,7 +48,7 @@ defmodule Chatwooter.Factory do
   end
 
   def conversation_factory do
-    %Conversation{status: :open}
+    %Conversation{status: :open, display_id: sequence(:conversation_display_id, & &1)}
   end
 
   def message_factory do

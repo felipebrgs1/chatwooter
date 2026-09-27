@@ -37,7 +37,16 @@ defmodule Chatwooter.Contacts do
   end
 
   @doc "Remove um contato."
-  def delete_contact(%Contact{} = contact), do: Repo.delete(contact)
+  def delete_contact(%Contact{} = contact) do
+    Repo.transaction(fn ->
+      Repo.delete_all(from(ci in ContactInbox, where: ci.contact_id == ^contact.id))
+
+      case Repo.delete(contact) do
+        {:ok, deleted} -> deleted
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
 
   @doc "Changeset para formulários (sem persistir)."
   def change_contact(%Contact{} = contact, attrs \\ %{}) do
@@ -83,7 +92,14 @@ defmodule Chatwooter.Contacts do
   def get_or_create_contact(%Account{} = account, attrs) do
     phone = Map.get(attrs, :phone_number) || Map.get(attrs, "phone_number")
 
-    case phone && Repo.get_by(Contact, account_id: account.id, phone_number: phone) do
+    case phone &&
+           Repo.one(
+             from(c in Contact,
+               where: c.account_id == ^account.id and c.phone_number == ^phone,
+               order_by: c.id,
+               limit: 1
+             )
+           ) do
       nil ->
         %Contact{account_id: account.id}
         |> Contact.changeset(attrs)
@@ -143,5 +159,9 @@ defmodule Chatwooter.Contacts do
         where: n.account_id == ^account_id and n.contact_id == ^contact_id,
         order_by: [asc: n.created_at, asc: n.id]
     )
+  end
+
+  def delete_inbox_data(%Inbox{id: inbox_id}) do
+    {:ok, Repo.delete_all(from ci in ContactInbox, where: ci.inbox_id == ^inbox_id)}
   end
 end

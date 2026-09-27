@@ -149,9 +149,13 @@ defmodule Chatwooter.SchemaParity.Snapshot do
       where: option(options, "where"),
       opclass: option(options, "opclass") || inline_opclass,
       order:
-        case Regex.run(~r/order: \{ \w+: "([^"]+)" \}/, options) do
-          [_, value] -> value
-          _ -> nil
+        case Regex.run(~r/order: \{([^}]+)\}/, options) do
+          [_, entries] ->
+            Regex.scan(~r/(\w+): "([^"]+)"/, entries)
+            |> Map.new(fn [_, column, order] -> {column, order} end)
+
+          _ ->
+            %{}
         end
     }
   end

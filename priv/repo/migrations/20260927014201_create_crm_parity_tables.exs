@@ -61,7 +61,9 @@ defmodule Chatwooter.Repo.Migrations.CreateCrmParityTables do
 
     create unique_index(
              :custom_attribute_definitions,
-             [:attribute_key, :attribute_model, :account_id], name: :attribute_key_model_index)
+             [:attribute_key, :attribute_model, :account_id],
+             name: :attribute_key_model_index
+           )
 
     create table(:working_hours) do
       add :inbox_id, :bigint

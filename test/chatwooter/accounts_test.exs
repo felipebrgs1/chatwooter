@@ -403,7 +403,7 @@ defmodule Chatwooter.AccountsTest do
       assert {:ok, %Account{} = account} = Accounts.create_account(%{name: "Acme"}, owner)
       assert account.name == "Acme"
 
-      assert [%AccountUser{role: :admin, user_id: user_id}] =
+      assert [%AccountUser{role: :administrator, user_id: user_id}] =
                Accounts.list_account_users(account)
 
       assert user_id == owner.id
@@ -443,8 +443,8 @@ defmodule Chatwooter.AccountsTest do
       agent = insert(:user)
       {:ok, _} = Accounts.add_member(account, agent, "agent")
 
-      assert {:ok, %AccountUser{role: :admin}} =
-               Accounts.update_member_role(account, agent, "admin")
+      assert {:ok, %AccountUser{role: :administrator}} =
+               Accounts.update_member_role(account, agent, "administrator")
     end
 
     test "update_member_role/3 refuses to demote the last admin", %{
@@ -459,7 +459,7 @@ defmodule Chatwooter.AccountsTest do
       {:ok, _} = Accounts.add_member(account, agent, "agent")
 
       assert {:ok, _} = Accounts.remove_member(account, agent)
-      assert [%AccountUser{role: :admin}] = Accounts.list_account_users(account)
+      assert [%AccountUser{role: :administrator}] = Accounts.list_account_users(account)
     end
 
     test "remove_member/2 refuses to remove the last admin", %{
@@ -473,7 +473,7 @@ defmodule Chatwooter.AccountsTest do
       assert {:ok, user} = Accounts.invite_member(account, "agent@acme.inc")
       assert user.email == "agent@acme.inc"
 
-      assert [%AccountUser{role: :admin}, %AccountUser{role: :agent}] =
+      assert [%AccountUser{role: :administrator}, %AccountUser{role: :agent}] =
                Enum.sort_by(Accounts.list_account_users(account), & &1.role)
     end
 

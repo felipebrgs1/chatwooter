@@ -4,18 +4,23 @@ defmodule Chatwooter.Companies.Company do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Chatwooter.Accounts.Account
+  alias Chatwooter.Contacts.Contact
+  alias Chatwooter.Repo
+
   schema "companies" do
     field :name, :string
     field :domain, :string
     field :description, :string
     field :additional_attributes, :map, default: %{}
     field :custom_attributes, :map, default: %{}
-    field :contacts_count, :integer, virtual: true, default: 0
+    field :contacts_count, :integer
+    field :last_activity_at, :utc_datetime_usec
 
-    belongs_to :account, Chatwooter.Accounts.Account
-    has_many :contacts, Chatwooter.Contacts.Contact
+    belongs_to :account, Account
+    has_many :contacts, Contact
 
-    timestamps(type: :utc_datetime)
+    timestamps(type: :utc_datetime_usec, inserted_at_source: :created_at)
   end
 
   @doc false
@@ -32,8 +37,18 @@ defmodule Chatwooter.Companies.Company do
       ~r/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/,
       message: "must be a valid domain"
     )
-    |> unique_constraint(:domain, name: :companies_account_id_domain_index)
-    |> foreign_key_constraint(:account_id)
+    |> unique_constraint(:domain, name: :index_companies_on_account_and_domain)
+    |> validate_account()
+  end
+
+  defp validate_account(changeset) do
+    account_id = get_field(changeset, :account_id)
+
+    if account_id && Repo.get(Account, account_id) do
+      changeset
+    else
+      add_error(changeset, :account_id, "does not exist")
+    end
   end
 
   defp blank_to_nil(nil), do: nil

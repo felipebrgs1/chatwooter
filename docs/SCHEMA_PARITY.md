@@ -4,7 +4,7 @@
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
 - `schema_parity_baseline.json` permanece como relatório histórico inicial de 10 tabelas. O parser antigo interpretava strings Rails sem limite como varchar(255); o comparador agora usa varchar sem limite, conforme o [adapter PostgreSQL Rails 7.2.3.1](https://github.com/rails/rails/blob/v7.2.3.1/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb). O baseline não foi sobrescrito.
-- Banco migrado após os lotes CRM, plataforma, preservação/canais e help center/configuração: **78/103 tabelas presentes, 25 ausentes; 65 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban e helpers históricos de importação são extras locais.
+- Banco migrado após o alinhamento do núcleo operacional: **78/103 tabelas presentes, 25 ausentes; 78 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e helpers históricos de importação são extras locais.
 
 ```sh
 mix chatwooter.schema_diff
@@ -106,14 +106,25 @@ Provas:
 - `help_center_*`, `preserved_channels_*`, `configuration_*`, `widget_session_*`: comparação física das 20 tabelas e leitura dos valores/defaults, PK ausente, FK de sessão, credenciais redigidas, JSON, datas, timestamps, índices parciais e unicidade.
 - Banco temporário limpo migrado, quatro fixtures totalizando 20 linhas, 19 estados de sequência e uma associação sem PK. Dump custom completo desse banco **sintético** e restauração transacional em outro banco vazio passaram. Todos os campos/defaults das fixtures, contagens, IDs e próximos valores das 19 sequências foram conferidos via Ecto.
 - Rollback das quatro migrações removeu as 20 tabelas e o vínculo `inboxes.portal_id`, preservando os registros de conta e inbox de controle. Reaplicação em banco já populado passou. O rollback perde o conteúdo da coluna de vínculo removida; não equivale a rollback de produção sem backup.
-- Catálogo atual: **78 presentes, 65 iguais, 13 diferentes e 25 ausentes**. A lista completa das 65 iguais está em `schema_parity_progress.json`.
+- Catálogo após o lote do núcleo operacional: **78 presentes, 78 iguais, 0 diferentes e 25 ausentes**. A lista completa das tabelas iguais está em `schema_parity_progress.json`.
 
 Esses canais adicionais, help center, bots, envio de email e configurações globais permanecem como preservação de dados. Nenhum adapter/SSO/login Rails, job pendente, servidor de widget ou recurso novo foi ativado. Não foram criadas rotas/UI, webhooks externos ou migração de binários. Redação de credenciais não substitui proteção do dump/banco. Captain não foi incluído.
 
+## Lote de alinhamento do núcleo operacional (13 tabelas)
+
+Cinco migrações incrementais (`20260927022734`, `20260927022743`, `20260927022754`, `20260927022811`, `20260927023433`) alinharam identidade (`accounts`, `users`, `account_users`), inboxes/vínculos (`inboxes`, `inbox_members`, `teams`, `team_members`), CRM (`contacts`, `contact_inboxes`, `companies`) e conversas (`conversations`, `messages`, `attachments`) ao snapshot. O teste global (`schema_parity_test.exs`) agora exige igualdade física de **todas** as 78 tabelas presentes, com provas negativas de default/índice/opclass/direção de ordenação.
+
+Decisões de preservação, todas cobertas por teste de leitura de dados restaurados:
+
+- `users.encrypted_password` vazio do Devise lê como `nil` (`Types.PasswordHash`); email é nullable/não-unique e a identidade passa a ser `(uid, provider)`; login nunca autentica um match arbitrário quando há duplicatas restauradas.
+- `inboxes.provider_config` saiu da tabela upstream para `chatwooter_inbox_configs`; `channel_type` preserva `Channel::Telegram/Whatsapp/Email/...` via `Types.InboxChannel` e `channel_id` aponta para `channel_telegram`/`channel_whatsapp` criados na migração a partir do config local.
+- `messages.content_type` inteiro upstream é lido como `upstream_content_type`; o tipo de mídia do dashboard (`image/audio/video/file/location`) é preservado em `content_attributes.chatwooter_media_type`. Metadados locais de anexo vivem em `chatwooter_attachment_storage`; linha restaurada sem storage local lê `url` de `external_url`.
+- Tabelas upstream sem FKs SQL continuam sem FKs; cascatas locais foram substituídas por exclusão coordenada em `Platform.RecordDeletion` (usada pelos LiveViews e coberta pelo teste de cascata).
+- `conversations.display_id` sai da sequence por conta `conv_dpid_seq_<account_id>`, com as triggers `accounts_after_insert_row_tr`, `conversations_before_insert_row_tr` e `camp_dpid_before_insert` replicadas (migração com backfill e `setval` no pico por conta; `open_conversation` lê via `RETURNING` com `read_after_writes`). Desvio deliberado: a BEFORE só preenche `display_id` NULL para preservar linhas restauradas fora de COPY; presença é `:body_unverified` no diff, corpo não verificável pelo catálogo. `campaigns_before_insert_row_tr` continua ausente com a tabela `campaigns`.
+
+Limites: sem ensaio `pg_dump`/`pg_restore` integral deste lote; segredos restaurados continuam exigindo proteção antes do uso operacional; extensões `pgcrypto`/`vector`/`pg_stat_statements` seguem ausentes. Bootstrap Phoenix/Oban em banco restaurado e compatibilização da autenticação continuam pendentes. Rótulo de papel é `administrator` (igual ao Rails); transformações de mídia, `provider_config` local e Devise vazio→`nil` são decisões permanentes documentadas acima.
+
 ## Próximos desvios críticos
 
-1. `contacts`, `contact_inboxes`, `companies`: colunas, timestamps, defaults e índices. A unique local de telefone por conta difere da origem; não tratar telefone como identidade única implícita.
-2. Inboxes/canais: `channel_id`, nomes polimórficos Rails, tabelas WA/TG e proteção de segredos antes da operação.
-3. Conversas/mensagens: `display_id`, sequência/trigger por conta, enums inteiros, autor polimórfico, JSON e anexos/ActiveStorage.
-4. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
-5. As 25 tabelas ausentes e as diferenças das tabelas já presentes impedem alegar paridade literal 1:1.
+1. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
+2. As 25 tabelas ausentes (campanhas, Captain/AI, canais não suportados, monitoramento, `agent_sessions`, `calls`, `copilot_*`, etc.) impedem alegar paridade literal 1:1.

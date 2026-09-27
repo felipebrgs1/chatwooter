@@ -6,32 +6,46 @@ defmodule Chatwooter.Inboxes do
 
   alias Chatwooter.Accounts
   alias Chatwooter.Accounts.Account
-  alias Chatwooter.Inboxes.{Inbox, InboxMember}
+  alias Chatwooter.Inboxes.{Inbox, InboxConfig, InboxMember}
 
   def list_inboxes(%Account{id: account_id}) do
     Repo.all(from i in Inbox, where: i.account_id == ^account_id, order_by: [asc: i.name])
+    |> Enum.map(&load_provider_config/1)
   end
 
   def get_inbox!(%Account{id: account_id}, id) do
-    Repo.get_by!(Inbox, id: id, account_id: account_id)
+    Repo.get_by!(Inbox, id: id, account_id: account_id) |> load_provider_config()
   end
 
   def get_inbox(%Account{id: account_id}, id) do
-    Repo.get_by(Inbox, id: id, account_id: account_id)
+    Repo.get_by(Inbox, id: id, account_id: account_id) |> load_provider_config()
   end
 
   @doc "Busca inbox por id (webhooks públicos, sem escopo de conta)."
   def fetch_inbox(id) do
     case Repo.get(Inbox, id) do
-      %Inbox{} = inbox -> {:ok, inbox}
+      %Inbox{} = inbox -> {:ok, load_provider_config(inbox)}
       nil -> {:error, :not_found}
     end
   end
 
   def create_inbox(%Account{} = account, attrs) do
-    %Inbox{account_id: account.id}
-    |> Inbox.changeset(attrs)
-    |> Repo.insert()
+    changeset = Inbox.changeset(%Inbox{account_id: account.id}, attrs)
+
+    if changeset.valid? do
+      Ecto.Multi.new()
+      |> Ecto.Multi.run(:channel, fn _repo, _changes -> create_channel(changeset) end)
+      |> Ecto.Multi.insert(:inbox, fn %{channel: channel_id} ->
+        Ecto.Changeset.put_change(changeset, :channel_id, channel_id)
+      end)
+      |> Ecto.Multi.insert(:config, fn %{inbox: inbox} ->
+        %InboxConfig{inbox_id: inbox.id, provider_config: inbox.provider_config}
+      end)
+      |> Repo.transaction()
+      |> inbox_result()
+    else
+      {:error, changeset}
+    end
   end
 
   def add_member(%Account{} = account, inbox_id, user_id) do
@@ -58,9 +72,20 @@ defmodule Chatwooter.Inboxes do
     attrs = normalize_attrs(attrs)
 
     with :ok <- validate_channel_unchanged(inbox, attrs) do
-      inbox
-      |> Inbox.update_changeset(merge_provider_config(inbox, attrs))
-      |> Repo.update()
+      changeset = Inbox.update_changeset(inbox, merge_provider_config(inbox, attrs))
+
+      Ecto.Multi.new()
+      |> Ecto.Multi.update(:inbox, changeset)
+      |> Ecto.Multi.insert(
+        :config,
+        fn %{inbox: updated} ->
+          %InboxConfig{inbox_id: updated.id, provider_config: updated.provider_config}
+        end,
+        on_conflict: {:replace, [:provider_config]},
+        conflict_target: :inbox_id
+      )
+      |> Repo.transaction()
+      |> inbox_result()
     end
   end
 
@@ -77,9 +102,93 @@ defmodule Chatwooter.Inboxes do
   end
 
   def delete_inbox(%Account{} = account, id) do
-    account
-    |> get_inbox!(id)
-    |> Repo.delete()
+    inbox = get_inbox!(account, id)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.delete_all(:config, from(c in InboxConfig, where: c.inbox_id == ^inbox.id))
+    |> Ecto.Multi.delete_all(:members, from(m in InboxMember, where: m.inbox_id == ^inbox.id))
+    |> Ecto.Multi.delete(:inbox, inbox)
+    |> Repo.transaction()
+    |> inbox_result()
+  end
+
+  @doc "Loads local adapter settings while keeping the restored inbox catalog unchanged."
+  def load_provider_config(nil), do: nil
+
+  def load_provider_config(%Inbox{} = inbox) do
+    config =
+      case Repo.get(InboxConfig, inbox.id) do
+        nil -> restored_provider_config(inbox)
+        local -> local.provider_config
+      end
+
+    %{inbox | provider_config: config || %{}}
+  end
+
+  defp restored_provider_config(%Inbox{channel_type: :telegram, channel_id: id}) do
+    case Repo.get(Chatwooter.Channels.TelegramRecord, id) do
+      nil -> %{}
+      channel -> %{"bot_token" => channel.bot_token}
+    end
+  end
+
+  defp restored_provider_config(%Inbox{channel_type: :whatsapp, channel_id: id}) do
+    case Repo.get(Chatwooter.Channels.WhatsAppRecord, id) do
+      nil -> %{}
+      channel -> channel.provider_config || %{}
+    end
+  end
+
+  defp restored_provider_config(_inbox), do: %{}
+
+  defp inbox_result({:ok, %{inbox: inbox}}), do: {:ok, inbox}
+  defp inbox_result({:error, _operation, changeset, _changes}), do: {:error, changeset}
+
+  defp create_channel(changeset) do
+    inbox = Ecto.Changeset.apply_changes(changeset)
+    now = DateTime.utc_now() |> DateTime.to_naive()
+    placeholder = "chatwooter-unconfigured-" <> Ecto.UUID.generate()
+
+    case inbox.channel_type do
+      :telegram ->
+        token = inbox.provider_config["bot_token"] || placeholder
+        row = %{account_id: inbox.account_id, bot_token: token, created_at: now, updated_at: now}
+        insert_channel("channel_telegram", :bot_token, row)
+
+      :whatsapp ->
+        row = %{
+          account_id: inbox.account_id,
+          phone_number: placeholder,
+          provider_config: inbox.provider_config,
+          created_at: now,
+          updated_at: now
+        }
+
+        insert_channel("channel_whatsapp", :phone_number, row)
+    end
+  end
+
+  defp insert_channel(table, key, row) do
+    case Repo.one(
+           from c in table,
+             where: field(c, ^key) == ^Map.fetch!(row, key),
+             select: %{id: c.id, account_id: c.account_id}
+         ) do
+      nil ->
+        {1, [record]} = Repo.insert_all(table, [row], returning: [:id])
+        {:ok, record.id}
+
+      %{id: id, account_id: account_id} when account_id == row.account_id ->
+        {:ok, id}
+
+      _other ->
+        {:error,
+         Ecto.Changeset.add_error(
+           Ecto.Changeset.change(%Inbox{}),
+           :provider_config,
+           "channel credentials belong to another account"
+         )}
+    end
   end
 
   # provider_config mescla (nunca substitui): chaves em branco removem.

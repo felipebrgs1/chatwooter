@@ -8,6 +8,7 @@ defmodule Chatwooter.MessagingTest do
   alias Chatwooter.Contacts.Contact
   alias Chatwooter.Conversations.{Conversation, Message}
   alias Chatwooter.Inboxes.Inbox
+  alias Chatwooter.Platform.RecordDeletion
 
   setup do
     owner = insert(:user)
@@ -99,7 +100,9 @@ defmodule Chatwooter.MessagingTest do
     {:ok, _conv} =
       Conversations.open_conversation(account, inbox, contact, %{source_id: "5511987654321"})
 
-    assert {:ok, _} = Inboxes.delete_inbox(account, inbox.id)
+    # Upstream tables carry no SQL FKs, so scoped cleanup goes through the
+    # coordinator instead of relying on database cascades.
+    assert {:ok, _} = RecordDeletion.delete_inbox(account, inbox.id)
     assert [] = Inboxes.list_inboxes(account)
     assert [] = Conversations.list_conversations(account)
   end

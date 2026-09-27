@@ -101,4 +101,37 @@ defmodule Chatwooter.ContactsTest do
 
     assert_raise Ecto.NoResultsError, fn -> Contacts.get_contact!(account, contact.id) end
   end
+
+  test "restored duplicate phones are selected deterministically by ingestion", %{
+    account: account
+  } do
+    Repo.query!(
+      """
+      INSERT INTO contacts (account_id, name, phone_number, created_at, updated_at)
+      VALUES ($1, 'First imported', '+5511000', now(), now()),
+             ($1, 'Second imported', '+5511000', now(), now())
+      """,
+      [account.id]
+    )
+
+    [first, _second] =
+      Repo.all(from(c in Contact, where: c.account_id == ^account.id, order_by: c.id))
+
+    assert {:ok, %{id: id}} =
+             Contacts.get_or_create_contact(account, %{name: "Fixture", phone_number: "+5511000"})
+
+    assert id == first.id
+  end
+
+  test "company references are validated within the contact account", %{
+    account: account,
+    other_account: other_account
+  } do
+    {:ok, company} = Chatwooter.Companies.create_company(other_account, %{name: "Other company"})
+
+    assert {:error, changeset} =
+             Contacts.create_contact(account, %{name: "Contact", company_id: company.id})
+
+    assert %{company_id: [_]} = errors_on(changeset)
+  end
 end

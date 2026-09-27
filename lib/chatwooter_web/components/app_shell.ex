@@ -114,10 +114,10 @@ defmodule ChatwooterWeb.AppShell do
       <div class="border-t border-line p-4">
         <div class="flex items-center gap-3">
           <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
-            {initials(@current_scope.user.name || @current_scope.user.email)}
+            {initials(display_name(@current_scope.user))}
           </span>
           <p class="truncate text-xs text-ink">
-            {@current_scope.user.name || @current_scope.user.email}
+            {display_name(@current_scope.user)}
           </p>
         </div>
         <.link
@@ -131,6 +131,9 @@ defmodule ChatwooterWeb.AppShell do
     </aside>
     """
   end
+
+  defp display_name(%{name: name, email: email}) when name in [nil, ""], do: email
+  defp display_name(%{name: name}), do: name
 
   def initials(name) do
     name
