@@ -201,10 +201,21 @@ defmodule Chatwooter.SchemaParity.Snapshot do
         expression
 
       _ ->
-        case Regex.run(~r/default: ("[^"]*"|\{\}|\[[^\]]*\]|true|false|-?\d+)/, options) do
-          [_, "\"" <> string] -> String.trim_trailing(string, "\"")
-          [_, literal] -> literal
-          _ -> nil
+        case Regex.run(
+               ~r/default: ("[^"]*"|\{[^}]*\}|\[[^\]]*\]|true|false|-?\d+(?:\.\d+)?)/,
+               options
+             ) do
+          [_, "\"" <> string] ->
+            String.trim_trailing(string, "\"")
+
+          [_, "{" <> _ = hash] ->
+            hash |> String.replace(~r/"\s*=>/, "\":") |> Jason.decode!() |> Jason.encode!()
+
+          [_, literal] ->
+            literal
+
+          _ ->
+            nil
         end
     end
   end

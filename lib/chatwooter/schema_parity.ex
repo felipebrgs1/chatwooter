@@ -176,22 +176,31 @@ defmodule Chatwooter.SchemaParity do
   end
 
   defp normalize_column_default(type, value) do
-    normalized = normalize_default(value)
-
-    cond do
-      type == "text[]" and normalized in ["[]", "ARRAY[]"] ->
-        "{}"
-
-      type in ["json", "jsonb"] and is_binary(normalized) ->
-        case Jason.decode(normalized) do
-          {:ok, data} -> {:json, data}
-          {:error, _} -> normalized
-        end
-
-      true ->
-        normalized
+    case {type, normalize_default(value)} do
+      {"text[]", normalized} when normalized in ["[]", "ARRAY[]"] -> "{}"
+      {"double precision", normalized} -> normalize_float_default(normalized)
+      {type, normalized} when type in ["json", "jsonb"] -> normalize_json_default(normalized)
+      {_type, normalized} -> normalized
     end
   end
+
+  defp normalize_float_default(value) when is_binary(value) do
+    case Float.parse(value) do
+      {number, ""} -> number
+      _ -> value
+    end
+  end
+
+  defp normalize_float_default(value), do: value
+
+  defp normalize_json_default(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, data} -> {:json, data}
+      {:error, _} -> value
+    end
+  end
+
+  defp normalize_json_default(value), do: value
 
   defp normalize_default(nil), do: nil
   defp normalize_default(value) when value in ["{}", "[]"], do: value
@@ -225,6 +234,30 @@ defmodule Chatwooter.SchemaParity do
     |> String.downcase()
     |> String.replace(~r/\s+/, "")
     |> String.replace(~r/\(([a-z_][a-z_0-9]*)\)::/, "\\1::")
+    |> strip_outer_parentheses()
+  end
+
+  defp strip_outer_parentheses("(" <> rest = sql) do
+    if String.ends_with?(rest, ")") do
+      inner = String.slice(rest, 0, String.length(rest) - 1)
+      if balanced_parentheses?(inner), do: strip_outer_parentheses(inner), else: sql
+    else
+      sql
+    end
+  end
+
+  defp strip_outer_parentheses(sql), do: sql
+
+  defp balanced_parentheses?(sql) do
+    sql
+    |> String.to_charlist()
+    |> Enum.reduce_while(0, fn
+      ?(, depth -> {:cont, depth + 1}
+      ?), 0 -> {:halt, :unbalanced}
+      ?), depth -> {:cont, depth - 1}
+      _char, depth -> {:cont, depth}
+    end)
+    |> Kernel.==(0)
   end
 
   defp catalog(repo) do

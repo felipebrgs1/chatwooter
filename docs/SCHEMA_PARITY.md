@@ -4,7 +4,7 @@
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
 - `schema_parity_baseline.json` permanece como relatório histórico inicial de 10 tabelas. O parser antigo interpretava strings Rails sem limite como varchar(255); o comparador agora usa varchar sem limite, conforme o [adapter PostgreSQL Rails 7.2.3.1](https://github.com/rails/rails/blob/v7.2.3.1/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb). O baseline não foi sobrescrito.
-- Banco migrado após os lotes CRM, plataforma e preservação/canais: **58/103 tabelas presentes, 45 ausentes; 45 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban e helpers históricos de importação são extras locais.
+- Banco migrado após os lotes CRM, plataforma, preservação/canais e help center/configuração: **78/103 tabelas presentes, 25 ausentes; 65 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban e helpers históricos de importação são extras locais.
 
 ```sh
 mix chatwooter.schema_diff
@@ -82,9 +82,33 @@ Provas:
 - `capacity_*`, `storage_*`, `data_platform_*`, `wa_tg_*`: comparação física por tabela e fixtures com IDs/defaults, formatos JSON, microssegundos, nulidade, uniques e FKs. RED executado antes da implementação pelo agente principal, sem aplicar migrações vazias.
 - Banco temporário limpo migrado e populado com as quatro fixtures (20 linhas, uma por tabela), estados explícitos de sequência e uma conta de controle. `pg_dump -Fc` seguido de `pg_restore --single-transaction` em outro banco vazio passou. Ecto leu as 20 linhas com todos os campos/defaults da fixture iguais, contagens iguais a 1 e próximo ID de cada sequência preservado.
 - Rollback das quatro migrações removeu todas e somente as 20 tabelas, mantendo a conta de controle; reaplicação em banco populado passou.
-- Catálogo atual: 58 tabelas upstream presentes, 45 iguais fisicamente, 13 ainda diferentes e 45 ausentes. Progresso medido em `schema_parity_progress.json`; baseline inicial permanece congelado.
+- Catálogo após o segundo lote: 58 tabelas upstream presentes, 45 iguais fisicamente, 13 ainda diferentes e 45 ausentes. Progresso medido em `schema_parity_progress.json`; baseline inicial permanece congelado.
 
 Limites: ActiveStorage conserva metadados/relações, mas não transfere arquivos binários. SAML, políticas de capacidade, email Rails e importações upstream não foram ativados. As tabelas de canais preservam o formato original; não são usadas pelos adapters atuais e não resolvem `inboxes.channel_id/channel_type`. Redação de certificados/tokens/config na inspeção não criptografa segredos restaurados: a proteção e compatibilização antes de uso operacional continuam pendentes. Não foram criadas UI/rotas, jobs de importação ou webhooks externos. Captain não foi incluído neste lote.
+
+## Terceiro lote de 20 tabelas (trabalho com subagentes)
+
+| Grupo | Tabelas com igualdade no catálogo físico |
+|---|---|
+| Help center (5) | `portals`, `portals_members`, `categories`, `articles`, `related_categories` |
+| Canais preservados (6) | `channel_api`, `channel_email`, `channel_facebook_pages`, `channel_instagram`, `channel_line`, `channel_sms` |
+| Automações/configuração (7) | `agent_bots`, `agent_bot_inboxes`, `automation_rule_pending_executions`, `email_templates`, `installation_configs`, `platform_banners`, `reporting_events_rollups` |
+| Widget/sessões (2) | `channel_web_widgets`, `user_sessions` |
+
+Quatro migrações incrementais, versões `20260927021639`, `20260927021641`, `20260927021642`, `20260927021644`, aplicadas em desenvolvimento e teste. Três subagentes entregaram grupos de 5/6/7; o agente principal implementou widget/sessões, ajustou o comparador e validou a integração.
+
+`portals_members` mantém a ausência de PK e timestamps: a associação é lida pela combinação portal/usuário, sem ID inventado. `user_sessions.user_id` mantém a FK upstream `NO ACTION`. Como dependência do portal, `inboxes` recebeu `portal_id` nullable bigint, sua FK `NO ACTION` e o índice correspondente; a tabela inboxes ainda tem outros desvios e não é declarada equivalente.
+
+O comparador agora interpreta o default Ruby-hash conhecido de `portals.config` como JSON, sem executar Ruby, e captura decimais integralmente. Defaults float equivalentes (0/0.0) são comparados numericamente. Parênteses externos balanceados acrescentados pelo PostgreSQL aos predicados são normalizados sem remover o agrupamento interno; um teste negativo troca AND por OR e confirma a divergência. Os três índices únicos parciais de templates (instalação, conta e inbox) são testados por escopo.
+
+Provas:
+
+- `help_center_*`, `preserved_channels_*`, `configuration_*`, `widget_session_*`: comparação física das 20 tabelas e leitura dos valores/defaults, PK ausente, FK de sessão, credenciais redigidas, JSON, datas, timestamps, índices parciais e unicidade.
+- Banco temporário limpo migrado, quatro fixtures totalizando 20 linhas, 19 estados de sequência e uma associação sem PK. Dump custom completo desse banco **sintético** e restauração transacional em outro banco vazio passaram. Todos os campos/defaults das fixtures, contagens, IDs e próximos valores das 19 sequências foram conferidos via Ecto.
+- Rollback das quatro migrações removeu as 20 tabelas e o vínculo `inboxes.portal_id`, preservando os registros de conta e inbox de controle. Reaplicação em banco já populado passou. O rollback perde o conteúdo da coluna de vínculo removida; não equivale a rollback de produção sem backup.
+- Catálogo atual: **78 presentes, 65 iguais, 13 diferentes e 25 ausentes**. A lista completa das 65 iguais está em `schema_parity_progress.json`.
+
+Esses canais adicionais, help center, bots, envio de email e configurações globais permanecem como preservação de dados. Nenhum adapter/SSO/login Rails, job pendente, servidor de widget ou recurso novo foi ativado. Não foram criadas rotas/UI, webhooks externos ou migração de binários. Redação de credenciais não substitui proteção do dump/banco. Captain não foi incluído.
 
 ## Próximos desvios críticos
 
@@ -92,4 +116,4 @@ Limites: ActiveStorage conserva metadados/relações, mas não transfere arquivo
 2. Inboxes/canais: `channel_id`, nomes polimórficos Rails, tabelas WA/TG e proteção de segredos antes da operação.
 3. Conversas/mensagens: `display_id`, sequência/trigger por conta, enums inteiros, autor polimórfico, JSON e anexos/ActiveStorage.
 4. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
-5. As 45 tabelas ausentes e as diferenças das tabelas já presentes impedem alegar paridade literal 1:1.
+5. As 25 tabelas ausentes e as diferenças das tabelas já presentes impedem alegar paridade literal 1:1.

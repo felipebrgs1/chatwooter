@@ -16,6 +16,12 @@ defmodule Chatwooter.SchemaParityTest do
              ~w(conversation_status_changed conversation_updated conversation_created contact_created contact_updated message_created message_updated webwidget_triggered)
 
     assert snapshot.tables["custom_roles"].columns["permissions"].type == "text[]"
+
+    assert Jason.decode!(snapshot.tables["portals"].columns["config"].default) == %{
+             "allowed_locales" => ["en"]
+           }
+
+    assert snapshot.tables["reporting_events_rollups"].columns["sum_value"].default == "0.0"
     assert snapshot.version == "2026_09_24_000000"
     assert map_size(snapshot.tables) == 103
     assert "vector" in snapshot.extensions
