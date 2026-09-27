@@ -88,7 +88,7 @@ defmodule Chatwooter.SchemaParityTest do
   test "compares five critical tables against migrated PostgreSQL, including mismatched types and defaults" do
     report = SchemaParity.compare(Repo, @schema)
     assert report.summary.upstream_tables == 103
-    assert "channel_whatsapp" in report.missing_tables
+    assert report.tables["channel_whatsapp"].status == :present
     assert map_size(report.tables) == 103
     assert report.tables["teams"].status == :present
     assert report.tables["teams"].columns["name"].status == :different

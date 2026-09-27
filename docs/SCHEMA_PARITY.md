@@ -4,7 +4,7 @@
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
 - `schema_parity_baseline.json` permanece como relatório histórico inicial de 10 tabelas. O parser antigo interpretava strings Rails sem limite como varchar(255); o comparador agora usa varchar sem limite, conforme o [adapter PostgreSQL Rails 7.2.3.1](https://github.com/rails/rails/blob/v7.2.3.1/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb). O baseline não foi sobrescrito.
-- Banco migrado após os lotes CRM e plataforma: **38/103 tabelas presentes, 65 ausentes; 25 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban e helpers históricos de importação são extras locais.
+- Banco migrado após os lotes CRM, plataforma e preservação/canais: **58/103 tabelas presentes, 45 ausentes; 45 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban e helpers históricos de importação são extras locais.
 
 ```sh
 mix chatwooter.schema_diff
@@ -64,10 +64,32 @@ Validação:
 
 Essas provas não equivalem a dump integral real de Chatwoot nem à implementação dos recursos, autorização, consultas de produto ou engines de automação/SLA. Não foram criadas rotas/UI, providers ou efeitos colaterais.
 
+## Segundo lote de 20 tabelas (trabalho com subagentes)
+
+| Grupo | Tabelas com igualdade no catálogo físico |
+|---|---|
+| Contas/capacidade (7) | `account_saml_settings`, `agent_capacity_policies`, `assignment_policies`, `inbox_assignment_policies`, `inbox_capacity_limits`, `leaves`, `folders` |
+| Rails/storage/auditoria (5) | `active_storage_blobs`, `active_storage_attachments`, `active_storage_variant_records`, `action_mailbox_inbound_emails`, `audits` |
+| Proveniência/plataforma (6) | `data_imports`, `data_import_items`, `data_import_mappings`, `data_import_errors`, `platform_apps`, `platform_app_permissibles` |
+| Canais v1 (2) | `channel_whatsapp`, `channel_telegram` |
+
+Quatro migrações incrementais, geradas via `mix ecto.gen.migration`, versões `20260927020930`, `20260927020931`, `20260927020933`, `20260927020934`, aplicadas em desenvolvimento e teste. Três subagentes implementaram os grupos de 7/5/6; o agente principal implementou WA/TG e coordenou RED/GREEN, integração e verificação conjunta.
+
+Todos os campos e índices dessas 20 tabelas correspondem ao snapshot. As duas FKs ActiveStorage→blobs mantêm `NO ACTION`; nenhuma FK ausente na origem foi acrescentada. São preservados JSON versus JSONB, varchar limitado/ilimitado, IDs/valores bigint, datas, timestamps de precisão 6 ou sem precisão declarada, nulidade, defaults e inteiros de enum. Os 20 mappings Ecto são de leitura e preservação de dados.
+
+Provas:
+
+- `capacity_*`, `storage_*`, `data_platform_*`, `wa_tg_*`: comparação física por tabela e fixtures com IDs/defaults, formatos JSON, microssegundos, nulidade, uniques e FKs. RED executado antes da implementação pelo agente principal, sem aplicar migrações vazias.
+- Banco temporário limpo migrado e populado com as quatro fixtures (20 linhas, uma por tabela), estados explícitos de sequência e uma conta de controle. `pg_dump -Fc` seguido de `pg_restore --single-transaction` em outro banco vazio passou. Ecto leu as 20 linhas com todos os campos/defaults da fixture iguais, contagens iguais a 1 e próximo ID de cada sequência preservado.
+- Rollback das quatro migrações removeu todas e somente as 20 tabelas, mantendo a conta de controle; reaplicação em banco populado passou.
+- Catálogo atual: 58 tabelas upstream presentes, 45 iguais fisicamente, 13 ainda diferentes e 45 ausentes. Progresso medido em `schema_parity_progress.json`; baseline inicial permanece congelado.
+
+Limites: ActiveStorage conserva metadados/relações, mas não transfere arquivos binários. SAML, políticas de capacidade, email Rails e importações upstream não foram ativados. As tabelas de canais preservam o formato original; não são usadas pelos adapters atuais e não resolvem `inboxes.channel_id/channel_type`. Redação de certificados/tokens/config na inspeção não criptografa segredos restaurados: a proteção e compatibilização antes de uso operacional continuam pendentes. Não foram criadas UI/rotas, jobs de importação ou webhooks externos. Captain não foi incluído neste lote.
+
 ## Próximos desvios críticos
 
 1. `contacts`, `contact_inboxes`, `companies`: colunas, timestamps, defaults e índices. A unique local de telefone por conta difere da origem; não tratar telefone como identidade única implícita.
 2. Inboxes/canais: `channel_id`, nomes polimórficos Rails, tabelas WA/TG e proteção de segredos antes da operação.
 3. Conversas/mensagens: `display_id`, sequência/trigger por conta, enums inteiros, autor polimórfico, JSON e anexos/ActiveStorage.
 4. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
-5. As 65 tabelas ausentes e as diferenças das tabelas já presentes impedem alegar paridade literal 1:1.
+5. As 45 tabelas ausentes e as diferenças das tabelas já presentes impedem alegar paridade literal 1:1.
