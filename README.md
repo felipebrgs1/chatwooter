@@ -2,7 +2,7 @@
 
 > Reconstrução do [Chatwoot](https://github.com/chatwoot/chatwoot) (referência em `chatwoot/`) como **monolito modular em Elixir + Phoenix LiveView**, com **TDD + Clean Code**, foco inicial em **WhatsApp e Telegram** e **UI equivalente ao Chatwoot**.
 >
-> Roteiro detalhado: [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md)
+> Produto planejado: [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md). **Prioridade atual:** [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) · [estado medido do schema](./docs/SCHEMA_PARITY.md). O plano de produto não representa funcionalidades já concluídas.
 
 [![Elixir](https://img.shields.io/badge/elixir-1.20-purple)](https://elixir-lang.org)
 [![Phoenix](https://img.shields.io/badge/phoenix-1.8-orange)](https://phoenixframework.org)
@@ -195,7 +195,7 @@ Dark mode, variantes e tokens novos: estenda via `@theme` e `@custom-variant`, n
 
 ## 6. Arquitetura resumida
 
-Ver detalhes em [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md#3-arquitetura-monolito-modular-a-parte-mais-importante).
+Ver detalhes em [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md#4-arquitetura-monolito-modular).
 
 - **Contexts** retornam `{:ok, _} | {:error, changeset}`. Schemas só têm `changeset/2`.
 - **Canais** atrás de um `Behaviour`:
@@ -251,7 +251,7 @@ SENTRY_DSN=...
 
 ---
 
-## 9. API v1 (compat Chatwoot)
+## 9. API v1 (planejada; endpoints abaixo ainda não são contrato implementado)
 
 ```
 GET   /api/v1/conversations
@@ -262,22 +262,13 @@ POST  /webhooks/whatsapp/:inbox_id
 POST  /webhooks/telegram/:inbox_id
 ```
 
-Auth API: `Authorization: Bearer <access_token>`. OpenAPI via `OpenApiSpex` (a gerar na Fase 4).
+Auth API planejada: `Authorization: Bearer <access_token>`. OpenAPI e compatibilidade de payload ainda precisam de testes de contrato.
 
 ---
 
 ## 10. Roadmap
 
-| Fase | Entrega | DoD |
-|---|---|---|
-| 0 (1–2 sem) | base Phoenix 1.8 + CI + auth | login + CI verde — ✅ base + auth LiveView (`Accounts/User`, 115 testes verdes); CI pendente |
-| 1 (3–5) | contexts core + LiveView 3 colunas | 2 agentes conversam realtime, cov >85% — ✅ `Inboxes/Contacts/Conversations` + `/app` funcional com seeds demo |
-| 2 (6–7) | Telegram fim-a-fim | celular→inbox→resposta <3s |
-| 3 (8–10) | WhatsApp fim-a-fim + templates | receipts na UI + 24h/template ok |
-| 4 (11–12) | atribuição, labels, canned, API v1 | fluxo suporte sem SQL — 🔄 settings da conta pronto (General/Inboxes/Agents); resto pendente |
-| 5 (13–14) | hardening + deploy | p95 webhook <400ms, 0 credo issues |
-
-Estimativa: ~14 sem (1 sênior) · ~8–9 sem (2 devs).
+O [roadmap de paridade do banco](./ROADMAP_PARIDADE_BANCO.md) é a prioridade de execução; o [estado medido](./docs/SCHEMA_PARITY.md) separa o que já foi entregue do que bloqueia uma migração real. Para a visão do produto e dos canais, consulte o [roteiro Elixir](./ROTEIRO_ELIXIR.md). Datas da estimativa inicial foram removidas: 90 tabelas ainda faltam no schema e não há ensaio de export real.
 
 ---
 

@@ -3,6 +3,7 @@ defmodule Chatwooter.SchemaParityTest do
 
   alias Chatwooter.SchemaParity
   alias Chatwooter.SchemaParity.Snapshot
+  alias Mix.Tasks.Chatwooter.SchemaDiff
 
   @schema Path.expand("../../chatwoot/db/schema.rb", __DIR__)
 
@@ -41,6 +42,40 @@ defmodule Chatwooter.SchemaParityTest do
 
     assert_raise ArgumentError, ~r/unsupported schema instruction.*t.magic/s, fn ->
       Snapshot.load!(path)
+    end
+  end
+
+  test "schema diff keeps the versioned initial baseline immutable" do
+    baseline = Path.expand("../../docs/schema_parity_baseline.json", __DIR__)
+
+    alias_path =
+      Path.join(System.tmp_dir!(), "schema-baseline-#{System.unique_integer([:positive])}.json")
+
+    relative_alias =
+      Path.expand(
+        "../../docs/.schema-parity-test-link-#{System.unique_integer([:positive])}.json",
+        __DIR__
+      )
+
+    File.ln_s!(baseline, alias_path)
+    File.ln_s!("schema_parity_baseline.json", relative_alias)
+
+    on_exit(fn ->
+      File.rm(alias_path)
+      File.rm(relative_alias)
+    end)
+
+    for path <- [baseline, "docs/schema_parity_baseline.json", alias_path, relative_alias] do
+      assert_raise Mix.Error, ~r/baseline congelado/, fn ->
+        SchemaDiff.output_path!(path)
+      end
+    end
+
+    assert SchemaDiff.output_path!("/tmp/chatwooter-current.json") ==
+             "/tmp/chatwooter-current.json"
+
+    assert_raise Mix.Error, ~r/baseline congelado/, fn ->
+      SchemaDiff.run(["--json", "docs/schema_parity_baseline.json"])
     end
   end
 

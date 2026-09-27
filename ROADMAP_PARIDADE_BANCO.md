@@ -10,12 +10,14 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 
 Há uma decisão de arquitetura a validar **antes da implementação**: cumprir as 103 tabelas físicas do snapshot (inclusive módulos fora do v1), ou limitar a paridade física às tabelas usadas no corte WA/TG e preservar o restante em arquivo de importação. A segunda opção **não** é 1:1 estrutural literal. Este roadmap adota a primeira como meta solicitada e entrega os dados WA/TG primeiro; funcionalidades pós-v1 permanecem desligadas.
 
-## Linha de base verificada
+## Linha de base inicial (histórica; não é o estado atual)
 
 - `chatwoot/db/schema.rb`: **103** declarações `create_table`.
 - `priv/repo/migrations/`: 12 tabelas criadas: **10 com nomes correspondentes** (`users`, `accounts`, `account_users`, `inboxes`, `contacts`, `contact_inboxes`, `conversations`, `messages`, `attachments`, `companies`) mais `users_tokens` e `oban_jobs` próprias. **10/103 não é porcentagem de paridade:** mesmo essas 10 têm diferenças de campos, tipos, defaults e índices.
 - Divergências críticas: `conversations.display_id` ausente; `status` usa string aqui e enum inteiro no Chatwoot; `messages` não tem `sender_type`, `content_attributes` nem `external_source_ids`; `inboxes` guarda canal em `provider_config`, enquanto Chatwoot liga `channel_id`/`channel_type` às tabelas `channel_whatsapp` e `channel_telegram`; anexos usam `key`/`url` aqui e `external_url`/metadados + ActiveStorage no original; `users` usa autenticação Phoenix, não Devise. O índice único local em `contacts(account_id, phone_number)` também **não** equivale ao índice de telefone não único do snapshot; validar colisões reais antes de qualquer troca.
-- Faltam por inteiro `teams`, `team_members`, `inbox_members`, `labels`, `tags`, `taggings`, `notes`, `canned_responses`, `notifications`, `notification_settings`, `access_tokens`, `webhooks` e as tabelas de canal, entre outras. Verificações de campos completas virão do diff automatizado, não desta lista exemplificativa.
+- Na data da linha de base, faltavam `teams`, `team_members`, `inbox_members`, `labels`, `tags`, `taggings`, `notes`, `canned_responses`, `notifications`, `notification_settings`, `access_tokens`, `webhooks` e as tabelas de canal. Hoje as três primeiras existem; o catálogo comparativo completo está disponível no `schema_diff`.
+
+**Estado atual:** 13/103 tabelas presentes (90 ausentes); marco 0 tem o catálogo e diff físico, mas o contrato de transformações/enums ainda está pendente. O marco 1 tem equipes, vínculos, mapeamento de IDs e importação idempotente **somente de agentes**, sem ensaio em export real nem execução Oban. Detalhes e limites: [`docs/SCHEMA_PARITY.md`](docs/SCHEMA_PARITY.md). Contar tabelas não equivale a aprovar paridade.
 
 ## Sequência de execução (TDD em cada lote)
 
@@ -40,6 +42,6 @@ Há uma decisão de arquitetura a validar **antes da implementação**: cumprir 
 
 ## Ordem de prioridade e tamanho
 
-**P0:** marcos 0–3 (modelo de dados para histórico e operação WA/TG). **P1:** marcos 4 e 6 (migração utilizável). **P2 obrigatório para reivindicar 1:1 literal:** marco 5. Não prometer prazo antes do inventário do marco 0: criar 93 tabelas ausentes com constraints e validar export real é substancialmente maior do que a antiga estimativa de “Fase A: 1 semana”.
+**P0:** fechar critérios pendentes do marco 0 e avançar marcos 1–3 (histórico e operação WA/TG). **P1:** marcos 4 e 6 (migração utilizável). **P2 obrigatório para reivindicar 1:1 literal:** marco 5. As **90** tabelas ainda ausentes, os desvios das 13 presentes e a prova com export real impedem qualquer prazo baseado na antiga “Fase A: 1 semana”.
 
-**Próxima tarefa executável:** o marco 0 tem catálogo e `schema_diff`; o marco 1 já inclui equipes/membros, mapeamento de IDs, lotes/erros sanitizados e leitura paginada read-only de agentes com reexecução idempotente (ver `docs/SCHEMA_PARITY.md`). A prévia read-only de contagens e o ciclo de conexão Postgrex isolada já existem; seguir com configuração de segredo da origem usando role `SELECT`, worker Oban serializado por conta, dry-run/reconciliação de dados e ensaio em cópia anonimizadas antes de ampliar entidades. Ainda não há importação completa de uma conta.
+**Próxima tarefa executável:** segredo de runtime para uma conexão de origem com role `SELECT`, worker Oban serializado por conta e ensaio da importação de agentes em cópia anonimizada. O `preview_agents/3` conta mapeamentos; não valida dados nem substitui dry-run completo.

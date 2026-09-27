@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Chatwooter.SchemaDiff do
   Compare the migrated database to the pinned Rails schema (read-only):
 
       mix chatwooter.schema_diff
-      mix chatwooter.schema_diff --json docs/schema_parity_baseline.json
+      mix chatwooter.schema_diff --json /tmp/chatwooter-schema-diff.json
 
   Requires a running, migrated PostgreSQL database. JSON contains every observed
   column, index, foreign key, check, extension and trigger, including differences.
@@ -19,6 +19,8 @@ defmodule Mix.Tasks.Chatwooter.SchemaDiff do
 
     if rest != [] or invalid != [],
       do: Mix.raise("usage: mix chatwooter.schema_diff [--json PATH]")
+
+    output = if opts[:json], do: output_path!(opts[:json])
 
     Mix.Task.run("app.start")
     path = Path.expand("chatwoot/db/schema.rb", File.cwd!())
@@ -37,10 +39,28 @@ defmodule Mix.Tasks.Chatwooter.SchemaDiff do
 
     Mix.shell().info("Ausentes: #{Enum.join(report.missing_tables, ", ")}")
 
-    if output = opts[:json] do
+    if output do
       File.mkdir_p!(Path.dirname(output))
       File.write!(output, Jason.encode!(report, pretty: true) <> "\n")
       Mix.shell().info("Relatório: #{output}")
     end
+  end
+
+  @doc "Resolves a report path without allowing the frozen baseline to be overwritten."
+  def output_path!(path) do
+    output = Path.expand(path)
+    baseline = Path.expand("docs/schema_parity_baseline.json")
+
+    resolved_output =
+      case :file.read_link_all(String.to_charlist(output)) do
+        {:ok, real_path} -> Path.expand(List.to_string(real_path), Path.dirname(output))
+        {:error, _} -> output
+      end
+
+    if resolved_output == baseline do
+      Mix.raise("baseline congelado: escolha outro caminho para o relatório atual")
+    end
+
+    output
   end
 end
