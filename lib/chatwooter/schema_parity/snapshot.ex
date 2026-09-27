@@ -128,13 +128,26 @@ defmodule Chatwooter.SchemaParity.Snapshot do
   end
 
   defp index(keys, options) do
+    inline_opclass =
+      case Regex.run(~r/ (\w+_ops)"$/, keys) do
+        [_, opclass] -> opclass
+        _ -> nil
+      end
+
+    expression =
+      if String.starts_with?(keys, "[") do
+        nil
+      else
+        keys |> String.trim("\"") |> String.replace(~r/ \w+_ops$/, "")
+      end
+
     %{
       keys: Regex.scan(~r/"([^"]+)"/, keys) |> Enum.map(&Enum.at(&1, 1)),
-      expression: if(String.starts_with?(keys, "["), do: nil, else: keys),
+      expression: expression,
       unique: String.contains?(options, "unique: true"),
       using: option(options, "using") || "btree",
       where: option(options, "where"),
-      opclass: option(options, "opclass"),
+      opclass: option(options, "opclass") || inline_opclass,
       order:
         case Regex.run(~r/order: \{ \w+: "([^"]+)" \}/, options) do
           [_, value] -> value
@@ -188,7 +201,7 @@ defmodule Chatwooter.SchemaParity.Snapshot do
         expression
 
       _ ->
-        case Regex.run(~r/default: ("[^"]*"|\{\}|\[\]|true|false|-?\d+)/, options) do
+        case Regex.run(~r/default: ("[^"]*"|\{\}|\[[^\]]*\]|true|false|-?\d+)/, options) do
           [_, "\"" <> string] -> String.trim_trailing(string, "\"")
           [_, literal] -> literal
           _ -> nil

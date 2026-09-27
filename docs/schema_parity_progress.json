@@ -1,0 +1,42 @@
+{
+  "schema_version": "2026_09_24_000000",
+  "measurement": "development PostgreSQL after migration 20260927015901",
+  "summary": {
+    "compared_tables": 38,
+    "upstream_tables": 103,
+    "missing_tables": 65,
+    "parity?": false,
+    "local_tables": 45
+  },
+  "structurally_equal_tables": [
+    "access_tokens",
+    "applied_slas",
+    "automation_rules",
+    "canned_responses",
+    "conversation_participants",
+    "csat_survey_responses",
+    "custom_attribute_definitions",
+    "custom_filters",
+    "custom_roles",
+    "dashboard_apps",
+    "integrations_hooks",
+    "labels",
+    "macros",
+    "mentions",
+    "notes",
+    "notification_settings",
+    "notification_subscriptions",
+    "notifications",
+    "reporting_events",
+    "sla_events",
+    "sla_policies",
+    "taggings",
+    "tags",
+    "webhooks",
+    "working_hours"
+  ],
+  "limitations": [
+    "Physical catalog equality does not prove feature behavior or full Chatwoot restore.",
+    "Twenty additional tables validated using a synthetic dump/restore with fields, counts and sequence states."
+  ]
+}

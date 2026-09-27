@@ -11,6 +11,11 @@ defmodule Chatwooter.SchemaParityTest do
     snapshot = Snapshot.load!(@schema)
 
     assert snapshot.tables["labels"].columns["title"].type == "character varying"
+
+    assert Jason.decode!(snapshot.tables["webhooks"].columns["subscriptions"].default) ==
+             ~w(conversation_status_changed conversation_updated conversation_created contact_created contact_updated message_created message_updated webwidget_triggered)
+
+    assert snapshot.tables["custom_roles"].columns["permissions"].type == "text[]"
     assert snapshot.version == "2026_09_24_000000"
     assert map_size(snapshot.tables) == 103
     assert "vector" in snapshot.extensions

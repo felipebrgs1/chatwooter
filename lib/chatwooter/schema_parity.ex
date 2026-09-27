@@ -20,7 +20,9 @@ defmodule Chatwooter.SchemaParity do
   SELECT c.relname, ic.relname, i.indisunique, am.amname,
          pg_get_expr(i.indpred, i.indrelid),
          ARRAY(SELECT pg_get_indexdef(i.indexrelid, n, true)
-               FROM generate_series(1, i.indnkeyatts) AS n), i.indisprimary
+               FROM generate_series(1, i.indnkeyatts) AS n), i.indisprimary,
+       ARRAY(SELECT opc.opcname FROM unnest(i.indclass::oid[]) WITH ORDINALITY AS cls(oid, pos)
+             JOIN pg_opclass opc ON opc.oid = cls.oid ORDER BY cls.pos)
   FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid
   JOIN pg_namespace ns ON ns.oid = c.relnamespace
   JOIN pg_class ic ON ic.oid = i.indexrelid JOIN pg_am am ON am.oid = ic.relam
@@ -169,7 +171,26 @@ defmodule Chatwooter.SchemaParity do
   defp compare_column(expected, actual) do
     expected.type == actual.type and expected.nullable == actual.nullable and
       expected.precision == actual.precision and
-      normalize_default(expected.default) == normalize_default(actual.default)
+      normalize_column_default(expected.type, expected.default) ==
+        normalize_column_default(actual.type, actual.default)
+  end
+
+  defp normalize_column_default(type, value) do
+    normalized = normalize_default(value)
+
+    cond do
+      type == "text[]" and normalized in ["[]", "ARRAY[]"] ->
+        "{}"
+
+      type in ["json", "jsonb"] and is_binary(normalized) ->
+        case Jason.decode(normalized) do
+          {:ok, data} -> {:json, data}
+          {:error, _} -> normalized
+        end
+
+      true ->
+        normalized
+    end
   end
 
   defp normalize_default(nil), do: nil
@@ -193,12 +214,18 @@ defmodule Chatwooter.SchemaParity do
         do: normalize_sql(expected.expression) == normalize_sql(Enum.join(actual.keys, ", ")),
         else: Enum.map(expected.keys, &normalize_sql/1) == Enum.map(actual.keys, &normalize_sql/1)
       ) and
-      (is_nil(expected.opclass) or Enum.any?(actual.keys, &String.contains?(&1, expected.opclass))) and
+      (is_nil(expected.opclass) or expected.opclass in actual.opclasses) and
       (is_nil(expected.order) or Enum.any?(actual.keys, &String.contains?(&1, expected.order)))
   end
 
   defp normalize_sql(nil), do: nil
-  defp normalize_sql(sql), do: sql |> String.downcase() |> String.replace(~r/\s+/, "")
+
+  defp normalize_sql(sql) do
+    sql
+    |> String.downcase()
+    |> String.replace(~r/\s+/, "")
+    |> String.replace(~r/\(([a-z_][a-z_0-9]*)\)::/, "\\1::")
+  end
 
   defp catalog(repo) do
     tables =
@@ -235,7 +262,8 @@ defmodule Chatwooter.SchemaParity do
                                                            using,
                                                            where,
                                                            keys,
-                                                           primary
+                                                           primary,
+                                                           opclasses
                                                          ],
                                                          acc ->
         if primary do
@@ -248,7 +276,8 @@ defmodule Chatwooter.SchemaParity do
             unique: unique,
             using: using,
             where: where,
-            keys: keys
+            keys: keys,
+            opclasses: opclasses
           })
         end
       end)
