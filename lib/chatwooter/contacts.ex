@@ -22,6 +22,16 @@ defmodule Chatwooter.Contacts do
     Repo.get_by!(Contact, id: id, account_id: account_id)
   end
 
+  @doc "Lista as identidades do contato nos canais, incluindo o inbox."
+  def list_contact_inboxes(%Account{id: account_id}, %Contact{id: contact_id}) do
+    ContactInbox
+    |> join(:inner, [ci], i in assoc(ci, :inbox))
+    |> where([ci, i], ci.contact_id == ^contact_id and i.account_id == ^account_id)
+    |> preload([ci, i], inbox: i)
+    |> order_by([ci, i], asc: i.name)
+    |> Repo.all()
+  end
+
   @doc "Cadastra um contato manualmente (nome + telefone/email)."
   def create_contact(%Account{} = account, attrs) do
     %Contact{account_id: account.id}

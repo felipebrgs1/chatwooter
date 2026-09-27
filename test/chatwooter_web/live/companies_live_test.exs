@@ -61,7 +61,10 @@ defmodule ChatwooterWeb.CompaniesLiveTest do
     refute html =~ "Other Co"
   end
 
-  test "detail page shows contacts and renames with sync", %{conn: conn, account: account} do
+  test "detail page updates profile directly and synchronizes company name", %{
+    conn: conn,
+    account: account
+  } do
     {:ok, company} = Companies.create_company(account, %{name: "Acme"})
     {:ok, contact} = Contacts.create_contact(account, %{name: "Maria"})
     {:ok, _} = Contacts.assign_company(contact, company)
@@ -72,16 +75,22 @@ defmodule ChatwooterWeb.CompaniesLiveTest do
     assert render(lv) =~ ">1<"
     assert render(lv) =~ "Created"
 
-    lv |> element("#company-detail button[phx-click='edit']") |> render_click()
-
     lv
-    |> form("#company-form", company: %{name: "Acme Inc"})
+    |> form("#company-profile-form",
+      company: %{
+        name: "Acme Corporation",
+        domain: "acme.corp",
+        description: "Global delivery services"
+      }
+    )
     |> render_submit()
 
-    assert render(lv) =~ "Acme Inc"
+    html = render(lv)
+    assert html =~ "Acme Corporation"
+    assert html =~ "acme.corp"
 
     assert Contacts.get_contact!(account, contact.id).additional_attributes["company_name"] ==
-             "Acme Inc"
+             "Acme Corporation"
   end
 
   test "detail page manages custom attributes", %{conn: conn, account: account} do
@@ -103,5 +112,33 @@ defmodule ChatwooterWeb.CompaniesLiveTest do
     |> render_click()
 
     assert render(lv) =~ "No custom attributes yet."
+  end
+
+  test "filters companies by contact status and toggles drawer", %{conn: conn, account: account} do
+    {:ok, c1} = Companies.create_company(account, %{name: "Alpha Corp"})
+    {:ok, _c2} = Companies.create_company(account, %{name: "Empty Corp"})
+    {:ok, contact} = Contacts.create_contact(account, %{name: "Pedro"})
+    {:ok, _} = Contacts.assign_company(contact, c1)
+
+    {:ok, lv, _html} = live(conn, ~p"/app/companies")
+
+    # Toggle filter drawer
+    lv |> element("#toggle-company-filter") |> render_click()
+    assert has_element?(lv, "#company-filter-drawer")
+
+    # Filter by has contacts
+    html = lv |> render_hook("apply-filters", %{"has_contacts" => "with_contacts"})
+    assert html =~ "Alpha Corp"
+    refute html =~ "Empty Corp"
+
+    # Filter by no contacts
+    html = lv |> render_hook("apply-filters", %{"has_contacts" => "no_contacts"})
+    assert html =~ "Empty Corp"
+    refute html =~ "Alpha Corp"
+
+    # Clear filters
+    html = lv |> render_hook("clear-filters", %{})
+    assert html =~ "Alpha Corp"
+    assert html =~ "Empty Corp"
   end
 end

@@ -35,7 +35,18 @@ defmodule Chatwooter.Contacts.Contact do
   @doc false
   def changeset(contact, attrs) do
     contact
-    |> cast(attrs, [:name, :phone_number, :email, :additional_attributes, :company_id])
+    |> cast(attrs, [
+      :name,
+      :phone_number,
+      :email,
+      :identifier,
+      :location,
+      :country_code,
+      :blocked,
+      :custom_attributes,
+      :additional_attributes,
+      :company_id
+    ])
     |> validate_required([:name])
     |> validate_length(:name, min: 2, max: 160)
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
