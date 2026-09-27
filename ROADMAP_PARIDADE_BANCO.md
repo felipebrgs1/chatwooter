@@ -1,61 +1,38 @@
 # Roadmap — paridade do banco Chatwoot → Chatwooter
 
-Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e os modelos/migrações em `chatwoot/` (**somente leitura**). Este plano substitui a estimativa superficial da “Fase A” do `ROTEIRO_ELIXIR.md`. A UI deixa de ser critério de avanço até o marco de dados abaixo.
+Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e os modelos/migrações em `chatwoot/` (**somente leitura**). Estado medido e decisões: [`docs/SCHEMA_PARITY.md`](docs/SCHEMA_PARITY.md).
 
 ## O que significa “1:1”
 
-- **Paridade estrutural literal:** mesmas 103 tabelas do snapshot, com colunas, tipos PostgreSQL, precisão, nulidade, defaults, índices/uniques/checks, FKs e semântica dos enums documentados. Não basta criar uma tabela com o mesmo nome. Extensões exigidas pelo schema (por exemplo `pg_trgm`, `pgcrypto` e `vector`) entram no inventário; ativação depende de uso real e disponibilidade no ambiente alvo. Tabelas próprias Phoenix/Oban podem coexistir.
-- **Paridade de dados:** o fluxo escolhido é `pg_dump` → `pg_restore`, preservando IDs, relações e sequências da origem. Os contexts Ecto devem ler os formatos Rails diretamente. Não há remapeamento de IDs nem conexão online com a origem como requisito. Tabelas locais Phoenix/Oban e autenticação precisam de um procedimento separado de compatibilização após restauração; não executar cegamente as migrações de criação sobre tabelas restauradas.
-- **Paridade operacional:** inboxes WhatsApp Cloud API e Telegram conseguem abrir, exibir e responder às conversas importadas. **Não** significa reproduzir Rails/Devise/ActiveStorage internamente, nem habilitar outros canais, campanhas ou Captain. Dados de canais não suportados devem continuar rastreáveis, mas não devem ser apresentados como operacionais.
+- **Paridade estrutural:** as mesmas 103 tabelas do snapshot, com colunas, tipos, precisão, nulidade, defaults, índices, checks, FKs, extensões e triggers. Tabelas próprias Phoenix/Oban coexistem. ✅ **Concluída.**
+- **Paridade de dados:** `pg_dump` → `pg_restore` preservando IDs, relações e sequências; os contexts Ecto leem os formatos Rails diretamente, sem remapeamento. Leitura provada com dados sintéticos; falta o ensaio com dump real.
+- **Paridade operacional:** inboxes WhatsApp Cloud API e Telegram abrem, exibem e respondem às conversas restauradas. Não inclui reproduzir Rails/Devise/ActiveStorage nem ativar outros canais, campanhas ou Captain; esses dados ficam preservados e rastreáveis, sem aparecer como operacionais.
 
-Há uma decisão de arquitetura a validar **antes da implementação**: cumprir as 103 tabelas físicas do snapshot (inclusive módulos fora do v1), ou limitar a paridade física às tabelas usadas no corte WA/TG e preservar o restante em arquivo de importação. A segunda opção **não** é 1:1 estrutural literal. Este roadmap adota a primeira como meta solicitada e entrega os dados WA/TG primeiro; funcionalidades pós-v1 permanecem desligadas.
+## Marcos
 
-## Linha de base inicial (histórica; não é o estado atual)
-
-- `chatwoot/db/schema.rb`: **103** declarações `create_table`.
-- `priv/repo/migrations/`: 12 tabelas criadas: **10 com nomes correspondentes** (`users`, `accounts`, `account_users`, `inboxes`, `contacts`, `contact_inboxes`, `conversations`, `messages`, `attachments`, `companies`) mais `users_tokens` e `oban_jobs` próprias. **10/103 não é porcentagem de paridade:** mesmo essas 10 têm diferenças de campos, tipos, defaults e índices.
-- Divergências críticas: `conversations.display_id` ausente; `status` usa string aqui e enum inteiro no Chatwoot; `messages` não tem `sender_type`, `content_attributes` nem `external_source_ids`; `inboxes` guarda canal em `provider_config`, enquanto Chatwoot liga `channel_id`/`channel_type` às tabelas `channel_whatsapp` e `channel_telegram`; anexos usam `key`/`url` aqui e `external_url`/metadados + ActiveStorage no original; `users` usa autenticação Phoenix, não Devise. O índice único local em `contacts(account_id, phone_number)` também **não** equivale ao índice de telefone não único do snapshot; validar colisões reais antes de qualquer troca.
-- Na data da linha de base, faltavam `teams`, `team_members`, `inbox_members`, `labels`, `tags`, `taggings`, `notes`, `canned_responses`, `notifications`, `notification_settings`, `access_tokens`, `webhooks` e as tabelas de canal. Hoje as três primeiras existem; o catálogo comparativo completo está disponível no `schema_diff`.
-
-**Estado atual:** 103/103 tabelas reproduzidas em banco limpo, sem diferenças de tabelas no catálogo físico; as extensões upstream estão presentes. O comparador mantém `parity? = false` por corpos de triggers não verificados e extensão local `citext`. O ensaio com dump integral real, o bootstrap Phoenix/Oban em banco restaurado e a compatibilização da autenticação continuam pendentes. O marco 1 tem equipes, vínculos, mapeamento de IDs e importação idempotente **somente de agentes**, helpers históricos de importação por linha, sem ensaio em export real. Detalhes e limites: [`docs/SCHEMA_PARITY.md`](docs/SCHEMA_PARITY.md). Contar tabelas não equivale a aprovar paridade.
-
-## Sequência de execução (TDD em cada lote)
-
-| Marco | Entrega | Critério de saída |
+| Marco | Entrega | Estado |
 |---|---|---|
-| **0 — Contrato e inventário** | Congelar commit/schema upstream; extrair catálogo por tabela (colunas/tipos/default/null/PK/FK/índices/checks/enums), dependências e dados sensíveis; classificar cada campo como `igual`, `transformado com teste`, `pendente` ou `fora do corte operacional`. Construir `mix chatwooter.schema_diff` comparando PostgreSQL **migrado** ao snapshot (não apenas structs Ecto). | Relatório versionado para as 103 tabelas; desvios conhecidos e transformações aprovados. Nenhum “✅” por mera existência de tabela. |
-| **1 — Fundamentos e identidade** | Migrações incrementais para contas, usuários/membership e equipes (`teams`, `team_members`, `inbox_members`); mapear enums e credenciais de usuários sem copiar hashes Devise para login Phoenix; adicionar `import_mappings(account, table, old_id, new_id)` e trilha de erros/retomada. | Constraints, defaults, papéis e referências testados; importação de agentes idempotente e sem acesso cruzado entre contas. |
-| **2 — CRM e canais** | Completar `contacts`, `contact_inboxes`, `companies`, `inboxes`; criar `channel_whatsapp`/`channel_telegram` ou justificar por contrato uma camada física equivalente (isso seria desvio da meta literal). Separar segredos criptografados de campos compatíveis importáveis. Completar `labels`, `tags`/`taggings`, `notes`, `canned_responses`, `working_hours`, `custom_attribute_definitions`. | Dados CRM e configurações WA/TG restaurados e consultáveis; uniques verificados com dados reais; nenhum token em texto puro. |
-| **3 — Conversas, mensagens e mídia** | Adicionar `display_id` por conta (backfill + unique + sequência por conta), `contact_id`, assignee/time, prioridade, snooze, timestamps e JSONB; completar `messages` e enums; compatibilizar anexos e mapear blobs/URLs do ActiveStorage para storage próprio. Incluir `conversation_participants` e associações de etiquetas. | Histórico, notas privadas, autor, ordem, status e anexos preservados; chaves `source_id` idempotentes; sem colisões de `display_id`. |
-| **4 — Plataforma e dados do corte** | Criar `access_tokens`, `webhooks`, `notifications`/settings, CSAT e tabelas auxiliares pertinentes; migrar campos necessários à API/webhooks Chatwoot sem supor que igualdade de schema garante igualdade de payload. | Dump/restauração de uma cópia WA+TG com relatório por tabela, contagens e amostras reconciliadas; abre e responde em sandbox. |
-| **5 — Cobertura estrutural integral** | Criar as demais tabelas do snapshot por grupos de dependência (canais não suportados, Rails/ActiveStorage, relatórios/SLA, campanhas, automações, help center, integrações, Captain/AI). Definir claramente quais são apenas preservação de dados e quais têm implementação ativa; validar extensões e tipos especiais. | `schema_diff` com zero diferenças **não justificadas** nas 103 tabelas e seus constraints/índices. Uma exceção documentada continua impedindo alegar “literalmente idêntico”. |
-| **6 — Prova de migração e corte** | Ensaio de pg_dump/pg_restore em banco isolado, reconciliação de dados de amostras de produção anonimizadas, testes de rollback e guia de freeze/cutover WA+TG. Não instalar webhooks externos durante dry-run. | 2 restaurações em destinos limpos preservam IDs, sequências e contagens; contagens e relações batem; conversa e resposta reais nos dois canais; relatório explícito dos canais não ativados. |
+| 0 — Contrato e inventário | Snapshot congelado, `mix chatwooter.schema_diff`, gate `schema_parity_test.exs` | ✅ |
+| 1 — Identidade | contas, usuários, membership, equipes, `(uid, provider)`, Devise vazio → `nil` | ✅ estrutural |
+| 2 — CRM e canais | contatos, empresas, inboxes, `channel_whatsapp`/`channel_telegram`, etiquetas, notas, atributos | ✅ estrutural |
+| 3 — Conversas e mídia | `display_id` por conta com triggers, mensagens, anexos, participantes | ✅ estrutural |
+| 4 — Plataforma | tokens, webhooks, notificações, CSAT, SLA, automações | ✅ estrutural |
+| 5 — Cobertura integral | demais tabelas (canais fora do v1, ActiveStorage, help center, campanhas, Captain, monitores) como preservação | ✅ 103/103 |
+| 6 — Prova de migração e corte | restauração de dump real, bootstrap local, autenticação, operação WA/TG | ⏳ pendente |
 
-## Regras de implementação
+## Marco 6 — critérios de saída
 
-1. Escrever teste primeiro para cada lote: migração em banco limpo **e** banco já populado, constraints, enums, FKs, backfill, conta cruzada e reimportação. Usar `mix ecto.gen.migration nome_da_migracao`; não reescrever migrações já aplicadas.
-2. Preservar a direção dos contexts (`Channels → Conversations → Contacts → Inboxes → Accounts`), sem `ChatwooterWeb → Repo`. A restauração ocorre via pg_restore em destino isolado; os contexts devem consultar dados preservando os IDs originais.
-3. Tratar `created_at/updated_at` ↔ `inserted_at/updated_at`, inteiros de enums Rails ↔ representação Ecto, `serial` ↔ `bigint`, JSONB, polimorfismo e ActiveStorage como **transformações testadas**, nunca como igualdade implícita.
-4. Antes de `NOT NULL`/unique em banco existente: detectar conflitos → corrigir/backfill em lotes → adicionar constraint. Evitar lock longo em produção; testar rollback sempre que possível.
-5. Segredos da Meta/Telegram restaurados exigem revisão de compatibilidade e proteção antes do uso operacional; não copiá-los em texto puro para `provider_config` nem expô-los em logs.
-6. `mix precommit` verde é condição para cada lote. Se o baseline impedir, corrigir/registrar bloqueio de qualidade separadamente, sem mascarar falhas do novo schema.
+1. Duas restaurações de um export real anonimizado em destinos limpos preservam IDs, sequências, contagens e relações.
+2. Procedimento de bootstrap das tabelas locais (Phoenix/Oban/`chatwooter_*`) e reconciliação do ledger `schema_migrations` sobre o banco restaurado. Não rodar as migrações de criação sobre tabelas restauradas.
+3. Usuários restaurados conseguem autenticar; segredos Meta/Telegram revisados e protegidos antes do uso, nunca em texto puro nem em logs.
+4. Conversa real aberta e respondida nos dois canais em sandbox, sem instalar webhooks externos durante o dry-run; relatório explícito dos canais não ativados.
+5. Guia de freeze/cutover WA+TG.
 
-## Ordem de prioridade e tamanho
+## Regras para mudanças no schema
 
-**P0:** fechar critérios pendentes do marco 0 e avançar marcos 1–3 (histórico e operação WA/TG). **P1:** marcos 4 e 6 (migração utilizável). **P2 obrigatório para reivindicar 1:1 literal:** marco 5. As **25** tabelas ainda ausentes, os desvios das tabelas presentes e a prova com export real impedem qualquer prazo baseado na antiga “Fase A: 1 semana”.
-
-**Lote CRM entregue:** `labels`, `notes`, `canned_responses`, `custom_attribute_definitions`, `working_hours`, com contrato físico comparado e consultas Ecto por conta. Ensaio sintético de `pg_dump -Fc` → `pg_restore` → leitura Ecto aprovado para essas cinco tabelas; não comprova a restauração integral do Chatwoot.
-
-**Lote de 20 tabelas entregue:** plataforma (4), notificações (4), CRM/contas (4), participantes/CSAT/relatórios (3), SLA (3) e automações (2). Todas têm igualdade no catálogo físico e mappings Ecto de leitura. Dump/restauração sintéticos preservaram campos, contagens e sequências nas 20; rollback/reaplicação aprovados. A existência das tabelas não ativa recursos pós-v1. Relação completa e evidências: `docs/SCHEMA_PARITY.md`.
-
-**Segundo lote de 20 entregue com subagentes:** contas/capacidade (7), Rails/storage/auditoria (5), proveniência/plataforma (6), canais WA/TG (2), com catálogo físico igual e mappings Ecto de leitura. Dump/restauração sintéticos preservaram campos, contagens, IDs e sequências; rollback das quatro migrações preservou a conta externa ao lote. Total: 45 tabelas iguais fisicamente, 13 presentes com desvios e 45 ausentes. Não ativa recursos nem migra arquivos binários.
-
-**Terceiro lote de 20 entregue com subagentes:** help center (5), canais preservados fora do v1 (6), automações/configuração (7), widget/sessões (2). Catálogo físico igual nas 20, incluindo associação sem PK, precisão/defaults e índices parciais. Dump/restauração sintéticos preservaram 20 linhas e 19 sequências; rollback/reaplicação preservou conta e inbox de controle. `inboxes.portal_id` + FK/índice adicionados como dependência, sem declarar a tabela inboxes equivalente. Total: 65 iguais, 13 presentes com diferenças, 25 ausentes. Nenhum recurso pós-v1 ativado.
-
-**Lote do núcleo operacional entregue:** identidade, inboxes/vínculos, CRM e conversas/mensagens/anexos alinhados ao snapshot em cinco migrações incrementais, com leitura de dados restaurados (Devise vazio, `(uid, provider)`, `Channel::*` polimórfico, `content_attributes.chatwooter_media_type`, `external_url`) e exclusão coordenada via `Platform.RecordDeletion`. Gate global exige igualdade física das 78 tabelas presentes. Total: 78 iguais, 0 com diferenças, 25 ausentes. Sem ensaio com dump integral; segredos restaurados e bootstrap/autenticação pós-restauração continuam pendentes.
-
-**Gaps fechados:** triggers de `display_id` por conta replicadas (com backfill; BEFORE preenche só NULL, presença `:body_unverified`) e rótulo de papel `administrator` igual ao Rails. `campaigns_before_insert_row_tr` fica pendente com a tabela `campaigns` (marco 5).
-
-**Lote final reproduzido:** as cinco migrations das 25 tabelas do marco 5, anteriormente revertidas no Git mas ainda presentes em bancos locais, voltaram ao histórico; uma migração incremental habilita `pgcrypto` e `pg_stat_statements`. Banco limpo e suíte isolada verificaram 103/103 tabelas. Triggers permanecem `body_unverified` e `citext` é local.
-
-**Próxima tarefa executável:** ensaio `pg_dump -Fc` → `pg_restore` de export real anonimizado em banco isolado, com reconciliação de contagens, relações e sequências; definir o procedimento de bootstrap de tabelas locais e autenticação em banco restaurado. Os helpers históricos de importação por linha não são o caminho de migração escolhido.
+1. Teste primeiro; `schema_parity_test.exs` deve continuar exigindo igualdade total com o snapshot.
+2. Migrações novas via `mix ecto.gen.migration`; nunca reescrever migrações aplicadas.
+3. Transformações Rails ↔ Ecto (enums, timestamps, JSON/JSONB, polimorfismo, ActiveStorage) são testadas com dados restaurados, nunca presumidas.
+4. Antes de `NOT NULL`/unique em banco existente: detectar conflitos → backfill em lotes → constraint.
+5. Direção dos contexts (`Channels → Conversations → Contacts → Inboxes → Accounts`), sem `ChatwooterWeb → Repo`.
+6. `mix precommit` verde.

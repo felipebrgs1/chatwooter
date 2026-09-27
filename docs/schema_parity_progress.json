@@ -114,11 +114,6 @@
     "working_hours"
   ],
   "extensions": {
-    "citext": {
-      "status": "local_only",
-      "actual": true,
-      "expected": null
-    },
     "pg_stat_statements": {
       "status": "equal",
       "actual": true,
@@ -168,7 +163,7 @@
     }
   },
   "limitations": [
-    "Trigger bodies are not verified; local citext is an extra Phoenix extension.",
+    "Trigger bodies are not verified by the catalog; manual comparison documented in docs/SCHEMA_PARITY.md.",
     "Catalog parity does not prove full Chatwoot dump restore, application startup, secrets, binary storage, authentication or channel operations."
   ]
 }

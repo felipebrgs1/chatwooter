@@ -109,6 +109,9 @@ defmodule Chatwooter.SchemaParityTest do
       assert report.extensions[extension].status == :equal, extension
     end
 
+    assert Enum.all?(report.extensions, fn {_, diff} -> diff.status == :equal end),
+           inspect(report.extensions)
+
     for {name, table} <- report.tables, table.status == :present do
       assert table.primary_key.status == :equal, name
       assert table.missing_columns == [], name
