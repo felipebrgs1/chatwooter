@@ -46,9 +46,6 @@ defmodule Chatwooter.MixProject do
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
-      # tipo Ecto + extensao Postgrex para as colunas `vector` do snapshot
-      # (article_embeddings, captain_assistant_responses, captain_faq_suggestions)
-      {:pgvector, "~> 0.3"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.2.0"},

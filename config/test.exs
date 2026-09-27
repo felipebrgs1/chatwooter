@@ -14,7 +14,6 @@ config :chatwooter, Chatwooter.Repo,
   hostname: System.get_env("PGHOST", "localhost"),
   database:
     System.get_env("PGDATABASE_TEST", "chatwooter_test#{System.get_env("MIX_TEST_PARTITION")}"),
-  types: Chatwooter.PostgresTypes,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
