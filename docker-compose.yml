@@ -1,6 +1,10 @@
 services:
   db:
-    image: postgres:16
+    # pgvector sobre PG16: o snapshot exige a extensao `vector`
+    # (article_embeddings, captain_assistant_responses, captain_faq_suggestions).
+    image: pgvector/pgvector:pg16
+    ports:
+      - "${PGPORT:-5432}:5432"
     env_file:
       - .env
     environment:

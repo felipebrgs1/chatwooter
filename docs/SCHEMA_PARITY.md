@@ -4,7 +4,7 @@
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
 - `schema_parity_baseline.json` permanece como relatório histórico inicial de 10 tabelas. O parser antigo interpretava strings Rails sem limite como varchar(255); o comparador agora usa varchar sem limite, conforme o [adapter PostgreSQL Rails 7.2.3.1](https://github.com/rails/rails/blob/v7.2.3.1/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb). O baseline não foi sobrescrito.
-- Banco migrado após o alinhamento do núcleo operacional: **78/103 tabelas presentes, 25 ausentes; 78 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e helpers históricos de importação são extras locais.
+- Banco migrado após o lote final do marco 5: **103/103 tabelas presentes e equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false` por decisão documentada (extensões e corpos de triggers, abaixo). Tabelas Phoenix/Oban, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e helpers históricos de importação são extras locais.
 
 ```sh
 mix chatwooter.schema_diff
@@ -106,7 +106,7 @@ Provas:
 - `help_center_*`, `preserved_channels_*`, `configuration_*`, `widget_session_*`: comparação física das 20 tabelas e leitura dos valores/defaults, PK ausente, FK de sessão, credenciais redigidas, JSON, datas, timestamps, índices parciais e unicidade.
 - Banco temporário limpo migrado, quatro fixtures totalizando 20 linhas, 19 estados de sequência e uma associação sem PK. Dump custom completo desse banco **sintético** e restauração transacional em outro banco vazio passaram. Todos os campos/defaults das fixtures, contagens, IDs e próximos valores das 19 sequências foram conferidos via Ecto.
 - Rollback das quatro migrações removeu as 20 tabelas e o vínculo `inboxes.portal_id`, preservando os registros de conta e inbox de controle. Reaplicação em banco já populado passou. O rollback perde o conteúdo da coluna de vínculo removida; não equivale a rollback de produção sem backup.
-- Catálogo após o lote do núcleo operacional: **78 presentes, 78 iguais, 0 diferentes e 25 ausentes**. A lista completa das tabelas iguais está em `schema_parity_progress.json`.
+- Catálogo após o lote final: **103 presentes, 103 iguais, 0 diferentes e 0 ausentes**. A lista completa das tabelas iguais está em `schema_parity_progress.json`.
 
 Esses canais adicionais, help center, bots, envio de email e configurações globais permanecem como preservação de dados. Nenhum adapter/SSO/login Rails, job pendente, servidor de widget ou recurso novo foi ativado. Não foram criadas rotas/UI, webhooks externos ou migração de binários. Redação de credenciais não substitui proteção do dump/banco. Captain não foi incluído.
 
@@ -120,11 +120,42 @@ Decisões de preservação, todas cobertas por teste de leitura de dados restaur
 - `inboxes.provider_config` saiu da tabela upstream para `chatwooter_inbox_configs`; `channel_type` preserva `Channel::Telegram/Whatsapp/Email/...` via `Types.InboxChannel` e `channel_id` aponta para `channel_telegram`/`channel_whatsapp` criados na migração a partir do config local.
 - `messages.content_type` inteiro upstream é lido como `upstream_content_type`; o tipo de mídia do dashboard (`image/audio/video/file/location`) é preservado em `content_attributes.chatwooter_media_type`. Metadados locais de anexo vivem em `chatwooter_attachment_storage`; linha restaurada sem storage local lê `url` de `external_url`.
 - Tabelas upstream sem FKs SQL continuam sem FKs; cascatas locais foram substituídas por exclusão coordenada em `Platform.RecordDeletion` (usada pelos LiveViews e coberta pelo teste de cascata).
-- `conversations.display_id` sai da sequence por conta `conv_dpid_seq_<account_id>`, com as triggers `accounts_after_insert_row_tr`, `conversations_before_insert_row_tr` e `camp_dpid_before_insert` replicadas (migração com backfill e `setval` no pico por conta; `open_conversation` lê via `RETURNING` com `read_after_writes`). Desvio deliberado: a BEFORE só preenche `display_id` NULL para preservar linhas restauradas fora de COPY; presença é `:body_unverified` no diff, corpo não verificável pelo catálogo. `campaigns_before_insert_row_tr` continua ausente com a tabela `campaigns`.
+- `conversations.display_id` sai da sequence por conta `conv_dpid_seq_<account_id>`, com as triggers `accounts_after_insert_row_tr`, `conversations_before_insert_row_tr` e `camp_dpid_before_insert` replicadas (migração com backfill e `setval` no pico por conta; `open_conversation` lê via `RETURNING` com `read_after_writes`). Desvio deliberado: a BEFORE só preenche `display_id` NULL para preservar linhas restauradas fora de COPY; presença é `:body_unverified` no diff, corpo não verificável pelo catálogo.
 
-Limites: sem ensaio `pg_dump`/`pg_restore` integral deste lote; segredos restaurados continuam exigindo proteção antes do uso operacional; extensões `pgcrypto`/`vector`/`pg_stat_statements` seguem ausentes. Bootstrap Phoenix/Oban em banco restaurado e compatibilização da autenticação continuam pendentes. Rótulo de papel é `administrator` (igual ao Rails); transformações de mídia, `provider_config` local e Devise vazio→`nil` são decisões permanentes documentadas acima.
+Limites: sem ensaio `pg_dump`/`pg_restore` integral deste lote; segredos restaurados continuam exigindo proteção antes do uso operacional; extensões `pgcrypto`/`pg_stat_statements` seguem ausentes (`vector` foi ativada, abaixo). Bootstrap Phoenix/Oban em banco restaurado e compatibilização da autenticação continuam pendentes. Rótulo de papel é `administrator` (igual ao Rails); transformações de mídia, `provider_config` local e Devise vazio→`nil` são decisões permanentes documentadas acima.
+
+## Lote final do marco 5 — 25 tabelas (campanhas, Captain, monitores, Copilot, canais)
+
+Cinco migrações incrementais (`20260927144424`–`20260927144428`), cada uma gerada via `mix ecto.gen.migration`, sem reescrever histórico:
+
+| Migração | Tabelas com igualdade no catálogo físico |
+|---|---|
+| `create_campaign_parity_tables` | `campaigns`, `campaign_recipients` + trigger `campaigns_before_insert_row_tr` e backfill de `camp_dpid_seq_*` para contas existentes |
+| `create_captain_assistant_parity_tables` | `captain_assistants`, `captain_inboxes`, `captain_documents`, `captain_scenarios`, `captain_custom_tools`, `captain_assistant_responses` |
+| `create_captain_insight_parity_tables` | `captain_faq_suggestions`, `captain_faq_observations`, `captain_message_reports`, `agent_sessions`, `conversation_outcomes` |
+| `create_conversation_monitor_parity_tables` | `conversation_monitors`, `conversation_monitor_evaluations`, `conversation_monitor_scans`, `conversation_monitor_work_items`, `conversation_monitor_daily_usages`, `calls` |
+| `create_copilot_and_preserved_channel_parity_tables` | `copilot_threads`, `copilot_messages`, `article_embeddings`, `channel_tiktok`, `channel_twilio_sms`, `channel_twitter_profiles` |
+
+Todas as 15 FKs SQL upstream do lote foram replicadas com a ação exata (`cascade`, `nullify`, `no_action`); tabelas sem FK na origem continuam sem FK. O lote inclui o índice de expressão `assistant_id, md5(external_link)`, os uniques parciais (`source_id`, `faq_suggestion_id`, episódios `initial`/abertos de outcomes, scan `initial`, `due_at`), o check `monitor_daily_usage_nonnegative`, GIN sobre os três JSONB de `agent_sessions` e os três índices ivfflat (com `vector_cosine_ops` onde o snapshot declara opclass).
+
+Decisões de preservação, todas cobertas por teste de leitura de dados restaurados:
+
+- Extensão `vector` ativada na migração (imagem do banco em Docker trocada para `pgvector/pgvector:pg16`, mesma série PG16, com porta publicável via `PGPORT`); `pgcrypto`/`pg_stat_statements` seguem ausentes e documentadas. Leitura Ecto das colunas `vector(1536)` via `Pgvector.Ecto.Vector` + tipos Postgrex dedicados (`Chatwooter.PostgresTypes`); embeddings preservados opacamente, sem ativar busca vetorial.
+- `campaigns_before_insert_row_tr` replica o padrão do lote do núcleo: BEFORE só preenche `display_id` NULL (presença `:body_unverified`); sequences `camp_dpid_seq_*` criadas para contas existentes, mantidas no rollback para não zerar a numeração.
+- Enums continuam inteiros; credenciais dos canais preservados e `auth_config` de custom tools são redigidas na inspeção (`redact: true`), sem criptografar dump/banco.
+
+Correções no comparador descobertas pelo lote (com trava no teste-gate): `pg_get_constraintdef` sempre envolve a expressão em `CHECK ((...))`, então o comparador agora remove o wrapper antes de comparar; o parser do snapshot singularizava `inboxes` como `inboxe_id` em `add_foreign_key` sem `column:` explícito — agora trata o plural em `-xes`. Prova negativa de check (`DROP CONSTRAINT` → `:missing`) e asserção da FK `campaign_recipients.inbox_id → inboxes/cascade` travam ambas.
+
+Provas:
+
+- Cinco `*_schema_parity_test.exs`: igualdade física das 25 tabelas (colunas/tipos/precisão/null/default, PKs, índices, FKs, checks).
+- Cinco `*_restored_data_test.exs` + fixtures: uma linha por tabela com IDs explícitos, uniques/partial uniques/check violados por prova negativa, defaults de omitidos e leitura de JSONB, datas, floats e microssegundos.
+- Banco scratch limpo migrado e populado (25 linhas + pais de FK); `pg_dump -Fc` → `pg_restore --single-transaction` em outro banco vazio passou: contagens, IDs, campos/defaults, texto dos três embeddings, 25 `*_id_seq` e sequences `camp/conv_dpid_seq_*` idênticos; leitura Ecto no banco restaurado aprovada.
+- Rollback das cinco migrações removeu exatamente as 25 tabelas e o trigger de campaigns, preservando o restante; reaplicação passou.
+
+Limites que permanecem: Captain/AI, Copilot, monitores, calls, campanhas e canais preservados são só preservação de dados — nenhum adapter, job, rota ou UI foi ativado; binários do ActiveStorage continuam fora do escopo; segredos restaurados exigem proteção antes do uso operacional; bootstrap Phoenix/Oban em banco restaurado e compatibilização da autenticação continuam pendentes (marco 6).
 
 ## Próximos desvios críticos
 
 1. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
-2. As 25 tabelas ausentes (campanhas, Captain/AI, canais não suportados, monitoramento, `agent_sessions`, `calls`, `copilot_*`, etc.) impedem alegar paridade literal 1:1.
+2. `parity?` segue `false` por decisão documentada: extensões `pgcrypto`/`pg_stat_statements` ausentes e corpos de triggers verificados só por presença. Zerar diferenças *não justificadas* exigiria decidir sobre essas exceções — nenhuma tabela, coluna, índice, FK ou check diverge.

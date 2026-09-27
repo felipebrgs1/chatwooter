@@ -91,7 +91,7 @@ defmodule Chatwooter.SchemaParity do
              compare_named(
                source.checks,
                destination.checks,
-               &(normalize_sql(&1) == normalize_sql(&2))
+               &check_equal?/2
              )
          }}
       end
@@ -239,6 +239,22 @@ defmodule Chatwooter.SchemaParity do
   end
 
   defp index_orders(_expected, actual), do: Enum.map(actual.keys, fn _key -> nil end)
+
+  defp check_equal?(expected, actual) do
+    normalize_sql(expected) == normalize_check(actual)
+  end
+
+  # pg_get_constraintdef always wraps the expression as CHECK ((...)); the
+  # snapshot records the bare Rails expression, so the wrapper is stripped.
+  defp normalize_check(sql) do
+    sql
+    |> normalize_sql()
+    |> then(fn
+      "check" <> rest -> rest
+      other -> other
+    end)
+    |> strip_outer_parentheses()
+  end
 
   defp normalize_sql(nil), do: nil
 
