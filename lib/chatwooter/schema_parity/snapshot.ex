@@ -95,7 +95,7 @@ defmodule Chatwooter.SchemaParity.Snapshot do
 
       match = Regex.run(~r/^  add_foreign_key "([^"]+)", "([^"]+)"(.*)$/, line) ->
         [_, from, to, options] = match
-        column = option(options, "column") || "#{String.trim_trailing(to, "s")}_id"
+        column = option(options, "column") || "#{singularize(to)}_id"
         fk = %{table: to, on_delete: option(options, "on_delete") || "no_action"}
         update_in(state, [:tables, from, :foreign_keys], &Map.put(&1, column, fk))
 
@@ -172,6 +172,16 @@ defmodule Chatwooter.SchemaParity.Snapshot do
 
   defp unsupported!(number, line),
     do: raise(ArgumentError, "unsupported schema instruction at line #{number}: #{line}")
+
+  # Rails table names are English plurals; "inboxes" singularizes to
+  # "inbox", which a naive trailing-s trim would render as "inboxe".
+  defp singularize(name) do
+    if String.ends_with?(name, "xes") do
+      String.trim_trailing(name, "es")
+    else
+      String.trim_trailing(name, "s")
+    end
+  end
 
   defp column_type("string", options),
     do:

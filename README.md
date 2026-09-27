@@ -268,7 +268,7 @@ Auth API planejada: `Authorization: Bearer <access_token>`. OpenAPI e compatibil
 
 ## 10. Roadmap
 
-O [roadmap de paridade do banco](./ROADMAP_PARIDADE_BANCO.md) é a prioridade de execução; o [estado medido](./docs/SCHEMA_PARITY.md) separa o que já foi entregue do que bloqueia uma migração real. Para a visão do produto e dos canais, consulte o [roteiro Elixir](./ROTEIRO_ELIXIR.md). Datas da estimativa inicial foram removidas: 90 tabelas ainda faltam no schema e não há ensaio de export real.
+O [roadmap de paridade do banco](./ROADMAP_PARIDADE_BANCO.md) é a prioridade de execução; o [estado medido](./docs/SCHEMA_PARITY.md) separa o que já foi entregue do que bloqueia uma migração real. Para a visão do produto e dos canais, consulte o [roteiro Elixir](./ROTEIRO_ELIXIR.md). Datas da estimativa inicial foram removidas: as 103 tabelas do snapshot são reproduzíveis em banco limpo, mas ainda não há ensaio de export real nem bootstrap da aplicação sobre um dump Chatwoot.
 
 ---
 

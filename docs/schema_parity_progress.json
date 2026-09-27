@@ -1,16 +1,18 @@
 {
   "schema_version": "2026_09_24_000000",
-  "measurement": "development PostgreSQL after migration 20260927021644",
+  "measurement": "isolated clean PostgreSQL after migration 20260927151655",
   "summary": {
-    "compared_tables": 78,
+    "compared_tables": 103,
     "upstream_tables": 103,
-    "missing_tables": 25,
+    "missing_tables": 0,
     "parity?": false,
-    "local_tables": 85
+    "local_tables": 112
   },
   "structurally_equal_tables": [
     "access_tokens",
     "account_saml_settings",
+    "account_users",
+    "accounts",
     "action_mailbox_inbound_emails",
     "active_storage_attachments",
     "active_storage_blobs",
@@ -18,13 +20,28 @@
     "agent_bot_inboxes",
     "agent_bots",
     "agent_capacity_policies",
+    "agent_sessions",
     "applied_slas",
+    "article_embeddings",
     "articles",
     "assignment_policies",
+    "attachments",
     "audits",
     "automation_rule_pending_executions",
     "automation_rules",
+    "calls",
+    "campaign_recipients",
+    "campaigns",
     "canned_responses",
+    "captain_assistant_responses",
+    "captain_assistants",
+    "captain_custom_tools",
+    "captain_documents",
+    "captain_faq_observations",
+    "captain_faq_suggestions",
+    "captain_inboxes",
+    "captain_message_reports",
+    "captain_scenarios",
     "categories",
     "channel_api",
     "channel_email",
@@ -33,9 +50,24 @@
     "channel_line",
     "channel_sms",
     "channel_telegram",
+    "channel_tiktok",
+    "channel_twilio_sms",
+    "channel_twitter_profiles",
     "channel_web_widgets",
     "channel_whatsapp",
+    "companies",
+    "contact_inboxes",
+    "contacts",
+    "conversation_monitor_daily_usages",
+    "conversation_monitor_evaluations",
+    "conversation_monitor_scans",
+    "conversation_monitor_work_items",
+    "conversation_monitors",
+    "conversation_outcomes",
     "conversation_participants",
+    "conversations",
+    "copilot_messages",
+    "copilot_threads",
     "csat_survey_responses",
     "custom_attribute_definitions",
     "custom_filters",
@@ -49,12 +81,15 @@
     "folders",
     "inbox_assignment_policies",
     "inbox_capacity_limits",
+    "inbox_members",
+    "inboxes",
     "installation_configs",
     "integrations_hooks",
     "labels",
     "leaves",
     "macros",
     "mentions",
+    "messages",
     "notes",
     "notification_settings",
     "notification_subscriptions",
@@ -71,14 +106,69 @@
     "sla_policies",
     "taggings",
     "tags",
+    "team_members",
+    "teams",
     "user_sessions",
+    "users",
     "webhooks",
     "working_hours"
   ],
+  "extensions": {
+    "citext": {
+      "status": "local_only",
+      "actual": true,
+      "expected": null
+    },
+    "pg_stat_statements": {
+      "status": "equal",
+      "actual": true,
+      "expected": true
+    },
+    "pg_trgm": {
+      "status": "equal",
+      "actual": true,
+      "expected": true
+    },
+    "pgcrypto": {
+      "status": "equal",
+      "actual": true,
+      "expected": true
+    },
+    "plpgsql": {
+      "status": "equal",
+      "actual": true,
+      "expected": true
+    },
+    "vector": {
+      "status": "equal",
+      "actual": true,
+      "expected": true
+    }
+  },
+  "trigger_status": {
+    "accounts_after_insert_row_tr": {
+      "status": "body_unverified",
+      "actual": "accounts",
+      "expected": "accounts"
+    },
+    "camp_dpid_before_insert": {
+      "status": "body_unverified",
+      "actual": "accounts",
+      "expected": "accounts"
+    },
+    "campaigns_before_insert_row_tr": {
+      "status": "body_unverified",
+      "actual": "campaigns",
+      "expected": "campaigns"
+    },
+    "conversations_before_insert_row_tr": {
+      "status": "body_unverified",
+      "actual": "conversations",
+      "expected": "conversations"
+    }
+  },
   "limitations": [
-    "Physical catalog equality does not prove feature behavior or full Chatwoot restore.",
-    "Latest twenty-table batch verified with synthetic dump/restore of fields/defaults, counts, IDs, nineteen sequence states and one association without a primary key.",
-    "Preserved channels and post-v1 resources remain inactive.",
-    "Thirteen already-present core tables still differ from upstream."
+    "Trigger bodies are not verified; local citext is an extra Phoenix extension.",
+    "Catalog parity does not prove full Chatwoot dump restore, application startup, secrets, binary storage, authentication or channel operations."
   ]
 }

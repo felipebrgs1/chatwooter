@@ -38,6 +38,11 @@ defmodule Chatwooter.SchemaParityTest do
              "monitor_daily_usage_nonnegative"
            ] == "calls_count >= 0"
 
+    assert snapshot.tables["campaign_recipients"].foreign_keys["inbox_id"] == %{
+             table: "inboxes",
+             on_delete: "cascade"
+           }
+
     assert snapshot.triggers["accounts_after_insert_row_tr"] == "accounts"
     assert Enum.all?(snapshot.tables, fn {_name, table} -> map_size(table.columns) > 0 end)
   end
@@ -94,10 +99,15 @@ defmodule Chatwooter.SchemaParityTest do
   test "all present upstream tables match the migrated physical contract" do
     report = SchemaParity.compare(Repo, @schema)
     assert report.summary.upstream_tables == 103
-    assert report.summary.compared_tables == 78
-    assert report.summary.missing_tables == 25
+    assert report.summary.compared_tables == 103
+    assert report.summary.missing_tables == 0
     assert "users_tokens" in report.local_tables
     refute report.summary.parity?
+    assert report.missing_tables == []
+
+    for extension <- ~w(pgcrypto pg_stat_statements pg_trgm vector) do
+      assert report.extensions[extension].status == :equal, extension
+    end
 
     for {name, table} <- report.tables, table.status == :present do
       assert table.primary_key.status == :equal, name
@@ -124,8 +134,30 @@ defmodule Chatwooter.SchemaParityTest do
       assert report.triggers[name].status == :body_unverified, name
     end
 
-    # campaigns_before_insert_row_tr needs the campaigns table, still absent.
-    assert report.triggers["campaigns_before_insert_row_tr"].status == :missing
+    assert report.triggers["campaigns_before_insert_row_tr"].status == :body_unverified
+  end
+
+  test "compares check bodies rather than only their names" do
+    report = SchemaParity.compare(Repo, @schema)
+
+    assert report.tables["conversation_monitor_daily_usages"].checks[
+             "monitor_daily_usage_nonnegative"
+           ].status == :equal
+
+    Repo.query!(
+      "ALTER TABLE conversation_monitor_daily_usages DROP CONSTRAINT monitor_daily_usage_nonnegative"
+    )
+
+    Repo.query!("""
+    ALTER TABLE conversation_monitor_daily_usages
+    ADD CONSTRAINT monitor_daily_usage_nonnegative CHECK (calls_count >= -1)
+    """)
+
+    changed = SchemaParity.compare(Repo, @schema)
+
+    assert changed.tables["conversation_monitor_daily_usages"].checks[
+             "monitor_daily_usage_nonnegative"
+           ].status == :different
   end
 
   test "compares sort direction and null placement for the correct index column" do

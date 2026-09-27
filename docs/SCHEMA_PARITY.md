@@ -4,7 +4,7 @@
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
 - `schema_parity_baseline.json` permanece como relatório histórico inicial de 10 tabelas. O parser antigo interpretava strings Rails sem limite como varchar(255); o comparador agora usa varchar sem limite, conforme o [adapter PostgreSQL Rails 7.2.3.1](https://github.com/rails/rails/blob/v7.2.3.1/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb). O baseline não foi sobrescrito.
-- Banco migrado após o alinhamento do núcleo operacional: **78/103 tabelas presentes, 25 ausentes; 78 equivalentes no catálogo físico**. Presença não significa paridade integral; `parity?` continua `false`. Tabelas Phoenix/Oban, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e helpers históricos de importação são extras locais.
+- Banco **limpo** migrado a partir deste checkout: **103/103 tabelas presentes e equivalentes no catálogo físico**. `parity?` continua `false`: os corpos das quatro triggers são marcados `body_unverified` e `citext` é uma extensão local extra. Tabelas Phoenix/Oban, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e helpers históricos de importação também são extras locais. Bancos de desenvolvimento/teste antigos podem conservar migrations revertidas; nunca inferir reprodutibilidade apenas de um banco existente.
 
 ```sh
 mix chatwooter.schema_diff
@@ -124,7 +124,13 @@ Decisões de preservação, todas cobertas por teste de leitura de dados restaur
 
 Limites: sem ensaio `pg_dump`/`pg_restore` integral deste lote; segredos restaurados continuam exigindo proteção antes do uso operacional; extensões `pgcrypto`/`vector`/`pg_stat_statements` seguem ausentes. Bootstrap Phoenix/Oban em banco restaurado e compatibilização da autenticação continuam pendentes. Rótulo de papel é `administrator` (igual ao Rails); transformações de mídia, `provider_config` local e Devise vazio→`nil` são decisões permanentes documentadas acima.
 
+## Lote final recuperado e reproduzido em banco limpo
+
+As migrations `20260927144424`–`20260927144428` (campanhas, Captain, monitores, Copilot e canais preservados) foram restauradas ao histórico versionado após terem sido revertidas sem remover seus efeitos dos bancos locais. Acrescentou-se `20260927151655` para `pgcrypto` e `pg_stat_statements`; `vector` já é habilitada pelo lote final e o Docker usa a imagem pgvector. São **25 tabelas de preservação de dados**, não funcionalidades ativadas. A comparação agora interpreta corretamente a FK implícita `inboxes` → `inbox_id` e remove apenas o wrapper `CHECK` fornecido por `pg_get_constraintdef`, com teste negativo para expressão alterada.
+
+Prova atual: `mix ecto.create` → `mix ecto.migrate` → `mix chatwooter.schema_diff` em banco temporário limpo: 103/103 presentes, nenhuma diferença em tabelas, extensões upstream presentes. Suíte ExUnit em outro banco limpo: 382 testes passaram. O JSON medido está em `schema_parity_progress.json`. Não foi realizado nesta execução um ensaio de dump **real** de Chatwoot; os testes do lote usam dados sintéticos.
+
 ## Próximos desvios críticos
 
 1. Bootstrap Phoenix/Oban, autenticação e ensaio com dump integral anonimizado; operação sandbox WA/TG e reconciliação de contagens, relações e sequências.
-2. As 25 tabelas ausentes (campanhas, Captain/AI, canais não suportados, monitoramento, `agent_sessions`, `calls`, `copilot_*`, etc.) impedem alegar paridade literal 1:1.
+2. Comparar funções/semântica das quatro triggers com a origem; `conversations_before_insert_row_tr` deliberadamente mantém `display_id` explícito (ao contrário do Rails). `parity?` não representa aprovação operacional.
