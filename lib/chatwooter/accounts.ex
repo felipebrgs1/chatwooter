@@ -4,7 +4,17 @@ defmodule Chatwooter.Accounts do
   """
 
   import Ecto.Query, warn: false
-  alias Chatwooter.Accounts.{Account, AccountUser, User, UserNotifier, UserToken}
+
+  alias Chatwooter.Accounts.{
+    Account,
+    AccountUser,
+    Team,
+    TeamMember,
+    User,
+    UserNotifier,
+    UserToken
+  }
+
   alias Chatwooter.Repo
 
   ## Database getters
@@ -344,6 +354,45 @@ defmodule Chatwooter.Accounts do
   @doc "Busca uma conta por id (ingest de webhooks)."
   def get_account!(id), do: Repo.get!(Account, id)
 
+  @doc "Checks membership without allowing a user from a different account through."
+  def member?(%Account{id: account_id}, user_id) do
+    Repo.exists?(
+      from m in AccountUser, where: m.account_id == ^account_id and m.user_id == ^user_id
+    )
+  end
+
+  def list_teams(%Account{id: account_id}) do
+    Repo.all(from t in Team, where: t.account_id == ^account_id, order_by: [asc: t.name])
+  end
+
+  def get_team!(%Account{id: account_id}, id),
+    do: Repo.get_by!(Team, id: id, account_id: account_id)
+
+  def get_team(%Account{id: account_id}, id),
+    do: Repo.get_by(Team, id: id, account_id: account_id)
+
+  def create_team(%Account{} = account, attrs) do
+    %Team{account_id: account.id}
+    |> Team.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def add_team_member(%Account{} = account, team_id, user_id) do
+    if Repo.exists?(from t in Team, where: t.id == ^team_id and t.account_id == ^account.id) and
+         member?(account, user_id) do
+      %TeamMember{}
+      |> TeamMember.changeset(%{team_id: team_id, user_id: user_id})
+      |> Repo.insert()
+    else
+      {:error, :not_found}
+    end
+  end
+
+  def list_team_members(%Account{} = account, team_id) do
+    get_team!(account, team_id)
+    Repo.all(from m in TeamMember, where: m.team_id == ^team_id, preload: [:user])
+  end
+
   ## Account settings (Chatwoot-style)
 
   def update_account(%Account{} = account, attrs) do
@@ -426,7 +475,16 @@ defmodule Chatwooter.Accounts do
   end
 
   defp add_existing_agent(account, user, attrs) do
-    with {:ok, _} <- add_member(account, user, attrs[:role] || attrs["role"] || "agent") do
+    with {:ok, _} <-
+           %AccountUser{}
+           |> AccountUser.changeset(%{
+             account_id: account.id,
+             user_id: user.id,
+             role: attrs[:role] || attrs["role"] || "agent",
+             availability: attrs[:availability] || attrs["availability"] || "offline",
+             auto_offline: attrs[:auto_offline] || attrs["auto_offline"] || false
+           })
+           |> Repo.insert() do
       {:ok, user}
     end
   end

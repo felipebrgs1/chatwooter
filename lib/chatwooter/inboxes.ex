@@ -4,8 +4,9 @@ defmodule Chatwooter.Inboxes do
   import Ecto.Query, warn: false
   alias Chatwooter.Repo
 
+  alias Chatwooter.Accounts
   alias Chatwooter.Accounts.Account
-  alias Chatwooter.Inboxes.Inbox
+  alias Chatwooter.Inboxes.{Inbox, InboxMember}
 
   def list_inboxes(%Account{id: account_id}) do
     Repo.all(from i in Inbox, where: i.account_id == ^account_id, order_by: [asc: i.name])
@@ -13,6 +14,10 @@ defmodule Chatwooter.Inboxes do
 
   def get_inbox!(%Account{id: account_id}, id) do
     Repo.get_by!(Inbox, id: id, account_id: account_id)
+  end
+
+  def get_inbox(%Account{id: account_id}, id) do
+    Repo.get_by(Inbox, id: id, account_id: account_id)
   end
 
   @doc "Busca inbox por id (webhooks públicos, sem escopo de conta)."
@@ -27,6 +32,22 @@ defmodule Chatwooter.Inboxes do
     %Inbox{account_id: account.id}
     |> Inbox.changeset(attrs)
     |> Repo.insert()
+  end
+
+  def add_member(%Account{} = account, inbox_id, user_id) do
+    if Repo.exists?(from i in Inbox, where: i.id == ^inbox_id and i.account_id == ^account.id) and
+         Accounts.member?(account, user_id) do
+      %InboxMember{}
+      |> InboxMember.changeset(%{inbox_id: inbox_id, user_id: user_id})
+      |> Repo.insert()
+    else
+      {:error, :not_found}
+    end
+  end
+
+  def list_members(%Account{} = account, inbox_id) do
+    get_inbox!(account, inbox_id)
+    Repo.all(from m in InboxMember, where: m.inbox_id == ^inbox_id, preload: [:user])
   end
 
   def change_inbox(%Inbox{} = inbox, attrs \\ %{}) do
