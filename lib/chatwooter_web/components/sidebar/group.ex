@@ -156,6 +156,10 @@ defmodule ChatwooterWeb.Components.Sidebar.Group do
           </span>
           <div class="flex-1 truncate min-w-0">{@leaf.label}</div>
         <% else %>
+          <%!-- cor da etiqueta vem do banco (labels.color), por isso o style inline --%>
+          <span :if={@leaf[:color]} class="size-4 grid place-content-center rounded-full">
+            <span class="size-[8px] rounded-sm" style={"background-color: #{@leaf.color}"} />
+          </span>
           <span :if={@leaf[:icon]} class="size-4 grid place-content-center rounded-full">
             <.icon name={@leaf.icon} class="size-4 inline-block" />
           </span>

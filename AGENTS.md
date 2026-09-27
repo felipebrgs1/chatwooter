@@ -1,6 +1,7 @@
 # Chatwooter — guia para agentes
 
-Reimplementação do Chatwoot em Elixir/Phoenix LiveView. Visão e fases: `README.md` + `ROTEIRO_ELIXIR.md`.
+Reimplementação do Chatwoot em Elixir/Phoenix LiveView. Visão: `ROTEIRO_ELIXIR.md`; o que falta para
+ficar 1:1 (checklist, em ordem): `ROADMAP_PARIDADE_PRODUTO.md` — marque os itens ao concluir.
 `chatwoot/` é a referência read-only do original (Rails + Vue) — **nunca editar**.
 Escopo v1: só WhatsApp Cloud API + Telegram Bot API.
 

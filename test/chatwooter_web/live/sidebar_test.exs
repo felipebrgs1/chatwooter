@@ -63,6 +63,67 @@ defmodule ChatwooterWeb.SidebarTest do
     refute has_element?(lv, "#sidebar-all-conversations[aria-current=page]")
   end
 
+  test "lists the conversation views, the user's teams and sidebar labels", %{
+    conn: conn,
+    user: user,
+    account: account
+  } do
+    {:ok, team} = Accounts.create_team(account, %{name: "Support"})
+    {:ok, _} = Accounts.create_team(account, %{name: "Not mine"})
+    {:ok, _} = Accounts.add_team_member(account, team.id, user.id)
+
+    label =
+      Chatwooter.Repo.insert!(%Chatwooter.Contacts.Label{
+        account_id: account.id,
+        title: "billing",
+        color: "#ff0000",
+        show_on_sidebar: true
+      })
+
+    Chatwooter.Repo.insert!(%Chatwooter.Contacts.Label{
+      account_id: account.id,
+      title: "hidden",
+      show_on_sidebar: false
+    })
+
+    {:ok, lv, _html} = live(conn, ~p"/app?conversation_type=mention")
+
+    assert has_element?(
+             lv,
+             "#sidebar-mentions[href='/app?conversation_type=mention']",
+             "Mentions"
+           )
+
+    assert has_element?(lv, "#sidebar-mentions[aria-current=page]")
+    refute has_element?(lv, "#sidebar-all-conversations[aria-current=page]")
+
+    assert has_element?(
+             lv,
+             "#sidebar-participating[href='/app?conversation_type=participating']",
+             "Participating"
+           )
+
+    assert has_element?(
+             lv,
+             "#sidebar-unattended[href='/app?conversation_type=unattended']",
+             "Unattended"
+           )
+
+    assert has_element?(lv, "#sidebar-section-teams #sidebar-team-#{team.id}", "Support")
+    refute has_element?(lv, "#sidebar-section-teams", "Not mine")
+
+    assert has_element?(
+             lv,
+             "#sidebar-section-labels #sidebar-label-#{label.id}[href='/app?label=billing']",
+             "billing"
+           )
+
+    refute has_element?(lv, "#sidebar-section-labels", "hidden")
+
+    {:ok, lv, _html} = live(conn, ~p"/app?team_id=#{team.id}")
+    assert has_element?(lv, "#sidebar-team-#{team.id}[aria-current=page]")
+  end
+
   test "changes the agent availability from the profile menu", %{
     conn: conn,
     user: user,

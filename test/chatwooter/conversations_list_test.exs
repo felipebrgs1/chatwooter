@@ -64,6 +64,106 @@ defmodule Chatwooter.ConversationsListTest do
     end
   end
 
+  describe "views (ConversationFinder conversation_type / team_id / labels)" do
+    setup %{account: account, inbox: inbox} do
+      %{
+        a: conversation(account, inbox, "40000001"),
+        b: conversation(account, inbox, "40000002"),
+        c: conversation(account, inbox, "40000003")
+      }
+    end
+
+    defp now, do: NaiveDateTime.utc_now()
+
+    test "mention lists only conversations where the user was mentioned", ctx do
+      other = user_fixture()
+
+      Repo.insert_all("mentions", [
+        %{
+          user_id: ctx.user.id,
+          conversation_id: ctx.a.id,
+          account_id: ctx.account.id,
+          mentioned_at: now(),
+          created_at: now(),
+          updated_at: now()
+        },
+        %{
+          user_id: other.id,
+          conversation_id: ctx.b.id,
+          account_id: ctx.account.id,
+          mentioned_at: now(),
+          created_at: now(),
+          updated_at: now()
+        }
+      ])
+
+      opts = [conversation_type: "mention", user_id: ctx.user.id]
+      assert ids(Conversations.list_conversations(ctx.account, opts)) == [ctx.a.id]
+      assert %{all: 1} = Conversations.conversation_counts(ctx.account, opts)
+    end
+
+    test "participating lists conversations the user participates in", ctx do
+      Repo.insert_all("conversation_participants", [
+        %{
+          user_id: ctx.user.id,
+          conversation_id: ctx.b.id,
+          account_id: ctx.account.id,
+          created_at: now(),
+          updated_at: now()
+        }
+      ])
+
+      opts = [conversation_type: "participating", user_id: ctx.user.id]
+      assert ids(Conversations.list_conversations(ctx.account, opts)) == [ctx.b.id]
+    end
+
+    test "unattended = never replied or waiting for a reply", ctx do
+      replied = DateTime.utc_now()
+      Repo.update!(Ecto.Changeset.change(ctx.a, first_reply_created_at: replied))
+
+      Repo.update!(
+        Ecto.Changeset.change(ctx.b, first_reply_created_at: replied, waiting_since: replied)
+      )
+
+      opts = [conversation_type: "unattended"]
+
+      assert Enum.sort(ids(Conversations.list_conversations(ctx.account, opts))) ==
+               Enum.sort([ctx.b.id, ctx.c.id])
+    end
+
+    test "team_id filters by the conversation team", ctx do
+      {:ok, team} = Accounts.create_team(ctx.account, %{name: "Support"})
+      Repo.update!(Ecto.Changeset.change(ctx.c, team_id: team.id))
+
+      assert ids(Conversations.list_conversations(ctx.account, team_id: team.id)) == [ctx.c.id]
+    end
+
+    test "label filters by conversation labels (taggings), case-insensitive", ctx do
+      {1, [%{id: tag_id}]} =
+        Repo.insert_all("tags", [%{name: "billing", taggings_count: 1}], returning: [:id])
+
+      Repo.insert_all("taggings", [
+        %{
+          tag_id: tag_id,
+          taggable_type: "Conversation",
+          taggable_id: ctx.a.id,
+          context: "labels",
+          created_at: now()
+        },
+        %{
+          tag_id: tag_id,
+          taggable_type: "Contact",
+          taggable_id: ctx.b.id,
+          context: "labels",
+          created_at: now()
+        }
+      ])
+
+      assert ids(Conversations.list_conversations(ctx.account, label: "Billing")) == [ctx.a.id]
+      assert Conversations.list_conversations(ctx.account, label: "other") == []
+    end
+  end
+
   describe "sort_by" do
     test "orders by last activity, creation and priority", %{account: account, inbox: inbox} do
       now = DateTime.utc_now()

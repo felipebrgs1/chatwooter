@@ -18,7 +18,8 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       |> assign(:conversation_count, 0)
       |> assign(:tab_counts, %{mine: 0, unassigned: 0, all: 0})
       |> stream(:conversations, [], dom_id: &"conv-#{&1.id}")
-      |> assign(:filter_inbox, nil)
+      |> assign(:view, %{})
+      |> assign(:view_title, "Conversations")
       |> assign_chat_filters(user)
       |> assign(:composer_mode, :reply)
       |> assign(:selected, nil)
@@ -54,18 +55,63 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    inbox_id =
-      if Enum.any?(socket.assigns.inboxes, &(to_string(&1.id) == params["inbox_id"])),
-        do: params["inbox_id"],
-        else: nil
+    {view, title} = parse_view(params, socket.assigns)
 
     {:noreply, socket} =
       socket
-      |> assign(:filter_inbox, inbox_id)
+      |> assign(:view, view)
+      |> assign(:view_title, title)
       |> select_conversation(params["conversation_id"])
 
     {:noreply, load_conversations(socket)}
   end
+
+  # Visões do conversation.routes.js do Chatwoot (inbox, time, etiqueta,
+  # mentions/participating/unattended) viram query params de /app. Params
+  # inválidos são ignorados. O título segue a precedência do pageTitle (ChatList.vue).
+  @conversation_types %{
+    "mention" => "Mentions",
+    "participating" => "Participating",
+    "unattended" => "Unattended"
+  }
+
+  defp parse_view(_params, %{account: nil}), do: {%{}, "Conversations"}
+
+  defp parse_view(params, %{account: account, inboxes: inboxes}) do
+    inbox = Enum.find(inboxes, &(to_string(&1.id) == params["inbox_id"]))
+    team = find_team(account, params["team_id"])
+    label = if params["label"] not in [nil, ""], do: params["label"]
+
+    type =
+      if Map.has_key?(@conversation_types, params["conversation_type"]),
+        do: params["conversation_type"]
+
+    view =
+      %{
+        "inbox_id" => inbox && to_string(inbox.id),
+        "team_id" => team && to_string(team.id),
+        "label" => label,
+        "conversation_type" => type
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    {view, view_title(inbox, team, label, type)}
+  end
+
+  defp view_title(%{name: name}, _team, _label, _type), do: name
+  defp view_title(nil, %{name: name}, _label, _type), do: name
+  defp view_title(nil, nil, label, _type) when is_binary(label), do: "#" <> label
+  defp view_title(nil, nil, nil, type), do: Map.get(@conversation_types, type, "Conversations")
+
+  defp find_team(account, id) when is_binary(id) do
+    case Integer.parse(id) do
+      {id, ""} -> Accounts.get_team(account, id)
+      _ -> nil
+    end
+  end
+
+  defp find_team(_account, _id), do: nil
 
   defp select_conversation(%{assigns: %{account: account}} = socket, id)
        when not is_nil(account) and not is_nil(id) do
@@ -225,7 +271,15 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
 
   defp load_conversations(socket) do
     %{account: account, current_scope: %{user: user}} = socket.assigns
-    filters = [status: socket.assigns.chat_status, inbox_id: socket.assigns.filter_inbox]
+    %{view: view} = socket.assigns
+
+    filters = [
+      status: socket.assigns.chat_status,
+      inbox_id: view["inbox_id"],
+      team_id: view["team_id"],
+      label: view["label"],
+      conversation_type: view["conversation_type"]
+    ]
 
     conversations =
       Conversations.list_conversations(
@@ -259,22 +313,10 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
     load_conversations(socket)
   end
 
-  defp conversation_path(inbox_id, conversation_id \\ nil) do
-    params =
-      %{"inbox_id" => inbox_id, "conversation_id" => conversation_id}
-      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-      |> Map.new()
+  defp conversation_path(view, conversation_id \\ nil) do
+    params = if conversation_id, do: Map.put(view, "conversation_id", conversation_id), else: view
 
     if params == %{}, do: ~p"/app", else: ~p"/app?#{params}"
-  end
-
-  defp list_title(%{filter_inbox: nil}), do: "Conversations"
-
-  defp list_title(%{filter_inbox: inbox_id, inboxes: inboxes}) do
-    case Enum.find(inboxes, &(to_string(&1.id) == inbox_id)) do
-      nil -> "Conversations"
-      inbox -> inbox.name
-    end
   end
 
   defp status_badge(:open), do: "Open"

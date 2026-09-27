@@ -2,7 +2,7 @@
 
 > Reconstrução do [Chatwoot](https://github.com/chatwoot/chatwoot) (referência em `chatwoot/`) como **monolito modular em Elixir + Phoenix LiveView**, com **TDD + Clean Code**, foco inicial em **WhatsApp e Telegram** e **UI equivalente ao Chatwoot**.
 >
-> Produto planejado: [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md). **Prioridade atual:** [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) · [estado medido do schema](./docs/SCHEMA_PARITY.md). O plano de produto não representa funcionalidades já concluídas.
+> Produto planejado: [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md). **Paridade:** [produto/UI](./ROADMAP_PARIDADE_PRODUTO.md) · [banco](./ROADMAP_PARIDADE_BANCO.md) · [estado medido do schema](./docs/SCHEMA_PARITY.md). O plano de produto não representa funcionalidades já concluídas.
 
 [![Elixir](https://img.shields.io/badge/elixir-1.20-purple)](https://elixir-lang.org)
 [![Phoenix](https://img.shields.io/badge/phoenix-1.8-orange)](https://phoenixframework.org)

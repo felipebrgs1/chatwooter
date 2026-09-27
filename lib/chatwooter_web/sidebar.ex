@@ -12,7 +12,7 @@ defmodule ChatwooterWeb.Sidebar do
   import Phoenix.Component, only: [assign: 3, update: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, put_flash: 3]
 
-  alias Chatwooter.{Accounts, Inboxes}
+  alias Chatwooter.{Accounts, Contacts, Inboxes}
 
   # provider.js: DEFAULT_WIDTH, MIN_WIDTH, COLLAPSED_THRESHOLD, MAX_WIDTH
   @default_width 200
@@ -29,6 +29,8 @@ defmodule ChatwooterWeb.Sidebar do
       account: account,
       memberships: Accounts.list_user_memberships(user),
       inboxes: if(account, do: Inboxes.list_inboxes(account), else: []),
+      teams: if(account, do: Accounts.list_user_teams(account, user), else: []),
+      labels: if(account, do: Contacts.list_sidebar_labels(account), else: []),
       availability: if(membership, do: membership.availability, else: :offline),
       auto_offline: if(membership, do: membership.auto_offline, else: false),
       width: clamp_width((user.ui_settings || %{})["sidebar_width"]),
@@ -126,7 +128,11 @@ defmodule ChatwooterWeb.Sidebar do
   Folhas com `exact: true` só ficam ativas na rota exata; as demais também
   cobrem sub-rotas (ex.: `/app/contacts/:id` ativa "All Contacts").
   """
-  def menu(%{inboxes: inboxes}) do
+  #
+  # Ícones lucide do Chatwoot trocados pelo equivalente Phosphor mais próximo
+  # (user-round-check e clock-alert não existem no Phosphor).
+  # Folders entra com os filtros salvos (custom_filters).
+  def menu(%{inboxes: inboxes} = sidebar) do
     [
       %{
         name: "conversation",
@@ -141,6 +147,35 @@ defmodule ChatwooterWeb.Sidebar do
             exact: true
           },
           %{
+            name: "mentions",
+            label: "Mentions",
+            icon: "ph-at",
+            to: ~p"/app?conversation_type=mention"
+          },
+          %{
+            name: "participating",
+            label: "Participating",
+            icon: "ph-user-circle",
+            to: ~p"/app?conversation_type=participating"
+          },
+          %{
+            name: "unattended",
+            label: "Unattended",
+            icon: "ph-clock-countdown",
+            to: ~p"/app?conversation_type=unattended"
+          },
+          %{
+            name: "teams",
+            label: "Teams",
+            icon: "ph-users",
+            collapsible: true,
+            tree_line: true,
+            children:
+              Enum.map(Map.get(sidebar, :teams, []), fn team ->
+                %{name: "team-#{team.id}", label: team.name, to: ~p"/app?team_id=#{team.id}"}
+              end)
+          },
+          %{
             name: "channels",
             label: "Channels",
             icon: "ph-broadcast",
@@ -153,6 +188,22 @@ defmodule ChatwooterWeb.Sidebar do
                   label: inbox.name,
                   inbox: inbox,
                   to: ~p"/app?inbox_id=#{inbox.id}"
+                }
+              end)
+          },
+          %{
+            name: "labels",
+            label: "Labels",
+            icon: "ph-tag",
+            collapsible: true,
+            tree_line: true,
+            children:
+              Enum.map(Map.get(sidebar, :labels, []), fn label ->
+                %{
+                  name: "label-#{label.id}",
+                  label: label.title,
+                  color: label.color,
+                  to: ~p"/app?label=#{label.title}"
                 }
               end)
           }

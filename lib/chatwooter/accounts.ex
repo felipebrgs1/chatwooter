@@ -423,6 +423,17 @@ defmodule Chatwooter.Accounts do
     Repo.all(from t in Team, where: t.account_id == ^account_id, order_by: [asc: t.name])
   end
 
+  @doc "Times da conta dos quais o usuário é membro (sidebar: `teams/getMyTeams`)."
+  def list_user_teams(%Account{id: account_id}, %User{id: user_id}) do
+    Repo.all(
+      from t in Team,
+        join: m in TeamMember,
+        on: m.team_id == t.id,
+        where: t.account_id == ^account_id and m.user_id == ^user_id,
+        order_by: [asc: t.name]
+    )
+  end
+
   def get_team!(%Account{id: account_id}, id),
     do: Repo.get_by!(Team, id: id, account_id: account_id)
 

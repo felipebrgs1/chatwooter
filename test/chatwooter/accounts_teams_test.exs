@@ -58,6 +58,20 @@ defmodule Chatwooter.AccountsTeamsTest do
     assert_raise Ecto.NoResultsError, fn -> Accounts.list_team_members(other, team.id) end
   end
 
+  test "lists only the teams the user belongs to, by name (getMyTeams)", %{
+    account: account,
+    agent: agent
+  } do
+    {:ok, support} = Accounts.create_team(account, %{name: "Support"})
+    {:ok, billing} = Accounts.create_team(account, %{name: "Billing"})
+    {:ok, _sales} = Accounts.create_team(account, %{name: "Sales"})
+    {:ok, _} = Accounts.add_team_member(account, support.id, agent.id)
+    {:ok, _} = Accounts.add_team_member(account, billing.id, agent.id)
+
+    assert account |> Accounts.list_user_teams(agent) |> Enum.map(& &1.name) ==
+             ["Billing", "Support"]
+  end
+
   test "inbox membership requires both inbox and agent to belong to the account", %{
     account: account,
     other: other,

@@ -4,7 +4,7 @@
 > **1:1 no escopo WhatsApp + Telegram**, permitindo **migração de conta do Chatwoot para cá**
 > (dados + integrações continuam funcionando). UI equivalente ao Chatwoot via LiveView.
 
-> **Prioridade e status da paridade:** [roadmap de banco](./ROADMAP_PARIDADE_BANCO.md) e [estado medido](./docs/SCHEMA_PARITY.md). As fases abaixo descrevem o produto planejado, não uma declaração de conclusão.
+> **Status da paridade:** [produto/UI](./ROADMAP_PARIDADE_PRODUTO.md), [banco](./ROADMAP_PARIDADE_BANCO.md) e [estado medido](./docs/SCHEMA_PARITY.md). As fases abaixo descrevem o produto planejado, não uma declaração de conclusão.
 
 ## Decisões travadas (revisão 2026-09-26)
 

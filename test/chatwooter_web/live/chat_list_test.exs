@@ -33,6 +33,80 @@ defmodule ChatwooterWeb.ChatListTest do
     _ = account
   end
 
+  describe "conversation views" do
+    setup %{account: account, inbox: inbox, user: user} do
+      mentioned = conversation(account, inbox, "Maria", assignee_id: user.id)
+      other = conversation(account, inbox, "João", assignee_id: user.id)
+      now = NaiveDateTime.utc_now()
+
+      Repo.insert_all("mentions", [
+        %{
+          user_id: user.id,
+          conversation_id: mentioned.id,
+          account_id: account.id,
+          mentioned_at: now,
+          created_at: now,
+          updated_at: now
+        }
+      ])
+
+      %{mentioned: mentioned, other: other}
+    end
+
+    test "mentions view lists only mentioned conversations and keeps the view in links", %{
+      conn: conn,
+      mentioned: mentioned,
+      other: other
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/app?conversation_type=mention")
+
+      assert has_element?(lv, "#chat-list-header h1", "Mentions")
+      assert has_element?(lv, "#chat-tab-me", "1")
+      assert has_element?(lv, "#conv-#{mentioned.id}")
+      refute has_element?(lv, "#conv-#{other.id}")
+
+      assert has_element?(
+               lv,
+               "#conv-#{mentioned.id}[href='/app?conversation_id=#{mentioned.id}&conversation_type=mention']"
+             )
+    end
+
+    test "titles for participating, unattended, team and label views", %{
+      conn: conn,
+      account: account,
+      other: other
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/app?conversation_type=participating")
+      assert has_element?(lv, "#chat-list-header h1", "Participating")
+      refute has_element?(lv, "#conv-#{other.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/app?conversation_type=unattended")
+      assert has_element?(lv, "#chat-list-header h1", "Unattended")
+      assert has_element?(lv, "#conv-#{other.id}")
+
+      {:ok, team} = Accounts.create_team(account, %{name: "Support"})
+      Repo.update!(Ecto.Changeset.change(other, team_id: team.id))
+      {:ok, lv, _html} = live(conn, ~p"/app?team_id=#{team.id}")
+      assert has_element?(lv, "#chat-list-header h1", "Support")
+      assert has_element?(lv, "#conv-#{other.id}")
+
+      {:ok, lv, _html} = live(conn, ~p"/app?label=billing")
+      assert has_element?(lv, "#chat-list-header h1", "#billing")
+      refute has_element?(lv, "#conv-#{other.id}")
+    end
+
+    test "ignores unknown views and teams from other accounts", %{conn: conn, other: other} do
+      {:ok, stranger} = Accounts.create_account(%{name: "Other"}, user_fixture())
+      {:ok, team} = Accounts.create_team(stranger, %{name: "Theirs"})
+
+      for path <- [~p"/app?conversation_type=bogus", ~p"/app?team_id=#{team.id}"] do
+        {:ok, lv, _html} = live(conn, path)
+        assert has_element?(lv, "#chat-list-header h1", "Conversations")
+        assert has_element?(lv, "#conv-#{other.id}")
+      end
+    end
+  end
+
   test "starts on the Mine tab and switches between assignee tabs", %{
     conn: conn,
     user: user,

@@ -10,7 +10,7 @@
         !@selected && "flex"
       ]}
     >
-      <.chat_list_header title={list_title(assigns)} status={@chat_status} sort={@chat_sort} />
+      <.chat_list_header title={@view_title} status={@chat_status} sort={@chat_sort} />
       <.chat_type_tabs active={@assignee_tab} counts={@tab_counts} />
 
       <p
@@ -30,9 +30,9 @@
             :for={{id, conv} <- @streams.conversations}
             id={id}
             conversation={conv}
-            path={conversation_path(@filter_inbox, conv.id)}
+            path={conversation_path(@view, conv.id)}
             active={@selected != nil and @selected.id == conv.id}
-            show_inbox_name={is_nil(@filter_inbox) and length(@inboxes) > 1}
+            show_inbox_name={is_nil(@view["inbox_id"]) and length(@inboxes) > 1}
             show_assignee={@assignee_tab == "all"}
           />
         </div>
@@ -62,7 +62,7 @@
         >
           <div class="flex min-w-0 items-center gap-3">
             <.link
-              patch={conversation_path(@filter_inbox)}
+              patch={conversation_path(@view)}
               class="rounded-lg p-1 hover:bg-highlight lg:hidden"
               aria-label="Back to conversations"
             ><.icon name="ph-arrow-left" class="size-5" /></.link>

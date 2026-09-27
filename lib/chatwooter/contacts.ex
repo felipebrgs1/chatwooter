@@ -155,6 +155,15 @@ defmodule Chatwooter.Contacts do
     )
   end
 
+  @doc "Etiquetas marcadas para a sidebar, por título (`labels/getLabelsOnSidebar`)."
+  def list_sidebar_labels(%Account{id: account_id}) do
+    Repo.all(
+      from l in Chatwooter.Contacts.Label,
+        where: l.account_id == ^account_id and l.show_on_sidebar == true,
+        order_by: l.title
+    )
+  end
+
   def list_custom_attribute_definitions(%Account{id: account_id}) do
     Repo.all(
       from d in Chatwooter.Contacts.CustomAttributeDefinition,

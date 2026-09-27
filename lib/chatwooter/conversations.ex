@@ -6,7 +6,7 @@ defmodule Chatwooter.Conversations do
 
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Contacts
-  alias Chatwooter.Contacts.Contact
+  alias Chatwooter.Contacts.{Contact, Tag, Tagging}
   alias Chatwooter.Conversations.{Attachment, AttachmentStorage, Conversation, Message}
   alias Chatwooter.Inboxes.Inbox
 
@@ -156,8 +156,10 @@ defmodule Chatwooter.Conversations do
   Lista de conversas (ConversationFinder do Chatwoot).
 
   Opções: `:status` (`"open"`, `"pending"`, `"resolved"`, `"snoozed"` ou `"all"`),
-  `:inbox_id`, `:search`, `:assignee_type` (`"me"`, `"unassigned"`, `"all"`) com
-  `:user_id`, e `:sort_by` com as chaves do `Conversations::SortService`.
+  `:inbox_id`, `:team_id`, `:label` (título), `:conversation_type` (`"mention"`,
+  `"participating"`, `"unattended"`), `:search`, `:assignee_type` (`"me"`,
+  `"unassigned"`, `"all"`) com `:user_id`, e `:sort_by` com as chaves do
+  `Conversations::SortService`.
   """
   def list_conversations(%Account{id: account_id}, opts \\ []) do
     messages_query = from(m in Message, order_by: [asc: m.id])
@@ -202,7 +204,56 @@ defmodule Chatwooter.Conversations do
     |> where([c], c.account_id == ^account_id)
     |> filter_status(Keyword.get(opts, :status, "all"))
     |> filter_inbox(Keyword.get(opts, :inbox_id))
+    |> filter_team(Keyword.get(opts, :team_id))
+    |> filter_label(Keyword.get(opts, :label))
+    |> filter_conversation_type(
+      Keyword.get(opts, :conversation_type),
+      Keyword.get(opts, :user_id)
+    )
     |> filter_search(Keyword.get(opts, :search, ""))
+  end
+
+  # mentions e conversation_participants são lidas pelo nome da tabela: os
+  # schemas ficam em contexts que dependem deste.
+  defp filter_conversation_type(query, "mention", user_id) when not is_nil(user_id) do
+    ids = from m in "mentions", where: m.user_id == ^user_id, select: m.conversation_id
+    where(query, [c], c.id in subquery(ids))
+  end
+
+  defp filter_conversation_type(query, "participating", user_id) when not is_nil(user_id) do
+    ids =
+      from p in "conversation_participants",
+        where: p.user_id == ^user_id,
+        select: p.conversation_id
+
+    where(query, [c], c.id in subquery(ids))
+  end
+
+  defp filter_conversation_type(query, "unattended", _user_id),
+    do: where(query, [c], is_nil(c.first_reply_created_at) or not is_nil(c.waiting_since))
+
+  defp filter_conversation_type(query, type, _user_id) when type in ~w(mention participating),
+    do: where(query, false)
+
+  defp filter_conversation_type(query, _type, _user_id), do: query
+
+  defp filter_team(query, nil), do: query
+  defp filter_team(query, team_id), do: where(query, [c], c.team_id == ^team_id)
+
+  # acts_as_taggable_on :labels (tagged_with sem strict_case_match)
+  defp filter_label(query, label) when label in [nil, ""], do: query
+
+  defp filter_label(query, label) do
+    ids =
+      from tg in Tagging,
+        join: t in Tag,
+        on: t.id == tg.tag_id,
+        where:
+          tg.taggable_type == "Conversation" and tg.context == "labels" and
+            fragment("lower(?)", t.name) == ^String.downcase(label),
+        select: tg.taggable_id
+
+    where(query, [c], c.id in subquery(ids))
   end
 
   defp filter_assignee(query, "me", user_id) when not is_nil(user_id),
