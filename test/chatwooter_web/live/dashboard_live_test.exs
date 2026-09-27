@@ -28,6 +28,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
     {:ok, _} = Conversations.add_message(conv, %{content: "Olá", message_type: "incoming"})
 
     {:ok, lv, _html} = live(conn, ~p"/app")
+    lv |> element("#chat-tab-all") |> render_click()
     assert has_element?(lv, "#conv-#{conv.id}")
 
     lv |> element("#conv-#{conv.id}") |> render_click()
@@ -59,20 +60,23 @@ defmodule ChatwooterWeb.DashboardLiveTest do
 
     {:ok, _} = Conversations.set_status(resolved_conv, "resolved")
 
-    {:ok, lv, _} = live(conn, ~p"/app?status=resolved")
+    {:ok, lv, _} = live(conn, ~p"/app")
+    lv |> element("#chat-tab-all") |> render_click()
+    lv |> element("#chat-status-option-resolved") |> render_click()
     assert has_element?(lv, "#conv-#{resolved_conv.id}")
     refute has_element?(lv, "#conv-#{open_conv.id}")
-    assert has_element?(lv, "#filter-resolved[aria-current=page]")
+    assert has_element?(lv, "#chat-status-option-resolved[aria-selected=true]")
 
-    lv |> element("#inbox-#{sales.id}") |> render_click()
+    lv |> element("#chat-status-option-open") |> render_click()
+    lv |> element("#sidebar-inbox-#{sales.id}") |> render_click()
     assert has_element?(lv, "#conv-#{open_conv.id}")
     refute has_element?(lv, "#conv-#{resolved_conv.id}")
-    assert has_element?(lv, "#inbox-#{sales.id}[aria-current=page]")
+    assert has_element?(lv, "#sidebar-inbox-#{sales.id}[aria-current=page]")
 
     lv |> element("#conv-#{open_conv.id}") |> render_click()
     assert has_element?(lv, "#conversation-header")
     assert has_element?(lv, "#contact-panel")
-    assert has_element?(lv, "#inbox-#{sales.id}[aria-current=page]")
+    assert has_element?(lv, "#sidebar-inbox-#{sales.id}[aria-current=page]")
   end
 
   test "private notes stay in the thread without creating an outgoing reply", %{
@@ -95,7 +99,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
 
   test "shows empty state without conversations", %{conn: conn} do
     {:ok, lv, _html} = live(conn, ~p"/app")
-    assert has_element?(lv, "#conversation-empty")
+    assert has_element?(lv, "#chat-list-empty")
   end
 
   test "renders image attachments in the thread", %{conn: conn, account: account} do
@@ -120,6 +124,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
       })
 
     {:ok, lv, _html} = live(conn, ~p"/app")
+    lv |> element("#chat-tab-all") |> render_click()
 
     lv
     |> element("#conv-#{conv.id}")
@@ -164,6 +169,7 @@ defmodule ChatwooterWeb.DashboardLiveTest do
       Conversations.open_conversation(account, inbox, contact, %{source_id: "555"})
 
     {:ok, lv, _html} = live(conn, ~p"/app")
+    lv |> element("#chat-tab-all") |> render_click()
 
     lv
     |> element("#conv-#{conv.id}")

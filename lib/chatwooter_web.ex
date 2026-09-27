@@ -77,6 +77,34 @@ defmodule ChatwooterWeb do
     end
   end
 
+  @doc """
+  Componente base (`components/next/`): só Phoenix.Component + CoreComponents.
+  Importa outros componentes base explicitamente, se precisar.
+  """
+  def base_component do
+    quote do
+      use Phoenix.Component
+      use Gettext, backend: ChatwooterWeb.Gettext
+
+      import ChatwooterWeb.CoreComponents
+
+      alias Phoenix.LiveView.JS
+
+      unquote(verified_routes())
+    end
+  end
+
+  @doc """
+  Componente de tela (`components/<área>/`): base + todos os componentes `next/`.
+  Componentes da mesma área são importados explicitamente.
+  """
+  def component do
+    quote do
+      unquote(base_component())
+      use ChatwooterWeb.Components, :next
+    end
+  end
+
   defp html_helpers do
     quote do
       # Translation
@@ -84,8 +112,9 @@ defmodule ChatwooterWeb do
 
       # HTML escaping functionality
       import Phoenix.HTML
-      # Core UI components
+      # Core UI components + todos os componentes do app (lib/chatwooter_web/components.ex)
       import ChatwooterWeb.CoreComponents
+      use ChatwooterWeb.Components
 
       # Common modules used in templates
       alias ChatwooterWeb.Layouts

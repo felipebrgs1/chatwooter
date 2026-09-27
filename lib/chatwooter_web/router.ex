@@ -58,18 +58,21 @@ defmodule ChatwooterWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :dashboard,
-      on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}],
+      on_mount: [{ChatwooterWeb.UserAuth, :require_authenticated}, ChatwooterWeb.Sidebar],
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
-      live "/app", DashboardLive, :index
-      live "/app/contacts", ContactsLive, :index
-      live "/app/contacts/:id", ContactsLive, :show
-      live "/app/companies", CompaniesLive, :index
-      live "/app/companies/:id", CompaniesLive, :show
-      live "/app/settings", SettingsLive, :general
-      live "/app/settings/inboxes", SettingsLive, :inboxes
-      live "/app/settings/agents", SettingsLive, :agents
-      live "/app/settings/profile", SettingsLive, :profile
-      live "/app/settings/profile/confirm-email/:token", SettingsLive, :confirm_email
+      live "/app", ConversationsLive.Index, :index
+      live "/app/contacts", ContactsLive.Index, :index
+      live "/app/contacts/:id", ContactsLive.Show, :show
+      live "/app/companies", CompaniesLive.Index, :index
+      live "/app/companies/:id", CompaniesLive.Show, :show
+      live "/app/settings", SettingsLive.Index, :index
+      live "/app/settings/inboxes", SettingsLive.Inboxes, :index
+      live "/app/settings/agents", SettingsLive.Agents, :index
+      live "/app/settings/profile", SettingsLive.Profile, :index
+
+      live "/app/settings/profile/confirm-email/:token",
+           SettingsLive.Profile.ConfirmEmail.Show,
+           :show
     end
 
     post "/app/update-password", UserSessionController, :update_password
@@ -81,8 +84,8 @@ defmodule ChatwooterWeb.Router do
     live_session :current_user,
       on_mount: [{ChatwooterWeb.UserAuth, :mount_current_scope}],
       root_layout: {ChatwooterWeb.Layouts, :auth_root} do
-      live "/app/login", UserLive.Login, :new
-      live "/app/login/:token", UserLive.Confirmation, :new
+      live "/app/login", LoginLive.Index, :new
+      live "/app/login/:token", LoginLive.Show, :new
     end
 
     post "/app/login", UserSessionController, :create

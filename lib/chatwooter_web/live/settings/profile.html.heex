@@ -1,0 +1,74 @@
+<.settings_layout
+  current_scope={@current_scope}
+  sidebar={@sidebar}
+  flash={@flash}
+  active={:profile}
+>
+  <div class="max-w-xl space-y-6">
+    <div>
+      <h2 class="text-lg font-bold text-slate-900">Profile</h2>
+      <p class="mb-6 text-sm text-slate-500">Your email address and password.</p>
+    </div>
+
+    <div class="rounded-xl border border-line bg-surface p-6">
+      <h3 class="mb-4 text-sm font-semibold text-slate-900">Email</h3>
+      <.form
+        :let={f}
+        for={@email_form}
+        id="email_form"
+        phx-submit="save-profile-email"
+        phx-change="validate-profile-email"
+        class="space-y-4"
+      >
+        <.input
+          field={f[:email]}
+          type="email"
+          label="Email"
+          autocomplete="username"
+          spellcheck="false"
+          required
+        />
+        <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
+      </.form>
+    </div>
+
+    <div class="rounded-xl border border-line bg-surface p-6">
+      <h3 class="mb-4 text-sm font-semibold text-slate-900">Password</h3>
+      <.form
+        :let={f}
+        for={@password_form}
+        id="password_form"
+        action={~p"/app/update-password"}
+        method="post"
+        phx-change="validate-profile-password"
+        phx-submit="save-profile-password"
+        phx-trigger-action={@trigger_submit}
+        class="space-y-4"
+      >
+        <input
+          name={f[:email].name}
+          type="hidden"
+          id="hidden_user_email"
+          spellcheck="false"
+          value={@current_email}
+        />
+        <.input
+          field={f[:password]}
+          type="password"
+          label="New password"
+          autocomplete="new-password"
+          spellcheck="false"
+          required
+        />
+        <.input
+          field={f[:password_confirmation]}
+          type="password"
+          label="Confirm new password"
+          autocomplete="new-password"
+          spellcheck="false"
+        />
+        <.button variant="primary" phx-disable-with="Saving...">Save Password</.button>
+      </.form>
+    </div>
+  </div>
+</.settings_layout>

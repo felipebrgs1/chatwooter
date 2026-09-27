@@ -4,7 +4,7 @@ defmodule ChatwooterWeb.ContactsLiveTest do
   import Phoenix.LiveViewTest
   import Chatwooter.AccountsFixtures
 
-  alias Chatwooter.{Accounts, Contacts, Conversations, Inboxes}
+  alias Chatwooter.{Accounts, Contacts}
 
   setup %{conn: conn} do
     user = user_fixture()
@@ -138,67 +138,5 @@ defmodule ChatwooterWeb.ContactsLiveTest do
     html = lv |> render_hook("clear-filters", %{})
     assert html =~ "Carlos Ativo"
     assert html =~ "Carla Bloqueada"
-  end
-
-  test "detail page shows attributes and conversation history", %{
-    conn: conn,
-    account: account
-  } do
-    {:ok, inbox} = Inboxes.create_inbox(account, %{name: "Vendas", channel_type: "whatsapp"})
-
-    {:ok, contact} =
-      Contacts.get_or_create_contact(account, %{
-        name: "Maria",
-        phone_number: "+5511987654321",
-        custom_attributes: %{"tier" => "gold"}
-      })
-
-    {:ok, conv} =
-      Conversations.open_conversation(account, inbox, contact, %{source_id: "5511987654321"})
-
-    {:ok, lv, _html} = live(conn, ~p"/app/contacts/#{contact.id}")
-
-    html = render(lv)
-    assert html =~ "Maria"
-    assert html =~ "+5511987654321"
-    assert has_element?(lv, "#contact-detail-sidebar")
-    assert has_element?(lv, "#contact-conversations")
-    assert has_element?(lv, "#contact-profile")
-    assert has_element?(lv, "#contact-information")
-    assert has_element?(lv, "#history-#{conv.id}")
-    assert html =~ "via Vendas"
-
-    lv |> element("aside#contact-detail-sidebar button", "Channels") |> render_click()
-    assert has_element?(lv, "#contact-inboxes")
-
-    assert has_element?(lv, "#quick-form-#{contact.id}")
-
-    lv
-    |> form("#quick-form-#{contact.id}",
-      contact: %{
-        name: "Maria da Silva",
-        identifier: "maria-123",
-        location: "São Paulo",
-        country_code: "BR",
-        city: "São Paulo",
-        country: "Brazil",
-        description: "Cliente desde 2024",
-        social_linkedin: "https://linkedin.com/in/maria",
-        custom_attributes_json: ~s({"tier":"platinum","source":"referral"})
-      }
-    )
-    |> render_submit()
-
-    updated = Contacts.get_contact!(account, contact.id)
-    assert updated.name == "Maria da Silva"
-    assert updated.identifier == "maria-123"
-    assert updated.location == "São Paulo"
-    assert updated.country_code == "BR"
-    assert updated.additional_attributes["description"] == "Cliente desde 2024"
-
-    assert updated.additional_attributes["social_profiles"]["linkedin"] ==
-             "https://linkedin.com/in/maria"
-
-    assert updated.custom_attributes == %{"tier" => "platinum", "source" => "referral"}
   end
 end

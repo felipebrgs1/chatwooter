@@ -14,7 +14,7 @@ defmodule Chatwooter.Conversations.Conversation do
       values: [open: 0, resolved: 1, pending: 2, snoozed: 3],
       default: :open
 
-    field :assignee_id, :integer
+    belongs_to :assignee, Chatwooter.Accounts.User
     field :contact_id, :integer
     # Assigned by conversations_before_insert_row_tr; read back on insert.
     field :display_id, :integer, read_after_writes: true
@@ -39,6 +39,8 @@ defmodule Chatwooter.Conversations.Conversation do
     field :ai_assignee_type, :string
     field :status_changed_at, :utc_datetime_usec
     has_many :messages, Chatwooter.Conversations.Message
+    # mensagens incoming não vistas pelo agente (máx. 10), preenchido na listagem
+    field :unread_count, :integer, virtual: true, default: 0
     timestamps(type: :utc_datetime_usec, inserted_at_source: :created_at)
   end
 

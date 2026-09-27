@@ -1,0 +1,171 @@
+<.settings_layout
+  current_scope={@current_scope}
+  sidebar={@sidebar}
+  flash={@flash}
+  active={:agents}
+>
+  <div class="max-w-2xl">
+    <h2 class="text-lg font-bold text-slate-900">Agents</h2>
+    <p class="mb-6 text-sm text-slate-500">Who can access this account.</p>
+
+    <div class="mb-6 rounded-xl border border-line bg-surface p-6">
+      <h3 class="mb-4 text-sm font-semibold text-slate-900">Invite agent</h3>
+      <.form
+        for={@invite_form}
+        id="invite-form"
+        phx-submit="invite"
+        class="flex items-end gap-3"
+      >
+        <div class="flex-1">
+          <.input
+            field={@invite_form[:name]}
+            type="text"
+            label="Name"
+            placeholder="Jane Doe"
+          />
+        </div>
+        <div class="flex-1">
+          <.input
+            field={@invite_form[:email]}
+            type="email"
+            label="Email"
+            placeholder="agent@acme.inc"
+            required
+          />
+        </div>
+        <div>
+          <.input
+            field={@invite_form[:role]}
+            type="select"
+            label="Role"
+            options={[Agent: "agent", Admin: "administrator"]}
+          />
+        </div>
+        <.button variant="primary">Send invite</.button>
+      </.form>
+    </div>
+
+    <div class="overflow-hidden rounded-xl border border-line bg-surface">
+      <div
+        :for={m <- @members}
+        id={"member-#{m.user_id}"}
+        class="flex items-center justify-between gap-3 border-b border-line px-5 py-3 last:border-0"
+      >
+        <div class="flex min-w-0 items-center gap-3">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">
+            {initials(m.user.name || m.user.email)}
+          </span>
+          <div class="min-w-0">
+            <button
+              phx-click="edit-agent"
+              phx-value-id={m.user_id}
+              class="truncate text-sm font-semibold text-slate-900 hover:text-brand hover:underline"
+            >
+              {m.user.name || m.user.email}
+            </button>
+            <span
+              :if={m.user_id == @current_scope.user.id}
+              class="ml-1 rounded bg-highlight px-1.5 text-[10px]"
+            >you</span>
+            <p class="truncate text-xs text-slate-500">{m.user.email}</p>
+          </div>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <select
+            name="availability"
+            phx-change="change-availability"
+            phx-value-id={m.user_id}
+            class="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold"
+          >
+            <option value="online" selected={m.availability == :online}>Online</option>
+            <option value="busy" selected={m.availability == :busy}>Busy</option>
+            <option value="offline" selected={m.availability == :offline}>Offline</option>
+          </select>
+          <select
+            name="role"
+            phx-change="change-role"
+            phx-value-id={m.user_id}
+            class="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold"
+          >
+            <option value="administrator" selected={m.role == :administrator}>Admin</option>
+            <option value="agent" selected={m.role == :agent}>Agent</option>
+          </select>
+          <button
+            :if={m.user_id != @current_scope.user.id}
+            phx-click="remove-member"
+            phx-value-id={m.user_id}
+            data-confirm="Remove this member?"
+            class="cursor-pointer rounded-lg px-2 py-1.5 text-xs font-semibold text-danger hover:bg-danger hover:text-white"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      :if={@editing_agent}
+      id="agent-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl">
+        <h3 class="mb-1 text-base font-bold text-slate-900">
+          Edit agent — {@editing_agent.name || @editing_agent.email}
+        </h3>
+        <p class="mb-4 truncate text-xs text-slate-500">{@editing_agent.email}</p>
+        <.form
+          for={@agent_form}
+          id="agent-form"
+          phx-change="validate-agent"
+          phx-submit="save-agent"
+        >
+          <.input field={@agent_form[:name]} type="text" label="Name" />
+          <div class="grid grid-cols-2 gap-3">
+            <.input
+              field={@agent_form[:role]}
+              type="select"
+              label="Role"
+              options={[Agent: "agent", Admin: "administrator"]}
+            />
+            <.input
+              field={@agent_form[:availability]}
+              type="select"
+              label="Availability"
+              options={[Online: "online", Busy: "busy", Offline: "offline"]}
+            />
+          </div>
+          <.input
+            field={@agent_form[:auto_offline]}
+            type="checkbox"
+            label="Set to offline automatically on logout"
+          />
+          <div class="mt-5 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              phx-click="send-login-link"
+              phx-value-id={@editing_agent.id}
+              class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Send login link
+            </button>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                phx-click="close-agent-modal"
+                class="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </.form>
+      </div>
+    </div>
+  </div>
+</.settings_layout>

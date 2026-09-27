@@ -367,6 +367,48 @@ defmodule Chatwooter.Accounts do
     Repo.all(from a in Account, join: m in assoc(a, :account_users), where: m.user_id == ^user_id)
   end
 
+  @doc "Vínculos do usuário com a conta carregada, por nome da conta (seletor de conta)."
+  def list_user_memberships(%User{id: user_id}) do
+    Repo.all(
+      from m in AccountUser,
+        join: a in assoc(m, :account),
+        where: m.user_id == ^user_id,
+        order_by: [asc: a.name],
+        preload: [account: a]
+    )
+  end
+
+  @doc "Vínculo do usuário com a conta, ou `nil` se não for membro."
+  def get_membership(%Account{id: account_id}, %User{id: user_id}) do
+    Repo.get_by(AccountUser, account_id: account_id, user_id: user_id)
+  end
+
+  @doc """
+  Disponibilidade do agente na conta (`availability` e `auto_offline`), como
+  o `profile/availability` e `profile/auto_offline` do Chatwoot. Não mexe no papel.
+  """
+  def update_availability(%Account{} = account, %User{} = user, attrs) do
+    case get_membership(account, user) do
+      %AccountUser{} = membership ->
+        membership
+        |> AccountUser.membership_changeset(Map.take(attrs, ~w(availability auto_offline)))
+        |> Repo.update()
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc "Mescla chaves em `ui_settings` do usuário (preferências de UI, como `sidebar_width`)."
+  def update_ui_settings(%User{id: id}, settings) when is_map(settings) do
+    # relê do banco: o struct da sessão (current_scope) pode estar desatualizado
+    user = Repo.get!(User, id)
+
+    user
+    |> Ecto.Changeset.change(ui_settings: Map.merge(user.ui_settings || %{}, settings))
+    |> Repo.update()
+  end
+
   @doc "Busca uma conta por id (ingest de webhooks)."
   def get_account!(id), do: Repo.get!(Account, id)
 

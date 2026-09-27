@@ -6,7 +6,7 @@ defmodule Chatwooter.Contacts do
 
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Companies.Company
-  alias Chatwooter.Contacts.{Contact, ContactInbox}
+  alias Chatwooter.Contacts.{Contact, ContactInbox, CustomAttributeDefinition, Note, Tag, Tagging}
   alias Chatwooter.Inboxes.Inbox
 
   @doc "Lista os contatos da conta em ordem alfabética."
@@ -170,6 +170,150 @@ defmodule Chatwooter.Contacts do
         order_by: [asc: n.created_at, asc: n.id]
     )
   end
+
+  @doc "Definições de atributos customizados de contato (aba Attributes)."
+  def list_contact_attribute_definitions(%Account{id: account_id}) do
+    Repo.all(
+      from d in CustomAttributeDefinition,
+        where: d.account_id == ^account_id and d.attribute_model == :contact_attribute,
+        order_by: d.id
+    )
+  end
+
+  def put_custom_attribute(%Contact{} = contact, key, value) do
+    update_contact(contact, %{
+      custom_attributes: Map.put(contact.custom_attributes || %{}, key, value)
+    })
+  end
+
+  def delete_custom_attribute(%Contact{} = contact, key) do
+    update_contact(contact, %{
+      custom_attributes: Map.delete(contact.custom_attributes || %{}, key)
+    })
+  end
+
+  @doc "Notas do contato, mais recentes primeiro (Note.latest no Chatwoot)."
+  def list_contact_notes(%Account{id: account_id}, %Contact{id: contact_id}) do
+    Repo.all(
+      from n in Note,
+        where: n.account_id == ^account_id and n.contact_id == ^contact_id,
+        order_by: [desc: n.created_at, desc: n.id],
+        preload: :user
+    )
+  end
+
+  def create_note(%Account{id: account_id}, %Contact{id: contact_id}, user, content) do
+    %Note{account_id: account_id, contact_id: contact_id, user_id: user && user.id}
+    |> Note.changeset(%{content: content})
+    |> Repo.insert()
+  end
+
+  def delete_note(%Account{id: account_id}, id) do
+    case Repo.get_by(Note, id: id, account_id: account_id) do
+      nil -> {:error, :not_found}
+      note -> Repo.delete(note)
+    end
+  end
+
+  # Etiquetas de contato = acts_as_taggable_on :labels (tags + taggings)
+  @label_context "labels"
+
+  @doc "Títulos das etiquetas do contato, em ordem alfabética."
+  def list_contact_labels(%Contact{id: contact_id}) do
+    Repo.all(
+      from t in Tag,
+        join: tg in Tagging,
+        on: tg.tag_id == t.id,
+        where:
+          tg.taggable_type == "Contact" and tg.taggable_id == ^contact_id and
+            tg.context == @label_context,
+        order_by: t.name,
+        select: t.name
+    )
+  end
+
+  def add_contact_label(%Contact{} = contact, title) do
+    Repo.transaction(fn ->
+      tag = Repo.get_by(Tag, name: title) || Repo.insert!(%Tag{name: title, taggings_count: 0})
+
+      unless Repo.exists?(label_tagging(contact, tag.id)) do
+        Repo.insert_all(Tagging, [
+          %{
+            tag_id: tag.id,
+            taggable_type: "Contact",
+            taggable_id: contact.id,
+            context: @label_context,
+            created_at: NaiveDateTime.utc_now()
+          }
+        ])
+
+        Repo.update_all(from(t in Tag, where: t.id == ^tag.id), inc: [taggings_count: 1])
+      end
+
+      list_contact_labels(contact)
+    end)
+  end
+
+  def remove_contact_label(%Contact{} = contact, title) do
+    Repo.transaction(fn ->
+      with %Tag{id: tag_id} <- Repo.get_by(Tag, name: title),
+           {n, _} when n > 0 <- Repo.delete_all(label_tagging(contact, tag_id)) do
+        Repo.update_all(from(t in Tag, where: t.id == ^tag_id), inc: [taggings_count: -n])
+      end
+
+      list_contact_labels(contact)
+    end)
+  end
+
+  defp label_tagging(%Contact{id: contact_id}, tag_id) do
+    from tg in Tagging,
+      where:
+        tg.tag_id == ^tag_id and tg.taggable_type == "Contact" and
+          tg.taggable_id == ^contact_id and tg.context == @label_context
+  end
+
+  @mergeable_keys ~w(identifier name email phone_number additional_attributes custom_attributes)a
+
+  @doc """
+  Parte "de contatos" do ContactMergeAction: move contact_inboxes e notas do
+  `mergee` para o `base`, apaga o `mergee` e mescla os atributos — os do `base`
+  têm preferência, os vazios vêm do `mergee`. Conversas e mensagens ficam com
+  `Chatwooter.Conversations.reassign_contact/3` (ver `Platform.ContactMerge`).
+  """
+  def merge_into(%Contact{} = base, %Contact{} = mergee) do
+    Repo.update_all(from(ci in ContactInbox, where: ci.contact_id == ^mergee.id),
+      set: [contact_id: base.id]
+    )
+
+    Repo.update_all(from(n in Note, where: n.contact_id == ^mergee.id),
+      set: [contact_id: base.id]
+    )
+
+    Repo.delete_all(
+      from tg in Tagging, where: tg.taggable_type == "Contact" and tg.taggable_id == ^mergee.id
+    )
+
+    merged = deep_merge(mergeable_attrs(mergee), mergeable_attrs(base))
+    Repo.delete!(mergee)
+
+    base |> Contact.changeset(merged) |> Repo.update()
+  end
+
+  defp mergeable_attrs(contact) do
+    contact
+    |> Map.take(@mergeable_keys)
+    |> Enum.reject(fn {_key, value} -> blank?(value) end)
+    |> Map.new()
+  end
+
+  defp deep_merge(left, right) do
+    Map.merge(left, right, fn
+      _key, %{} = l, %{} = r -> deep_merge(l, r)
+      _key, _l, r -> r
+    end)
+  end
+
+  defp blank?(value), do: value in [nil, "", %{}, []]
 
   def delete_inbox_data(%Inbox{id: inbox_id}) do
     {:ok, Repo.delete_all(from ci in ContactInbox, where: ci.inbox_id == ^inbox_id)}

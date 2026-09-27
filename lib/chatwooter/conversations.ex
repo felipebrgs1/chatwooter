@@ -139,32 +139,164 @@ defmodule Chatwooter.Conversations do
     end
   end
 
+  # Como o `unread_incoming_messages.count` do Chatwoot: incoming após o
+  # agent_last_seen_at, limitado a 10 (a UI mostra "9+").
+  defmacrop unread_count(c) do
+    quote do
+      fragment(
+        "LEAST((SELECT count(*) FROM messages m WHERE m.conversation_id = ? AND m.message_type = 0 AND (? IS NULL OR m.created_at > ?)), 10)",
+        unquote(c).id,
+        unquote(c).agent_last_seen_at,
+        unquote(c).agent_last_seen_at
+      )
+    end
+  end
+
+  @doc """
+  Lista de conversas (ConversationFinder do Chatwoot).
+
+  Opções: `:status` (`"open"`, `"pending"`, `"resolved"`, `"snoozed"` ou `"all"`),
+  `:inbox_id`, `:search`, `:assignee_type` (`"me"`, `"unassigned"`, `"all"`) com
+  `:user_id`, e `:sort_by` com as chaves do `Conversations::SortService`.
+  """
   def list_conversations(%Account{id: account_id}, opts \\ []) do
-    status = Keyword.get(opts, :status, "all")
-    search = Keyword.get(opts, :search, "")
-    inbox_id = Keyword.get(opts, :inbox_id)
     messages_query = from(m in Message, order_by: [asc: m.id])
 
-    Conversation
-    |> where([c], c.account_id == ^account_id)
-    |> filter_status(status)
-    |> filter_inbox(inbox_id)
-    |> filter_search(search)
-    |> order_by([c], desc: c.updated_at)
-    |> preload(
-      contact_inbox: [:contact, :inbox],
-      messages: ^messages_query
-    )
+    account_id
+    |> conversations_query(opts)
+    |> filter_assignee(Keyword.get(opts, :assignee_type, "all"), Keyword.get(opts, :user_id))
+    |> select_merge([c], %{unread_count: unread_count(c)})
+    |> sort_conversations(Keyword.get(opts, :sort_by))
+    |> preload([:assignee, contact_inbox: [:contact, :inbox], messages: ^messages_query])
     |> Repo.all()
     |> Repo.preload(messages: :attachments)
     |> Enum.map(&hydrate_conversation/1)
   end
+
+  @doc "Contadores das abas Mine / Unassigned / All para os mesmos filtros."
+  def conversation_counts(%Account{id: account_id}, opts) do
+    user_id = Keyword.fetch!(opts, :user_id)
+
+    account_id
+    |> conversations_query(opts)
+    |> select([c], %{
+      mine: filter(count(c.id), c.assignee_id == ^user_id),
+      unassigned: filter(count(c.id), is_nil(c.assignee_id) and is_nil(c.assignee_agent_bot_id)),
+      all: count(c.id)
+    })
+    |> Repo.one()
+  end
+
+  @doc "Marca a conversa como vista pelo agente (zera o unread_count)."
+  def mark_seen(%Conversation{id: id}) do
+    now = DateTime.utc_now()
+
+    {1, _} =
+      Repo.update_all(from(c in Conversation, where: c.id == ^id), set: [agent_last_seen_at: now])
+
+    {:ok, now}
+  end
+
+  defp conversations_query(account_id, opts) do
+    Conversation
+    |> where([c], c.account_id == ^account_id)
+    |> filter_status(Keyword.get(opts, :status, "all"))
+    |> filter_inbox(Keyword.get(opts, :inbox_id))
+    |> filter_search(Keyword.get(opts, :search, ""))
+  end
+
+  defp filter_assignee(query, "me", user_id) when not is_nil(user_id),
+    do: where(query, [c], c.assignee_id == ^user_id)
+
+  defp filter_assignee(query, "me", _user_id), do: where(query, false)
+
+  defp filter_assignee(query, "unassigned", _user_id),
+    do: where(query, [c], is_nil(c.assignee_id) and is_nil(c.assignee_agent_bot_id))
+
+  defp filter_assignee(query, _all, _user_id), do: query
+
+  # Conversations::SortService + SortHandler do Chatwoot
+  defp sort_conversations(query, "last_activity_at_asc"),
+    do: order_by(query, [c], asc: c.last_activity_at, asc: c.id)
+
+  defp sort_conversations(query, "created_at_asc"),
+    do: order_by(query, [c], asc: c.inserted_at, asc: c.id)
+
+  defp sort_conversations(query, "created_at_desc"),
+    do: order_by(query, [c], desc: c.inserted_at, desc: c.id)
+
+  defp sort_conversations(query, "priority_desc"),
+    do: order_by(query, [c], desc_nulls_last: c.priority, desc: c.last_activity_at)
+
+  defp sort_conversations(query, "priority_asc"),
+    do: order_by(query, [c], asc_nulls_last: c.priority, desc: c.last_activity_at)
+
+  defp sort_conversations(query, "priority_desc_created_at_asc"),
+    do: order_by(query, [c], desc_nulls_last: c.priority, asc: c.inserted_at)
+
+  defp sort_conversations(query, "waiting_since_asc") do
+    order_by(query, [c],
+      asc: is_nil(c.waiting_since),
+      asc: c.waiting_since,
+      asc: c.inserted_at
+    )
+  end
+
+  defp sort_conversations(query, "waiting_since_desc") do
+    order_by(query, [c],
+      asc: is_nil(c.waiting_since),
+      desc: c.waiting_since,
+      asc: c.inserted_at
+    )
+  end
+
+  defp sort_conversations(query, "unread"),
+    do: order_by(query, [c], desc: unread_count(c), desc: c.last_activity_at)
+
+  defp sort_conversations(query, _default),
+    do: order_by(query, [c], desc: c.last_activity_at, desc: c.id)
 
   defp filter_inbox(query, nil), do: query
   defp filter_inbox(query, inbox_id), do: where(query, [c], c.inbox_id == ^inbox_id)
 
   defp filter_status(query, status) when status in ["all", "", nil], do: query
   defp filter_status(query, status), do: where(query, [c], c.status == ^status)
+
+  @doc "Anexos compartilhados nas conversas do contato, mais recentes primeiro (aba Media)."
+  def list_contact_attachments(%Account{id: account_id}, %Contact{id: contact_id}) do
+    Repo.all(
+      from a in Attachment,
+        join: m in Message,
+        on: m.id == a.message_id,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        join: ci in assoc(c, :contact_inbox),
+        where: c.account_id == ^account_id and ci.contact_id == ^contact_id,
+        order_by: [desc: a.id]
+    )
+    |> Enum.map(&hydrate_attachment/1)
+  end
+
+  @doc "Passa conversas e mensagens de um contato para outro (merge de contatos)."
+  def reassign_contact(account_id, from_contact_id, to_contact_id) do
+    Repo.update_all(
+      from(c in Conversation,
+        where: c.account_id == ^account_id and c.contact_id == ^from_contact_id
+      ),
+      set: [contact_id: to_contact_id]
+    )
+
+    Repo.update_all(
+      from(m in Message,
+        where:
+          m.account_id == ^account_id and m.sender_type == "Contact" and
+            m.sender_id == ^from_contact_id
+      ),
+      set: [sender_id: to_contact_id]
+    )
+
+    :ok
+  end
 
   @doc "Histórico de conversas de um contato (aba History do Chatwoot)."
   def list_contact_conversations(%Account{id: account_id}, %Contact{id: contact_id}) do
