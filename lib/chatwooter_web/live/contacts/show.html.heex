@@ -23,8 +23,17 @@
                     color={:slate}
                     phx-click="toggle-block"
                   />
-                  <%!-- ComposeConversation ainda não existe; botão só visual por ora --%>
-                  <.next_button id="contact-send-message" label="Send message" size={:sm} />
+                  <.next_button
+                    id="contact-send-message"
+                    label="Send message"
+                    size={:sm}
+                    data-compose-trigger
+                    phx-click={
+                      JS.push("compose:toggle",
+                        value: %{anchor: "contact-send-message", contact_id: @contact.id}
+                      )
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -125,4 +134,10 @@
       </section>
     </div>
   </div>
+  <%!-- Fora do header (sticky z-10): no Chatwoot o popover vai para o body via Teleport --%>
+  <.compose_conversation
+    :if={@sidebar.compose.anchor == "contact-send-message"}
+    compose={@sidebar.compose}
+    user={@current_scope.user}
+  />
 </Layouts.app>

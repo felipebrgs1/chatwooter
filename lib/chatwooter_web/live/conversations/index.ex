@@ -5,6 +5,7 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
   alias Chatwooter.{Accounts, Conversations, Inboxes}
   alias Chatwooter.Workers.TelegramSender
   alias ChatwooterWeb.Components.Conversation.{ChatListHeader, ChatTypeTabs}
+  alias ChatwooterWeb.ConversationsLive.FilterEditor
 
   @impl true
   def mount(_params, _session, socket) do
@@ -19,6 +20,8 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       |> assign(:tab_counts, %{mine: 0, unassigned: 0, all: 0})
       |> stream(:conversations, [], dom_id: &"conv-#{&1.id}")
       |> assign(:view, %{})
+      |> assign(:folder, nil)
+      |> FilterEditor.mount()
       |> assign(:view_title, "Conversations")
       |> assign_chat_filters(user)
       |> assign(:composer_mode, :reply)
@@ -55,7 +58,18 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    {view, title} = parse_view(params, socket.assigns)
+    socket = socket |> assign_folder(params["folder_id"]) |> FilterEditor.from_params(params)
+
+    {view, title} =
+      if socket.assigns.folder do
+        {%{"folder_id" => to_string(socket.assigns.folder.id)}, socket.assigns.folder.name}
+      else
+        if socket.assigns.advanced_query do
+          {%{"filters" => params["filters"]}, "Conversations"}
+        else
+          parse_view(params, socket.assigns)
+        end
+      end
 
     {:noreply, socket} =
       socket
@@ -64,6 +78,23 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       |> select_conversation(params["conversation_id"])
 
     {:noreply, load_conversations(socket)}
+  end
+
+  defp assign_folder(socket, nil), do: assign(socket, :folder, nil)
+
+  defp assign_folder(socket, id) do
+    folder =
+      with account when not is_nil(account) <- socket.assigns.account,
+           {id, ""} <- Integer.parse(id),
+           %{filter_type: 0} = folder <-
+             Accounts.get_custom_filter(socket.assigns.current_scope, account, id) do
+        folder
+      else
+        _ -> nil
+      end
+
+    socket = assign(socket, :folder, folder)
+    if folder, do: socket, else: put_flash(socket, :error, "Folder not found")
   end
 
   # Visões do conversation.routes.js do Chatwoot (inbox, time, etiqueta,
@@ -268,6 +299,32 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
   end
 
   defp load_conversations(%{assigns: %{account: nil}} = socket), do: socket
+
+  defp load_conversations(%{assigns: assigns} = socket)
+       when not is_nil(assigns.folder) or not is_nil(assigns.advanced_query) do
+    opts = [
+      user_id: socket.assigns.current_scope.user.id,
+      assignee_type: socket.assigns.assignee_tab,
+      sort_by: socket.assigns.chat_sort
+    ]
+
+    query = (assigns.folder && assigns.folder.query) || assigns.advanced_query
+
+    case Conversations.filter_conversations(socket.assigns.account, query, opts) do
+      {:ok, %{conversations: conversations, counts: counts}} ->
+        socket
+        |> assign(:conversation_count, length(conversations))
+        |> assign(:tab_counts, counts)
+        |> stream(:conversations, conversations, reset: true)
+
+      {:error, _} ->
+        socket
+        |> assign(:conversation_count, 0)
+        |> assign(:tab_counts, %{mine: 0, unassigned: 0, all: 0})
+        |> stream(:conversations, [], reset: true)
+        |> put_flash(:error, "This folder contains unsupported or invalid filters")
+    end
+  end
 
   defp load_conversations(socket) do
     %{account: account, current_scope: %{user: user}} = socket.assigns

@@ -7,7 +7,15 @@ defmodule Chatwooter.Conversations do
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Contacts
   alias Chatwooter.Contacts.{Contact, Tag, Tagging}
-  alias Chatwooter.Conversations.{Attachment, AttachmentStorage, Conversation, Message}
+
+  alias Chatwooter.Conversations.{
+    Attachment,
+    AttachmentStorage,
+    Conversation,
+    FilterQuery,
+    Message
+  }
+
   alias Chatwooter.Inboxes.Inbox
 
   @doc """
@@ -44,6 +52,63 @@ defmodule Chatwooter.Conversations do
         last_activity_at: DateTime.utc_now()
       }
       |> Conversation.changeset(attrs)
+      |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Conversa iniciada pelo agente com a 1ª mensagem de saída — `ConversationsController#create`
+  (`ConversationBuilder` + `Messages::MessageBuilder`). Com `lock_to_single_conversation`
+  reaproveita a última conversa do contato no inbox. A entrega ao provider fica com o chamador.
+  """
+  def start_conversation(%Account{} = account, %Inbox{} = inbox, %Contact{} = contact, attrs) do
+    content = String.trim(attrs[:content] || "")
+
+    if content == "" do
+      {:error, :empty_message}
+    else
+      Repo.transaction(fn ->
+        insert_started_conversation(account, inbox, contact, attrs, content)
+      end)
+    end
+  end
+
+  defp insert_started_conversation(account, inbox, contact, attrs, content) do
+    with {:ok, contact_inbox} <-
+           Contacts.get_or_create_contact_inbox(contact, inbox, attrs.source_id),
+         {:ok, conversation} <-
+           build_started_conversation(account, inbox, contact_inbox, attrs.assignee_id),
+         {:ok, message} <-
+           send_message(conversation, %{content: content, sender_id: attrs.assignee_id}) do
+      %{conversation: conversation, message: message}
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp build_started_conversation(account, inbox, contact_inbox, assignee_id) do
+    last =
+      inbox.lock_to_single_conversation &&
+        Repo.one(
+          from c in Conversation,
+            where: c.contact_inbox_id == ^contact_inbox.id,
+            order_by: [desc: c.id],
+            limit: 1
+        )
+
+    if last do
+      {:ok, last}
+    else
+      %Conversation{
+        account_id: account.id,
+        inbox_id: inbox.id,
+        contact_inbox_id: contact_inbox.id,
+        contact_id: contact_inbox.contact_id,
+        assignee_id: assignee_id,
+        uuid: Ecto.UUID.generate(),
+        last_activity_at: DateTime.utc_now()
+      }
+      |> Conversation.changeset(%{})
       |> Repo.insert()
     end
   end
@@ -175,6 +240,19 @@ defmodule Chatwooter.Conversations do
     |> Enum.map(&hydrate_conversation/1)
   end
 
+  @doc "Executes the upstream saved-view payload and counts the same filtered relation."
+  def filter_conversations(%Account{} = account, query, opts \\ []) do
+    with {:ok, predicate} <- FilterQuery.compile(query) do
+      opts = Keyword.put(opts, :advanced_predicate, predicate)
+
+      {:ok,
+       %{
+         conversations: list_conversations(account, opts),
+         counts: conversation_counts(account, opts)
+       }}
+    end
+  end
+
   @doc "Contadores das abas Mine / Unassigned / All para os mesmos filtros."
   def conversation_counts(%Account{id: account_id}, opts) do
     user_id = Keyword.fetch!(opts, :user_id)
@@ -211,7 +289,11 @@ defmodule Chatwooter.Conversations do
       Keyword.get(opts, :user_id)
     )
     |> filter_search(Keyword.get(opts, :search, ""))
+    |> filter_advanced(Keyword.get(opts, :advanced_predicate))
   end
+
+  defp filter_advanced(query, nil), do: query
+  defp filter_advanced(query, predicate), do: where(query, ^predicate)
 
   # mentions e conversation_participants são lidas pelo nome da tabela: os
   # schemas ficam em contexts que dependem deste.
@@ -348,6 +430,57 @@ defmodule Chatwooter.Conversations do
 
     :ok
   end
+
+  @search_page_size 15
+
+  @doc """
+  Busca global de conversas (`SearchService#filter_conversations` do Chatwoot):
+  ILIKE no display_id e em nome/email/telefone/identifier do contato, mais
+  recentes primeiro, 15 por página. Vem com `inbox` e `contact_inbox.contact`.
+  """
+  def search_conversations(%Account{id: account_id}, query, page \\ 1) do
+    term = "%#{String.trim(query)}%"
+
+    from(c in Conversation,
+      join: contact in Contact,
+      on: contact.id == c.contact_id,
+      where: c.account_id == ^account_id,
+      where:
+        ilike(fragment("cast(? as text)", c.display_id), ^term) or ilike(contact.name, ^term) or
+          ilike(contact.email, ^term) or ilike(contact.phone_number, ^term) or
+          ilike(contact.identifier, ^term),
+      order_by: [desc: c.inserted_at, desc: c.id],
+      limit: @search_page_size,
+      offset: ^search_offset(page),
+      preload: [:inbox, contact_inbox: :contact]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Busca global de mensagens (`SearchService#filter_messages_with_like`): ILIKE no
+  conteúdo das mensagens dos últimos 3 meses, mais recentes primeiro, 15 por
+  página. `sender` só vem quando o remetente é um agente (`sender_type` "User").
+  """
+  def search_messages(%Account{id: account_id}, query, page \\ 1) do
+    term = "%#{String.trim(query)}%"
+
+    from(m in Message,
+      left_join: u in Chatwooter.Accounts.User,
+      on: u.id == m.sender_id and m.sender_type == "User",
+      where: m.account_id == ^account_id,
+      where: m.inserted_at >= ago(3, "month"),
+      where: ilike(m.content, ^term),
+      order_by: [desc: m.inserted_at, desc: m.id],
+      limit: @search_page_size,
+      offset: ^search_offset(page),
+      preload: [:inbox, :attachments, sender: u, conversation: [contact_inbox: :contact]]
+    )
+    |> Repo.all()
+    |> Enum.map(&hydrate_message/1)
+  end
+
+  defp search_offset(page), do: (max(page, 1) - 1) * @search_page_size
 
   @doc "Histórico de conversas de um contato (aba History do Chatwoot)."
   def list_contact_conversations(%Account{id: account_id}, %Contact{id: contact_id}) do

@@ -1,0 +1,162 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="flex h-screen overflow-hidden bg-n-surface-1 text-n-slate-12">
+    <.sidebar current_scope={@current_scope} sidebar={@sidebar} />
+
+    <div id="search-page" class="flex flex-col w-full h-full bg-n-surface-1 min-w-0">
+      <div class="flex w-full p-4">
+        <%!-- O Chatwoot volta no histórico (router.go(-1)); aqui o "Back" leva à caixa de conversas --%>
+        <.link
+          id="search-back"
+          navigate={~p"/app"}
+          class="inline-flex items-center min-w-0 gap-2 transition-all duration-100 ease-out border-0 rounded-lg outline-1 outline bg-n-brand/10 text-n-blue-11 hover:bg-n-brand/20 focus-visible:bg-n-brand/20 outline-transparent h-8 px-3 text-sm active:scale-[0.97] justify-center"
+        >
+          <span class="ph-caret-left flex-shrink-0" />
+          <span class="min-w-0 truncate">Back</span>
+        </.link>
+      </div>
+      <section class="flex flex-col flex-grow w-full h-full overflow-hidden">
+        <div class="w-full max-w-5xl mx-auto z-30">
+          <div class="flex flex-col w-full px-4">
+            <div class="flex flex-col gap-2">
+              <.search_input query={@query} recent_searches={@recent_searches} />
+            </div>
+            <div :if={@query != ""} class="flex items-center justify-between mt-7 mb-4">
+              <.tab_bar id="search-tabs" tabs={tabs(@results)} active={@tab} event="change_tab" />
+            </div>
+          </div>
+        </div>
+        <div class="flex-grow w-full h-full overflow-y-auto">
+          <div class="w-full max-w-5xl mx-auto px-4 pb-6">
+            <%= cond do %>
+              <% (@searched? and total_count(@results) != 0) or (@tab != "all" and @query != "") -> %>
+                <div class="flex flex-col justify-center">
+                  <.search_result_section
+                    :if={show_section?(@tab, "contacts")}
+                    id="search-contacts"
+                    title="Contacts"
+                    empty={@results["contacts"] == []}
+                    query={@query}
+                    show_title={@tab == "all"}
+                    class="mt-0.5"
+                  >
+                    <ul :if={@results["contacts"] != []} class="space-y-3 list-none">
+                      <li :for={contact <- visible_records(@results["contacts"], @tab)}>
+                        <.search_result_contact_item contact={contact} />
+                      </li>
+                    </ul>
+                  </.search_result_section>
+                  <.next_button
+                    :if={show_view_more?(@results["contacts"], @tab)}
+                    id="search-view-more-contacts"
+                    label="View more"
+                    icon="ph-eye"
+                    color={:slate}
+                    size={:sm}
+                    variant={:outline}
+                    phx-click="change_tab"
+                    phx-value-tab="contacts"
+                  />
+                </div>
+
+                <div class="flex flex-col justify-center">
+                  <.search_result_section
+                    :if={show_section?(@tab, "messages")}
+                    id="search-messages"
+                    title="Messages"
+                    empty={@results["messages"] == []}
+                    query={@query}
+                    show_title={@tab == "all"}
+                    class={if(@tab == "all", do: "mt-4", else: "mt-0.5")}
+                  >
+                    <ul :if={@results["messages"] != []} class="space-y-3 list-none">
+                      <li :for={message <- visible_records(@results["messages"], @tab)}>
+                        <.search_result_message_item message={message} query={@query} />
+                      </li>
+                    </ul>
+                  </.search_result_section>
+                  <.next_button
+                    :if={show_view_more?(@results["messages"], @tab)}
+                    id="search-view-more-messages"
+                    label="View more"
+                    icon="ph-eye"
+                    color={:slate}
+                    size={:sm}
+                    variant={:outline}
+                    phx-click="change_tab"
+                    phx-value-tab="messages"
+                  />
+                </div>
+
+                <div class="flex flex-col justify-center">
+                  <.search_result_section
+                    :if={show_section?(@tab, "conversations")}
+                    id="search-conversations"
+                    title="Conversations"
+                    empty={@results["conversations"] == []}
+                    query={@query}
+                    show_title={@tab == "all"}
+                    class={if(@tab == "all", do: "mt-4", else: "mt-0.5")}
+                  >
+                    <ul :if={@results["conversations"] != []} class="space-y-3 list-none">
+                      <li :for={conversation <- visible_records(@results["conversations"], @tab)}>
+                        <.search_result_conversation_item conversation={conversation} />
+                      </li>
+                    </ul>
+                  </.search_result_section>
+                  <.next_button
+                    :if={show_view_more?(@results["conversations"], @tab)}
+                    id="search-view-more-conversations"
+                    label="View more"
+                    icon="ph-eye"
+                    color={:slate}
+                    size={:sm}
+                    variant={:outline}
+                    phx-click="change_tab"
+                    phx-value-tab="conversations"
+                  />
+                </div>
+
+                <div
+                  :if={@tab != "all" and @results[@tab] != [] and @has_more[@tab]}
+                  class="flex justify-center mt-3 mb-6"
+                >
+                  <.next_button
+                    id="search-load-more"
+                    label="Load more"
+                    icon="ph-cloud-arrow-down"
+                    color={:slate}
+                    size={:sm}
+                    variant={:faded}
+                    phx-click="load_more"
+                  />
+                </div>
+              <% @searched? and @tab == "all" -> %>
+                <div
+                  id="search-empty"
+                  class="flex flex-col items-center justify-center px-4 py-6 mt-8 rounded-md"
+                >
+                  <span class="ph-info size-4 text-n-slate-11" />
+                  <p class="m-2 text-center text-n-slate-11">
+                    No results found for query '{@query}'
+                  </p>
+                </div>
+              <% @query == "" -> %>
+                <div
+                  id="search-empty-default"
+                  class="flex flex-col items-center justify-center px-4 py-6 mt-8 text-center rounded-md"
+                >
+                  <p class="text-center mb-0">
+                    <span class="ph-magnifying-glass size-6 text-n-slate-11" />
+                  </p>
+                  <p class="m-2 text-center text-n-slate-11">
+                    Search by conversation id, email, phone number, messages for better search results.
+                  </p>
+                </div>
+              <% true -> %>
+            <% end %>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</Layouts.app>

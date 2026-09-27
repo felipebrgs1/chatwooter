@@ -10,7 +10,13 @@
         !@selected && "flex"
       ]}
     >
-      <.chat_list_header title={@view_title} status={@chat_status} sort={@chat_sort} />
+      <.chat_list_header
+        title={@view_title}
+        status={@chat_status}
+        sort={@chat_sort}
+        filtered={@folder != nil || @advanced_query != nil}
+        folder={@folder != nil}
+      />
       <.chat_type_tabs active={@assignee_tab} counts={@tab_counts} />
 
       <p
@@ -45,6 +51,14 @@
         </p>
       </div>
     </section>
+    <.conversation_filter_editor
+      mode={@filter_editor}
+      folder={@folder}
+      form={@filter_form}
+      rows={@filter_rows}
+      folder_form={@folder_form}
+      error={@filter_error}
+    />
 
     <main class={["min-w-0 flex-1 flex-col", @selected && "flex", !@selected && "hidden lg:flex"]}>
       <div :if={!@selected} class="flex flex-1 items-center justify-center">

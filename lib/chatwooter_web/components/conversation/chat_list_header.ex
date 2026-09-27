@@ -33,6 +33,8 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
   attr :title, :string, required: true
   attr :status, :string, required: true
   attr :sort, :string, required: true
+  attr :filtered, :boolean, default: false
+  attr :folder, :boolean, default: false
 
   # ChatListHeader.vue (sem filtros avançados/pastas aplicados)
   def chat_list_header(assigns) do
@@ -43,6 +45,7 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
       <div class="flex items-center justify-center min-w-0">
         <h1 class="text-base font-medium truncate text-n-slate-12" title={@title}>{@title}</h1>
         <span
+          :if={!@filtered}
           id="chat-list-status"
           class="px-2 py-1 my-0.5 mx-1 rounded-md capitalize bg-n-slate-3 text-xxs text-n-slate-12 shrink-0"
         >
@@ -50,17 +53,37 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
         </span>
       </div>
       <div class="flex items-center gap-1">
-        <%!-- Filtros avançados ainda não existem; botão só visual por ora --%>
+        <.next_button
+          :if={@filtered && !@folder}
+          id="save-conversation-filter"
+          icon="ph-floppy-disk"
+          color={:slate}
+          variant={:faded}
+          size={:xs}
+          title="Save filter"
+          phx-click="filter:save_open"
+        />
         <div class="relative">
           <.next_button
             id="toggleConversationFilterButton"
-            icon="ph-funnel-simple"
+            icon={if(@folder, do: "ph-pencil-line", else: "ph-funnel-simple")}
             color={:slate}
             variant={:faded}
             size={:xs}
-            title="Filter conversations"
+            title={if(@folder, do: "Edit folder", else: "Filter conversations")}
+            phx-click="filter:open"
           />
         </div>
+        <.next_button
+          :if={@folder}
+          id="delete-conversation-folder"
+          icon="ph-trash"
+          color={:ruby}
+          variant={:faded}
+          size={:xs}
+          title="Delete filter"
+          phx-click="filter:delete_open"
+        />
         <div
           id="chat-sort-menu"
           class="relative flex"
@@ -79,7 +102,7 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
             hidden
             class="mt-1 bg-n-alpha-3 backdrop-blur-[100px] border border-n-weak w-72 rounded-xl p-4 absolute z-40 top-full left-0"
           >
-            <div class="flex items-center justify-between gap-2">
+            <div :if={!@filtered} class="flex items-center justify-between gap-2">
               <span class="text-sm truncate text-n-slate-12">Status</span>
               <.select_menu
                 id="chat-status"

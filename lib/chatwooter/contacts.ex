@@ -7,6 +7,7 @@ defmodule Chatwooter.Contacts do
   alias Chatwooter.Accounts.Account
   alias Chatwooter.Companies.Company
   alias Chatwooter.Contacts.{Contact, ContactInbox, CustomAttributeDefinition, Note, Tag, Tagging}
+  alias Chatwooter.Inboxes
   alias Chatwooter.Inboxes.Inbox
 
   @doc "Lista os contatos da conta em ordem alfabética."
@@ -22,6 +23,30 @@ defmodule Chatwooter.Contacts do
     Repo.get_by!(Contact, id: id, account_id: account_id)
   end
 
+  @search_page_size 15
+
+  @doc """
+  Busca global de contatos (`SearchService#filter_contacts` do Chatwoot, sem
+  advanced_search): ILIKE em nome, email, telefone e identifier, só contatos
+  "resolvidos" (com algum identificador), 15 por página.
+  """
+  def search_contacts(%Account{id: account_id}, query, page \\ 1) do
+    term = "%#{String.trim(query)}%"
+
+    Contact
+    |> where([c], c.account_id == ^account_id)
+    |> where(
+      [c],
+      ilike(c.name, ^term) or ilike(c.email, ^term) or ilike(c.phone_number, ^term) or
+        ilike(c.identifier, ^term)
+    )
+    |> where([c], c.email != "" or c.phone_number != "" or c.identifier != "")
+    |> order_by([c], desc_nulls_last: c.last_activity_at, asc: c.id)
+    |> limit(@search_page_size)
+    |> offset(^((max(page, 1) - 1) * @search_page_size))
+    |> Repo.all()
+  end
+
   @doc "Lista as identidades do contato nos canais, incluindo o inbox."
   def list_contact_inboxes(%Account{id: account_id}, %Contact{id: contact_id}) do
     ContactInbox
@@ -31,6 +56,40 @@ defmodule Chatwooter.Contacts do
     |> order_by([ci, i], asc: i.name)
     |> Repo.all()
   end
+
+  @doc """
+  Inboxes pelas quais o agente pode iniciar uma conversa com o contato
+  (`Contacts::ContactableInboxesService`), como `%{inbox:, source_id:}`.
+  WhatsApp vem primeiro (`CHANNEL_PRIORITY` do `composeConversationHelper.js`).
+  """
+  def list_contactable_inboxes(%Account{} = account, %Contact{} = contact) do
+    known = Map.new(list_contact_inboxes(account, contact), &{&1.inbox_id, &1.source_id})
+
+    account
+    |> Inboxes.list_inboxes()
+    |> Enum.flat_map(&contactable_inbox(&1, contact, known))
+    |> Enum.sort_by(&{&1.inbox.channel_type != :whatsapp, &1.inbox.name})
+  end
+
+  # O wa_id é o telefone sem o "+" (whatsapp_contactable_inbox).
+  defp contactable_inbox(%Inbox{channel_type: :whatsapp} = inbox, contact, _known) do
+    case contact.phone_number do
+      phone when phone in [nil, ""] -> []
+      phone -> [%{inbox: inbox, source_id: String.trim_leading(phone, "+")}]
+    end
+  end
+
+  # O Chatwoot não lista Telegram (o bot não pode puxar conversa com quem nunca
+  # falou com ele). Aqui entra quando o contato já tem chat_id nesse inbox, que
+  # é o que o Bot API exige para enviar.
+  defp contactable_inbox(%Inbox{channel_type: :telegram} = inbox, _contact, known) do
+    case Map.fetch(known, inbox.id) do
+      {:ok, source_id} -> [%{inbox: inbox, source_id: source_id}]
+      :error -> []
+    end
+  end
+
+  defp contactable_inbox(_inbox, _contact, _known), do: []
 
   @doc "Cadastra um contato manualmente (nome + telefone/email)."
   def create_contact(%Account{} = account, attrs) do

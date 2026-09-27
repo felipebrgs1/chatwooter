@@ -17,6 +17,26 @@ defmodule Chatwooter.Accounts do
 
   alias Chatwooter.Repo
 
+  defdelegate list_custom_filters(scope, account, type \\ 0),
+    to: Chatwooter.Accounts.CustomFilters,
+    as: :list
+
+  defdelegate get_custom_filter(scope, account, id),
+    to: Chatwooter.Accounts.CustomFilters,
+    as: :get
+
+  defdelegate create_custom_filter(scope, account, attrs),
+    to: Chatwooter.Accounts.CustomFilters,
+    as: :create
+
+  defdelegate update_custom_filter(scope, account, id, attrs),
+    to: Chatwooter.Accounts.CustomFilters,
+    as: :update
+
+  defdelegate delete_custom_filter(scope, account, id),
+    to: Chatwooter.Accounts.CustomFilters,
+    as: :delete
+
   ## Database getters
 
   @doc """

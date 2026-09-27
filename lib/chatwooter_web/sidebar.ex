@@ -13,6 +13,7 @@ defmodule ChatwooterWeb.Sidebar do
   import Phoenix.LiveView, only: [attach_hook: 4, put_flash: 3]
 
   alias Chatwooter.{Accounts, Contacts, Inboxes}
+  alias ChatwooterWeb.ComposeConversation
 
   # provider.js: DEFAULT_WIDTH, MIN_WIDTH, COLLAPSED_THRESHOLD, MAX_WIDTH
   @default_width 200
@@ -31,6 +32,11 @@ defmodule ChatwooterWeb.Sidebar do
       inboxes: if(account, do: Inboxes.list_inboxes(account), else: []),
       teams: if(account, do: Accounts.list_user_teams(account, user), else: []),
       labels: if(account, do: Contacts.list_sidebar_labels(account), else: []),
+      folders:
+        if(account,
+          do: Accounts.list_custom_filters(socket.assigns.current_scope, account),
+          else: []
+        ),
       availability: if(membership, do: membership.availability, else: :offline),
       auto_offline: if(membership, do: membership.auto_offline, else: false),
       width: clamp_width((user.ui_settings || %{})["sidebar_width"]),
@@ -42,7 +48,8 @@ defmodule ChatwooterWeb.Sidebar do
      socket
      |> assign(:sidebar, sidebar)
      |> attach_hook(:sidebar_uri, :handle_params, &track_uri/3)
-     |> attach_hook(:sidebar_events, :handle_event, &handle_event/3)}
+     |> attach_hook(:sidebar_events, :handle_event, &handle_event/3)
+     |> ComposeConversation.attach()}
   end
 
   @doc "Recolhida = abaixo do limiar; no mobile a sidebar é sempre expandida (flyout)."
@@ -131,7 +138,6 @@ defmodule ChatwooterWeb.Sidebar do
   #
   # Ícones lucide do Chatwoot trocados pelo equivalente Phosphor mais próximo
   # (user-round-check e clock-alert não existem no Phosphor).
-  # Folders entra com os filtros salvos (custom_filters).
   def menu(%{inboxes: inboxes} = sidebar) do
     [
       %{
@@ -163,6 +169,21 @@ defmodule ChatwooterWeb.Sidebar do
             label: "Unattended",
             icon: "ph-clock-countdown",
             to: ~p"/app?conversation_type=unattended"
+          },
+          %{
+            name: "folders",
+            label: "Folders",
+            icon: "ph-folder",
+            collapsible: true,
+            tree_line: true,
+            children:
+              Enum.map(Map.get(sidebar, :folders, []), fn folder ->
+                %{
+                  name: "folder-#{folder.id}",
+                  label: folder.name,
+                  to: ~p"/app?folder_id=#{folder.id}"
+                }
+              end)
           },
           %{
             name: "teams",

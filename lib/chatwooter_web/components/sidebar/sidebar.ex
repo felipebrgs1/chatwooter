@@ -5,6 +5,8 @@ defmodule ChatwooterWeb.Components.Sidebar.Sidebar do
   """
   use ChatwooterWeb, :component
 
+  import ChatwooterWeb.Components.NewConversation.ComposeConversation
+
   import ChatwooterWeb.Components.Sidebar.{
     AccountSwitcher,
     Collapsed,
@@ -63,32 +65,35 @@ defmodule ChatwooterWeb.Components.Sidebar.Sidebar do
           <% end %>
         </div>
         <div class={["flex gap-2", if(@collapsed, do: "flex-col items-center", else: "px-2")]}>
-          <%!-- Busca global e "nova conversa" ainda não existem; ficam só visuais por ora --%>
-          <button
+          <%!-- O atalho do .vue ($mod+K) fica `hidden` lá também: abre a command bar, não a busca. --%>
+          <.link
             :if={!@collapsed}
             id="sidebar-search"
-            type="button"
+            navigate={~p"/app/search"}
             class="flex gap-2 items-center px-2 py-1 w-full h-7 rounded-lg outline outline-1 outline-n-weak bg-n-button-color transition-all duration-100 ease-out"
           >
             <span class="flex-shrink-0 ph-magnifying-glass size-4 text-n-slate-10" />
             <span class="flex-grow text-start text-n-slate-10">Search...</span>
-          </button>
-          <button
+          </.link>
+          <.link
             :if={@collapsed}
             id="sidebar-search"
-            type="button"
+            navigate={~p"/app/search"}
             title="Search..."
             class="flex items-center justify-center size-8 rounded-lg outline outline-1 outline-n-weak bg-n-button-color transition-all duration-100 ease-out hover:bg-n-alpha-2 dark:hover:bg-n-slate-9/30"
           >
             <span class="ph-magnifying-glass size-4 text-n-slate-11" />
-          </button>
+          </.link>
           <button
             id="sidebar-compose"
             type="button"
             title="New conversation"
+            data-compose-trigger
+            phx-click={JS.push("compose:toggle", value: %{anchor: "sidebar-compose"})}
             class={[
               "inline-flex items-center justify-center min-w-0 gap-2 transition-all duration-100 ease-out border-0 rounded-lg outline-1 outline bg-n-button-color hover:enabled:bg-n-alpha-2 dark:hover:enabled:bg-n-slate-9/30 p-0 text-sm active:enabled:scale-[0.97] outline-n-weak text-n-slate-11 shrink-0",
-              if(@collapsed, do: "size-8", else: "w-8 h-7")
+              if(@collapsed, do: "size-8", else: "w-8 h-7"),
+              @sidebar.compose.anchor == "sidebar-compose" && "!bg-n-alpha-2 dark:!bg-n-slate-9/30"
             ]}
           >
             <span class="ph-note-pencil size-4" />
@@ -282,6 +287,13 @@ defmodule ChatwooterWeb.Components.Sidebar.Sidebar do
     </aside>
 
     <.mobile_sidebar_launcher :if={!@conversation_open?} />
+    <%!-- Fora do <aside>: o transform dele prenderia o popover `fixed` (Teleport no Chatwoot) --%>
+    <.compose_conversation
+      :if={@sidebar.compose.anchor == "sidebar-compose"}
+      compose={@sidebar.compose}
+      user={@current_scope.user}
+      align="start"
+    />
     """
   end
 

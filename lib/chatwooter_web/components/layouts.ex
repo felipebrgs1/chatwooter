@@ -43,6 +43,17 @@ defmodule ChatwooterWeb.Layouts do
   end
 
   @doc """
+  Favicons do Chatwoot (`chatwoot/app/views/layouts/vueapp.html.erb`), compartilhados pelos root layouts.
+  """
+  def favicons(assigns) do
+    ~H"""
+    <link rel="icon" type="image/png" sizes="32x32" href={~p"/images/favicon-32x32.png"} />
+    <link rel="icon" type="image/png" sizes="96x96" href={~p"/images/favicon-96x96.png"} />
+    <link rel="icon" type="image/png" sizes="16x16" href={~p"/images/favicon-16x16.png"} />
+    """
+  end
+
+  @doc """
   Shows the flash group with standard titles and content.
 
   ## Examples

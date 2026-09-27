@@ -23,7 +23,7 @@
 | Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade |
 | Lista de conversas | ✅ | abas, status, ordenação, card; faltam extras (Marco 1.1) |
 | Thread, cabeçalho, composer, painel da conversa | 🟡 | funcionam, estilo antigo |
-| Detalhe do contato | ✅ | faltam "Send message", avatar, ligação |
+| Detalhe do contato | ✅ | faltam avatar, ligação |
 | Lista de contatos, empresas | 🟡 | portados antes da paleta `n-*` |
 | Settings (general, inboxes, agents, profile) | 🟡 | estilo antigo, menu interno que o Chatwoot não tem |
 | Telegram | 🟡 | texto + parte da mídia |
@@ -38,6 +38,7 @@
 Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Rotas de visão: Mentions, Participating, Unattended, por Team, por Label (`routes/dashboard/conversation/conversation.routes.js`) + itens na sidebar — query params de `/app` (`conversation_type`, `team_id`, `label`), como o `inbox_id`
 - [ ] Filtros avançados + salvar/editar/excluir pasta + visão Folder e seção "Folders" na sidebar (`components-next/filter/ConversationFilter.vue`, `SaveCustomView.vue`, `customviews/DeleteCustomViews.vue`) — backend: `custom_filters`
+  - Em andamento: CRUD em `Accounts` com `current_scope`, isolamento por conta/usuário, revogação por membership e limite de 1.000 filtros, preservando a query e os enums do banco original. Consulta com valores múltiplos, AND/OR (precedência SQL), status/prioridade/agente/inbox/time/contato/identificador/campanha/etiquetas; contadores do mesmo resultado. Visão `/app?folder_id=…` no dashboard autenticado e seção Folders com pastas privadas; navegação preserva a pasta. Editor visual permite adicionar/remover condições, aplicar, salvar, editar nome/query e confirmar exclusão; filtros temporários ficam na URL para sobreviver a reload/navegação. Clear filters limpa só o rascunho. TDD Red → Green; `mix precommit`: 509 testes verdes (2026-09-27). Playwright: aplicar → salvar → renomear → reload → cancelar/excluir, validações, clear e editor desktop/mobile, sem erros JS; capturas conferidas. Datas Created at/Last activity: comparação por dia local, fuso IANA preservado, DST e queries legadas sem fuso; days_before aceita 1–998. Editor usa date/number, operadores por atributo, fuso do browser e linha responsiva. Playwright validou salvar/renomear/reload preservando data/fuso e desktop/mobile; testes cobrem limites de meia-noite/DST e rejeição de datas/fusos inválidos. Faltam picker pesquisável/multivalor 1:1 (seletores nativos e valores separados por vírgula são temporários), filtros de custom attributes e validação completa 1:1. Additional attributes: browser_language/conversation_language (igualdade), referer/mail_subject (igualdade/contém), conforme filter_keys.yml; editor oferece Browser language e Referer link como o provider.js. Testes cobrem case, múltiplos valores, valores inválidos e ausência de chave JSON. Assignee presence também considera assignee_agent_bot_id. Playwright validou Referer com uma conversa sintética, salvar/renomear/reload e desktop/mobile; dados temporários removidos. Queries ainda não suportadas retornam erro e lista vazia.
 - [ ] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
 - [ ] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)
@@ -140,9 +141,10 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 - [ ] Lista de contatos com a paleta `n-*`: cards, busca, ordenação, filtros avançados
 - [ ] Rotas Active, Segments (filtro salvo) e "Tagged with" (etiqueta) + sidebar
 - [ ] Criar contato (`CreateNewContactDialog.vue`), import/export CSV (`ContactImportDialog.vue`, `ContactExportDialog.vue`)
-- [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`), avatar (upload/excluir)
+- [x] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
+- [ ] Detalhe do contato: avatar (upload/excluir)
 - [ ] Empresas: lista e detalhe 1:1, `CompanySelector` com criação inline
-- [ ] Nova conversa a partir da sidebar (botão de compose)
+- [x] Nova conversa a partir da sidebar (botão de compose) — templates do WhatsApp, emoji e assinatura ainda só visuais
 
 ---
 
@@ -160,7 +162,10 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 - [ ] Web push (depende do PWA: manifest + service worker + VAPID)
 
 ### 5.3 Produtividade
-- [ ] Busca global (`modules/search/`): conversas, mensagens, contatos; filtros; buscas recentes
+- [x] Busca global (`modules/search/`): conversas, mensagens, contatos; buscas recentes (`/app/search`, ILIKE como o `SearchService` CE)
+  - [ ] Filtros (remetente, inbox, período) — no Chatwoot só em Enterprise/Cloud com `advanced_search`
+  - [ ] Chips de anexo/transcrição e "Read more" nos resultados de mensagem; abrir a conversa rolando até a mensagem (`messageId`)
+  - [ ] Restringir resultados às inboxes do agente (`assigned_inboxes`) quando houver controle de acesso por inbox
 - [ ] Command bar Cmd+K (`routes/dashboard/commands/commandbar.vue`) e modal de atalhos
 - [ ] **Macros:** lista, editor de ações ordenáveis, visibilidade (`settings/macros/`)
 - [ ] **Automation:** regras instantâneas e com espera, condições e ações (`settings/automation/`)

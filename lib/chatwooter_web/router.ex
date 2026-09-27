@@ -65,6 +65,7 @@ defmodule ChatwooterWeb.Router do
       live "/app/contacts/:id", ContactsLive.Show, :show
       live "/app/companies", CompaniesLive.Index, :index
       live "/app/companies/:id", CompaniesLive.Show, :show
+      live "/app/search", SearchLive.Index, :index
       live "/app/settings", SettingsLive.Index, :index
       live "/app/settings/inboxes", SettingsLive.Inboxes, :index
       live "/app/settings/agents", SettingsLive.Agents, :index

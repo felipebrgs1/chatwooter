@@ -34,13 +34,22 @@ defmodule ChatwooterWeb.Components do
     Conversation.ChatListHeader,
     Conversation.ChatTypeTabs,
     Conversation.ConversationCard,
+    Conversation.FilterEditor,
+    Conversation.FilterCondition,
     Contacts.ContactProfile,
     Contacts.ContactForm,
     Contacts.ContactAttributes,
     Contacts.ContactHistory,
     Contacts.ContactNotes,
     Contacts.ContactMedia,
-    Contacts.ContactMerge
+    Contacts.ContactMerge,
+    NewConversation.ComposeConversation,
+    Search.SearchInput,
+    Search.RecentSearches,
+    Search.SearchResultSection,
+    Search.SearchResultContactItem,
+    Search.SearchResultConversationItem,
+    Search.SearchResultMessageItem
   ]
 
   defmacro __using__(scope) do
