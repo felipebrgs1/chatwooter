@@ -36,6 +36,8 @@ defmodule ChatwooterWeb.Components do
     Conversation.ConversationCard,
     Conversation.FilterEditor,
     Conversation.FilterCondition,
+    Conversation.FilterSelect,
+    Conversation.FilterMultiSelect,
     Contacts.ContactProfile,
     Contacts.ContactForm,
     Contacts.ContactAttributes,

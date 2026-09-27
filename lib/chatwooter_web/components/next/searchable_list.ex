@@ -29,6 +29,7 @@ defmodule ChatwooterWeb.Components.Next.SearchableList do
             this.el.addEventListener("input", e => {
               if (!e.target.matches("[data-search-input]")) return
               const query = e.target.value.trim().toLowerCase()
+              this.el.querySelectorAll("[data-search-header]").forEach(header => this.setHidden(header, query.length > 0))
               let visible = 0
               this.el.querySelectorAll("[data-search-item]").forEach(item => {
                 const match = item.dataset.searchText.toLowerCase().includes(query)

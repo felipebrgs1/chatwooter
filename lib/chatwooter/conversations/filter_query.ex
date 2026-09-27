@@ -1,8 +1,9 @@
 defmodule Chatwooter.Conversations.FilterQuery do
   @moduledoc "Bound parameters for Chatwoot's FilterService and lib/filters/filter_keys.yml."
   import Ecto.Query
+  alias Chatwooter.Contacts
   alias Chatwooter.Contacts.{Tag, Tagging}
-  alias Chatwooter.Conversations.{DateFilter, TextFilter}
+  alias Chatwooter.Conversations.{CustomAttributeFilter, DateFilter, TextFilter}
 
   @equality ~w(equal_to not_equal_to)
   @presence @equality ++ ~w(is_present is_not_present)
@@ -24,14 +25,33 @@ defmodule Chatwooter.Conversations.FilterQuery do
   }
   @priorities %{"low" => 0, "medium" => 1, "high" => 2, "urgent" => 3}
 
-  def compile(%{"payload" => conditions}) when is_list(conditions) and conditions != [] do
+  def compile(query, account \\ nil)
+
+  def compile(%{"payload" => conditions}, account)
+      when is_list(conditions) and conditions != [] do
+    definitions = definitions(account)
+
     with :ok <- validate_connectors(conditions),
-         {:ok, compiled} <- compile_conditions(conditions) do
+         {:ok, compiled} <- compile_conditions(conditions, definitions) do
       {:ok, combine(compiled)}
     end
   end
 
-  def compile(_query), do: {:error, :invalid_payload}
+  def compile(_query, _account), do: {:error, :invalid_payload}
+
+  def standard_attribute?(key),
+    do:
+      Map.has_key?(@fields, key) or
+        key in ~w(labels created_at last_activity_at browser_language conversation_language referer mail_subject)
+
+  defp definitions(nil), do: %{}
+
+  defp definitions(account) do
+    account
+    |> Contacts.list_custom_attribute_definitions()
+    |> Enum.filter(&(&1.attribute_model == :conversation_attribute))
+    |> Map.new(&{&1.attribute_key, &1})
+  end
 
   defp validate_connectors(conditions) do
     {body, [last]} = Enum.split(conditions, -1)
@@ -44,13 +64,20 @@ defmodule Chatwooter.Conversations.FilterQuery do
     end
   end
 
-  defp compile_conditions(conditions) do
+  defp compile_conditions(conditions, definitions) do
     Enum.reduce_while(conditions, {:ok, []}, fn condition, {:ok, acc} ->
-      case compile_condition(condition) do
+      case compile_condition(condition, definitions) do
         {:ok, predicate} -> {:cont, {:ok, acc ++ [{predicate, condition["query_operator"]}]}}
         {:error, _} = error -> {:halt, error}
       end
     end)
+  end
+
+  defp compile_condition(row, definitions) do
+    case compile_condition(row) do
+      {:error, :invalid_attribute} -> CustomAttributeFilter.compile(row, definitions)
+      result -> result
+    end
   end
 
   # SQL gives AND precedence over OR. Build the same groups before adding the account WHERE.

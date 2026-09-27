@@ -68,19 +68,8 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     lv |> element("#toggleConversationFilterButton") |> render_click()
     assert has_element?(lv, "#conversation-filter-editor", "Filter conversations")
 
-    lv
-    |> form("#conversation-filter-form", %{
-      "filters" => %{
-        "rows" => %{
-          "0" => %{
-            "attribute_key" => "status",
-            "filter_operator" => "equal_to",
-            "values" => "resolved"
-          }
-        }
-      }
-    })
-    |> render_submit()
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
 
     lv |> element("#chat-tab-all") |> render_click()
     assert has_element?(lv, "#conv-#{ctx.resolved.id}")
@@ -127,6 +116,164 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     refute has_element?(lv, "#save-conversation-filter")
   end
 
+  test "searchable pickers change a condition without submitting the filter", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    assert has_element?(lv, "#condition-attribute-0 input[type=search]")
+    assert has_element?(lv, "#condition-attribute-0-group-standard", "Standard filters")
+    assert has_element?(lv, "#condition-attribute-0-group-additional", "Additional filters")
+    refute has_element?(lv, "#condition-attribute-0-group-standard[role=option]")
+    assert has_element?(lv, "#condition-attribute-0-option-status .ph-record")
+    lv |> element("#condition-attribute-0-option-referer") |> render_click()
+    assert has_element?(lv, "input[name='filters[rows][0][attribute_key]'][value=referer]")
+    lv |> element("#condition-operator-0-option-contains") |> render_click()
+    assert has_element?(lv, "input[name='filters[rows][0][filter_operator]'][value=contains]")
+    assert has_element?(lv, "#conversation-filter-editor")
+    refute has_element?(lv, "#save-conversation-filter")
+  end
+
+  test "status values use a multi-picker and preserve two selections", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-resolved")
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> element("#condition-values-0-option-open") |> render_click()
+    assert has_element?(lv, "#condition-values-0-chip-resolved")
+    assert has_element?(lv, "#condition-values-0-chip-open")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    assert has_element?(lv, "#conv-#{ctx.open.id}")
+  end
+
+  test "label picker keeps a title containing a comma as one value", ctx do
+    Chatwooter.Repo.insert!(%Contacts.Label{
+      account_id: ctx.account.id,
+      title: "Sales, VIP",
+      color: "#123456"
+    })
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-labels") |> render_click()
+    assert has_element?(lv, "[id='condition-values-0-option-Sales, VIP']")
+    lv |> element("[id='condition-values-0-option-Sales, VIP']") |> render_click()
+    assert has_element?(lv, "[id='condition-values-0-chip-Sales, VIP']")
+    assert has_element?(lv, "#filter-row-0_values[value*='Sales, VIP']")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    assert has_element?(lv, "#save-conversation-filter")
+  end
+
+  test "inbox picker shows only account inboxes and applies selected ID", ctx do
+    other_user = user_fixture()
+    {:ok, other_account} = Accounts.create_account(%{name: "Other"}, other_user)
+
+    {:ok, other_inbox} =
+      Inboxes.create_inbox(other_account, %{name: "Private", channel_type: "whatsapp"})
+
+    [inbox] = Inboxes.list_inboxes(ctx.account)
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-inbox_id") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-#{inbox.id}", "Sales")
+    refute has_element?(lv, "#condition-values-0-option-#{other_inbox.id}")
+    lv |> element("#condition-values-0-option-#{inbox.id}") |> render_click()
+    assert has_element?(lv, "#filter-row-0_values[value='#{inbox.id}']")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    assert has_element?(lv, "#conv-#{ctx.open.id}")
+  end
+
+  test "contact search is scoped to the account and can select a name-only contact", ctx do
+    other_user = user_fixture()
+    {:ok, other_account} = Accounts.create_account(%{name: "Other contacts"}, other_user)
+    {:ok, private} = Contacts.get_or_create_contact(other_account, %{name: "Private customer"})
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-contact_id") |> render_click()
+    render_hook(lv, "filter:search_contact", %{"index" => 0, "query" => "customer"})
+    assert has_element?(lv, "#condition-values-0-option-#{ctx.resolved.contact_id}")
+    assert has_element?(lv, "#condition-values-0-option-#{ctx.open.contact_id}")
+    refute has_element?(lv, "#condition-values-0-option-#{private.id}")
+    lv |> element("#condition-values-0-option-#{ctx.resolved.contact_id}") |> render_click()
+    assert has_element?(lv, "#filter-row-0_values[value='#{ctx.resolved.contact_id}']")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    refute has_element?(lv, "#conv-#{ctx.open.id}")
+  end
+
+  test "campaign picker contains only campaigns from the account", ctx do
+    alias Chatwooter.Automations.Campaign
+    alias Chatwooter.Repo
+
+    [inbox] = Inboxes.list_inboxes(ctx.account)
+    now = DateTime.utc_now() |> DateTime.to_naive()
+
+    campaign =
+      Repo.insert!(%Campaign{
+        account_id: ctx.account.id,
+        inbox_id: inbox.id,
+        title: "September follow-up",
+        message: "Hello",
+        created_at: now,
+        updated_at: now
+      })
+
+    other_user = user_fixture()
+    {:ok, other_account} = Accounts.create_account(%{name: "Other campaigns"}, other_user)
+
+    {:ok, other_inbox} =
+      Inboxes.create_inbox(other_account, %{name: "Private", channel_type: "whatsapp"})
+
+    private =
+      Repo.insert!(%Campaign{
+        account_id: other_account.id,
+        inbox_id: other_inbox.id,
+        title: "Private campaign",
+        message: "Private",
+        created_at: now,
+        updated_at: now
+      })
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-campaign_id") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-#{campaign.id}", "September follow-up")
+    refute has_element?(lv, "#condition-values-0-option-#{private.id}")
+    lv |> element("#condition-values-0-option-#{campaign.id}") |> render_click()
+    assert has_element?(lv, "#filter-row-0_values[value='#{campaign.id}']")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    assert has_element?(lv, "#save-conversation-filter")
+  end
+
+  test "browser language uses the upstream searchable language list", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-browser_language") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-en", "English")
+    assert has_element?(lv, "#condition-values-0-option-pt", "Portuguese")
+    lv |> element("#condition-values-0-option-en") |> render_click()
+    assert has_element?(lv, "#filter-row-0_values[value='en']")
+    lv |> form("#conversation-filter-form") |> render_submit()
+    assert has_element?(lv, "#save-conversation-filter")
+  end
+
+  test "presence operators hide values and restore the picker on equality", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-assignee_id") |> render_click()
+    lv |> element("#condition-values-0-option-#{ctx.user.id}") |> render_click()
+    lv |> element("#condition-operator-0-option-is_present") |> render_click()
+    refute has_element?(lv, "#condition-values-0")
+    assert has_element?(lv, "#filter-row-0_values[type=hidden][value='#{ctx.user.id}']")
+    lv |> element("#condition-operator-0-option-equal_to") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-#{ctx.user.id}")
+    assert has_element?(lv, "#filter-row-0_values[value='#{ctx.user.id}']")
+  end
+
   test "multiple conditions preserve the preceding connector and removal resets the last row",
        ctx do
     {:ok, lv, _} = live(ctx.conn, ~p"/app")
@@ -134,22 +281,18 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     lv |> element("#add-filter-condition") |> render_click()
     assert has_element?(lv, "#condition-row-1")
 
-    lv
-    |> form("#conversation-filter-form", %{
-      "filters" => %{
-        "rows" => %{
-          "0" => %{"values" => "open", "query_operator" => "or"},
-          "1" => %{"values" => "resolved"}
-        }
-      }
-    })
-    |> render_submit()
+    lv |> element("#condition-values-0-option-open") |> render_click()
+    lv |> element("#condition-values-1-option-resolved") |> render_click()
+
+    assert has_element?(lv, "#condition-join-1 input[type=search]")
+    lv |> element("#condition-join-1-option-or") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
 
     lv |> element("#chat-tab-all") |> render_click()
     assert has_element?(lv, "#conv-#{ctx.resolved.id}")
     assert has_element?(lv, "#conv-#{ctx.open.id}")
     lv |> element("#toggleConversationFilterButton") |> render_click()
-    assert has_element?(lv, "#condition-join-1 option[value=or][selected]")
+    assert has_element?(lv, "input[name='filters[rows][0][query_operator]'][value=or]")
     lv |> element("#remove-condition-1") |> render_click()
     lv |> element("#remove-condition-0") |> render_click()
     assert has_element?(lv, "#filter-row-0_values[value='']")
@@ -171,16 +314,13 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
   test "additional attribute filters can be edited and saved from the screen", ctx do
     {:ok, lv, _} = live(ctx.conn, ~p"/app?folder_id=#{ctx.folder.id}")
     lv |> element("#toggleConversationFilterButton") |> render_click()
-    assert has_element?(lv, "#condition-attribute-0 option[value=referer]", "Referer link")
+    assert has_element?(lv, "#condition-attribute-0-option-referer", "Referer link")
 
-    lv
-    |> form("#conversation-filter-form", %{
-      "filters" => %{"rows" => %{"0" => %{"attribute_key" => "referer"}}}
-    })
-    |> render_change()
+    lv |> element("#condition-attribute-0-option-referer") |> render_click()
 
-    assert has_element?(lv, "#condition-operator-0 option[value=contains]")
-    refute has_element?(lv, "#condition-operator-0 option[value=is_present]")
+    assert has_element?(lv, "#condition-operator-0-option-contains")
+    refute has_element?(lv, "#condition-operator-0-option-is_present")
+    lv |> element("#condition-operator-0-option-contains") |> render_click()
 
     lv
     |> form("#conversation-filter-form", %{
@@ -200,6 +340,31 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
                  }
                ]
              }
+  end
+
+  test "referer text keeps a literal comma as one filter value", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-referer") |> render_click()
+    lv |> element("#condition-operator-0-option-contains") |> render_click()
+
+    lv
+    |> form("#conversation-filter-form", %{
+      "filters" => %{"rows" => %{"0" => %{"values" => "https://example.com/a,b"}}}
+    })
+    |> render_submit()
+
+    path = assert_patch(lv)
+
+    query =
+      path
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+      |> Map.fetch!("filters")
+      |> Jason.decode!()
+
+    assert query["payload"] |> hd() |> Map.fetch!("values") == ["https://example.com/a,b"]
   end
 
   test "date editor preserves a saved timezone through rename and reload", ctx do
@@ -223,7 +388,7 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     lv |> element("#toggleConversationFilterButton") |> render_click()
     assert has_element?(lv, "#filter-row-0_values[type=date][value='2030-01-01']")
     assert has_element?(lv, "input[name='filters[rows][0][timezone]'][value='Europe/Berlin']")
-    refute has_element?(lv, "#condition-operator-0 option[value=equal_to]")
+    refute has_element?(lv, "#condition-operator-0-option-equal_to")
 
     lv
     |> form("#conversation-filter-form", %{"filters" => %{"name" => "Before 2030"}})
@@ -231,6 +396,166 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
 
     assert Accounts.get_custom_filter(Scope.for_user(ctx.user), ctx.account, folder.id).query ==
              query
+  end
+
+  test "custom definitions cannot override a standard conversation attribute", ctx do
+    alias Chatwooter.Repo
+
+    Repo.insert!(%Contacts.CustomAttributeDefinition{
+      account_id: ctx.account.id,
+      attribute_key: "status",
+      attribute_display_name: "Custom status",
+      attribute_model: :conversation_attribute,
+      attribute_display_type: :date
+    })
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    assert has_element?(lv, "#condition-attribute-0-option-status", "Status")
+    refute has_element?(lv, "#condition-attribute-0 [role=option]", "Custom status")
+    assert has_element?(lv, "#condition-values-0-option-open")
+    refute has_element?(lv, "#condition-operator-0-option-is_less_than")
+
+    lv |> element("#condition-values-0-option-open") |> render_click()
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.open.id}")
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+  end
+
+  test "custom date, number, list and checkbox inputs use their declared types", ctx do
+    alias Chatwooter.Repo
+
+    for {key, type} <- [{"amount", :number}, {"paid", :checkbox}, {"due", :date}, {"tier", :list}] do
+      Repo.insert!(%Contacts.CustomAttributeDefinition{
+        account_id: ctx.account.id,
+        attribute_key: key,
+        attribute_display_name: key,
+        attribute_model: :conversation_attribute,
+        attribute_display_type: type,
+        attribute_values: ["Gold", "Silver"]
+      })
+    end
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+
+    for key <- ["amount", "due", "paid", "tier"] do
+      lv |> element("#condition-attribute-0-option-#{key}") |> render_click()
+
+      case key do
+        "amount" ->
+          assert has_element?(lv, "#filter-row-0_values[type=number][step=any]")
+
+        "due" ->
+          assert has_element?(lv, "#filter-row-0_values[type=date]")
+          assert has_element?(lv, "#condition-operator-0-option-is_greater_than")
+
+        "paid" ->
+          assert has_element?(lv, "#condition-values-0-option-false", "False")
+
+        "tier" ->
+          assert has_element?(lv, "#condition-values-0-option-Gold", "Gold")
+      end
+    end
+  end
+
+  test "custom list and checkbox values use pickers and filter results", ctx do
+    alias Chatwooter.Repo
+
+    for {key, type, values} <- [{"tier", :list, ["Gold", "Silver"]}, {"paid", :checkbox, []}] do
+      Repo.insert!(%Contacts.CustomAttributeDefinition{
+        account_id: ctx.account.id,
+        attribute_key: key,
+        attribute_display_name: key,
+        attribute_model: :conversation_attribute,
+        attribute_display_type: type,
+        attribute_values: values
+      })
+    end
+
+    Repo.update!(
+      Ecto.Changeset.change(ctx.resolved, custom_attributes: %{"tier" => "Gold", "paid" => true})
+    )
+
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-tier") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-Gold")
+    lv |> element("#condition-values-0-option-Gold") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    refute has_element?(lv, "#conv-#{ctx.open.id}")
+
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-attribute-0-option-paid") |> render_click()
+    assert has_element?(lv, "#condition-values-0-option-true")
+    lv |> element("#condition-values-0-option-true") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    refute has_element?(lv, "#conv-#{ctx.open.id}")
+  end
+
+  test "custom conversation attributes appear in the editor and survive saved-folder reload",
+       ctx do
+    alias Chatwooter.Repo
+
+    Repo.insert!(%Contacts.CustomAttributeDefinition{
+      account_id: ctx.account.id,
+      attribute_key: "plan",
+      attribute_display_name: "Support plan",
+      attribute_model: :conversation_attribute
+    })
+
+    Repo.insert!(%Contacts.CustomAttributeDefinition{
+      account_id: ctx.account.id,
+      attribute_key: "internal_contact",
+      attribute_display_name: "Contact only",
+      attribute_model: :contact_attribute
+    })
+
+    Repo.update!(Ecto.Changeset.change(ctx.resolved, custom_attributes: %{"plan" => "GOLD"}))
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    assert has_element?(lv, "#condition-attribute-0-group-customAttributes", "Custom attributes")
+    assert has_element?(lv, "#condition-attribute-0-option-plan .ph-text-t")
+    assert has_element?(lv, "#condition-attribute-0-option-plan", "Support plan")
+    refute has_element?(lv, "#condition-attribute-0-option-internal_contact")
+
+    lv |> element("#condition-attribute-0-option-plan") |> render_click()
+
+    assert has_element?(lv, "#condition-operator-0-option-contains")
+
+    lv
+    |> form("#conversation-filter-form", %{
+      "filters" => %{"rows" => %{"0" => %{"values" => "gold"}}}
+    })
+    |> render_submit()
+
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.resolved.id}")
+    refute has_element?(lv, "#conv-#{ctx.open.id}")
+    lv |> element("#save-conversation-filter") |> render_click()
+
+    lv
+    |> form("#save-filter-form", %{"folder" => %{"name" => "Gold customers"}})
+    |> render_submit()
+
+    assert has_element?(lv, "#chat-list-header h1", "Gold customers")
+
+    folder =
+      Enum.find(
+        Accounts.list_custom_filters(Scope.for_user(ctx.user), ctx.account),
+        &(&1.name == "Gold customers")
+      )
+
+    {:ok, reloaded, _} = live(ctx.conn, ~p"/app?folder_id=#{folder.id}")
+    reloaded |> element("#chat-tab-all") |> render_click()
+    assert has_element?(reloaded, "#conv-#{ctx.resolved.id}")
   end
 
   test "cancel deletion preserves the folder and blank rename cannot change it", ctx do

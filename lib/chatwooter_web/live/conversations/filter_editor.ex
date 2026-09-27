@@ -3,11 +3,36 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
   use ChatwooterWeb, :verified_routes
   import Phoenix.Component
   import Phoenix.LiveView
-  alias Chatwooter.Accounts
+  alias Chatwooter.{Accounts, Automations, Contacts, Inboxes}
   alias Chatwooter.Conversations.FilterQuery
 
+  @languages_path Path.expand("../../../../priv/filter_languages.json", __DIR__)
+  @external_resource @languages_path
+  @languages @languages_path
+             |> File.read!()
+             |> Jason.decode!()
+             |> Enum.map(&{&1["id"], &1["name"]})
+
   def mount(socket) do
+    definitions =
+      if socket.assigns.account,
+        do:
+          Contacts.list_custom_attribute_definitions(socket.assigns.account)
+          |> Enum.filter(
+            &(&1.attribute_model == :conversation_attribute &&
+                &1.attribute_display_type in [:text, :number, :link, :date, :list, :checkbox])
+          )
+          |> Enum.reject(&FilterQuery.standard_attribute?(&1.attribute_key)),
+        else: []
+
     socket
+    |> assign(:custom_filter_definitions, definitions)
+    |> assign(
+      :filter_labels,
+      if(socket.assigns.account, do: Contacts.list_labels(socket.assigns.account), else: [])
+    )
+    |> assign(:filter_value_options, value_options(socket.assigns.account))
+    |> assign(:filter_contact_options, %{})
     |> assign(:advanced_query, nil)
     |> assign(:filter_editor, nil)
     |> assign(:filter_error, nil)
@@ -21,7 +46,7 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     query =
       with text when is_binary(text) <- params["filters"],
            {:ok, query} <- Jason.decode(text),
-           {:ok, _} <- FilterQuery.compile(query) do
+           {:ok, _} <- FilterQuery.compile(query, socket.assigns.account) do
         query
       else
         _ -> nil
@@ -44,10 +69,138 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     name = if socket.assigns.folder, do: socket.assigns.folder.name, else: ""
 
     {:halt,
-     socket |> assign(:filter_editor, :edit) |> assign(:filter_error, nil) |> set_form(rows, name)}
+     socket
+     |> assign(:filter_editor, :edit)
+     |> assign(:filter_error, nil)
+     |> assign(:filter_contact_options, selected_contacts(socket.assigns.account, rows))
+     |> set_form(rows, name)}
   end
 
   defp event("filter:close", _, socket), do: {:halt, assign(socket, :filter_editor, nil)}
+
+  defp event("filter:pick", %{"index" => index, "field" => field, "value" => value}, socket)
+       when is_integer(index) and field in ~w(attribute_key filter_operator) and is_binary(value) do
+    params = socket.assigns.filter_form.params
+    rows = rows(params)
+
+    updated =
+      if index >= 0 && index < length(rows) do
+        List.update_at(rows, index, fn row -> normalize_row(Map.put(row, field, value), row) end)
+      else
+        rows
+      end
+
+    socket =
+      if field == "attribute_key",
+        do: update(socket, :filter_contact_options, &Map.delete(&1, index)),
+        else: socket
+
+    {:halt, set_form(socket, updated, params["name"] || "")}
+  end
+
+  defp event("filter:pick", _, socket), do: {:halt, socket}
+
+  defp event("filter:pick_join", %{"index" => index, "value" => value}, socket)
+       when is_integer(index) and index >= 0 and value in ~w(and or) do
+    params = socket.assigns.filter_form.params
+    current = rows(params)
+
+    if index < length(current) - 1 do
+      next = List.update_at(current, index, &Map.put(&1, "query_operator", value))
+      {:halt, set_form(socket, next, params["name"] || "")}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp event("filter:pick_join", _, socket), do: {:halt, socket}
+
+  defp event("filter:toggle_value", %{"index" => index, "value" => value}, socket)
+       when is_integer(index) and index >= 0 and is_binary(value) do
+    params = socket.assigns.filter_form.params
+    current = rows(params)
+    row = Enum.at(current, index)
+
+    if row && value in allowed_values(row["attribute_key"], socket.assigns.filter_labels) do
+      selected = decode_multi(row["values"])
+      selected = if value in selected, do: List.delete(selected, value), else: selected ++ [value]
+      next = List.update_at(current, index, &Map.put(&1, "values", Jason.encode!(selected)))
+      {:halt, set_form(socket, next, params["name"] || "")}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp event("filter:toggle_value", _, socket), do: {:halt, socket}
+
+  defp event("filter:pick_value", %{"index" => index, "value" => value}, socket)
+       when is_integer(index) and index >= 0 and is_binary(value) do
+    params = socket.assigns.filter_form.params
+    current = rows(params)
+    row = Enum.at(current, index)
+
+    allowed =
+      if row, do: Map.get(socket.assigns.filter_value_options, row["attribute_key"], []), else: []
+
+    allowed =
+      if row && row["attribute_key"] == "contact_id",
+        do: Map.get(socket.assigns.filter_contact_options, index, []),
+        else: allowed
+
+    if Enum.any?(allowed, fn {id, _label} -> id == value end) do
+      next = List.update_at(current, index, &Map.put(&1, "values", value))
+      {:halt, set_form(socket, next, params["name"] || "")}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp event("filter:pick_value", _, socket), do: {:halt, socket}
+
+  defp event("filter:pick_custom_value", %{"index" => index, "value" => value}, socket)
+       when is_integer(index) and index >= 0 and is_binary(value) do
+    params = socket.assigns.filter_form.params
+    current = rows(params)
+    row = Enum.at(current, index)
+
+    definition =
+      row &&
+        Enum.find(
+          socket.assigns.custom_filter_definitions,
+          &(&1.attribute_key == row["attribute_key"])
+        )
+
+    if value in custom_value_options(definition) do
+      next = List.update_at(current, index, &Map.put(&1, "values", value))
+      {:halt, set_form(socket, next, params["name"] || "")}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp event("filter:pick_custom_value", _, socket), do: {:halt, socket}
+
+  defp event("filter:search_contact", %{"index" => index} = params, socket) do
+    query = params["query"] || params["value"]
+    index = if is_integer(index), do: index, else: parse_index(index)
+
+    row =
+      if is_integer(index) && index >= 0,
+        do: Enum.at(rows(socket.assigns.filter_form.params), index),
+        else: nil
+
+    if row && row["attribute_key"] == "contact_id" && is_binary(query) && socket.assigns.account do
+      options =
+        Contacts.search_filter_contacts(socket.assigns.account, query)
+        |> Enum.map(&contact_option/1)
+
+      {:halt, update(socket, :filter_contact_options, &Map.put(&1, index, options))}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp event("filter:search_contact", _, socket), do: {:halt, socket}
 
   defp event("filter:change", %{"filters" => params}, socket) do
     previous = rows(socket.assigns.filter_form.params)
@@ -92,7 +245,7 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     query = payload(rows(params))
     socket = set_form(socket, rows(params), params["name"] || "")
 
-    case FilterQuery.compile(query) do
+    case FilterQuery.compile(query, socket.assigns.account) do
       {:ok, _} ->
         {:halt, apply_query(socket, query, params["name"])}
 
@@ -110,7 +263,7 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     socket = assign(socket, :folder_form, to_form(params, as: "folder"))
 
     with account when not is_nil(account) <- socket.assigns.account,
-         {:ok, _} <- FilterQuery.compile(attrs.query),
+         {:ok, _} <- FilterQuery.compile(attrs.query, account),
          {:ok, folder} <-
            Accounts.create_custom_filter(socket.assigns.current_scope, account, attrs) do
       {:halt, saved(socket, folder, "Folder created successfully.")}
@@ -150,6 +303,11 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
   end
 
   defp event(_, _, socket), do: {:cont, socket}
+
+  defp allowed_values("status", _labels), do: ~w(open resolved pending snoozed)
+  defp allowed_values("priority", _labels), do: ~w(low medium high urgent)
+  defp allowed_values("labels", labels), do: Enum.map(labels, & &1.title)
+  defp allowed_values(_, _labels), do: []
 
   defp normalize_row(row, old) do
     if row["attribute_key"] != old["attribute_key"] do
@@ -233,17 +391,113 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     conditions =
       Enum.map(rows, fn row ->
         value = if is_binary(row["values"]), do: row["values"], else: ""
-        Map.put(row, "values", String.split(value, ",", trim: true) |> Enum.map(&String.trim/1))
+
+        values =
+          if row["attribute_key"] in ~w(status priority labels),
+            do: decode_multi(value),
+            else: payload_value(value)
+
+        Map.put(row, "values", values)
       end)
 
     %{"payload" => List.update_at(conditions, -1, &Map.delete(&1, "query_operator"))}
   end
 
+  defp payload_value(value), do: if(String.trim(value) == "", do: [], else: [value])
+
   defp editable_row(row) do
     values = if is_list(row["values"]), do: row["values"], else: []
-    value = values |> Enum.filter(&(is_binary(&1) || is_number(&1))) |> Enum.join(", ")
+
+    value =
+      values
+      |> Enum.filter(&(is_binary(&1) || is_number(&1) || is_boolean(&1)))
+      |> Enum.join(", ")
+
+    value =
+      if row["attribute_key"] in ~w(status priority labels),
+        do: Jason.encode!(values),
+        else: value
+
     row |> Map.put("values", value) |> Map.put("query_operator", row["query_operator"] || "and")
   end
+
+  defp custom_value_options(%{attribute_display_type: :checkbox}), do: ~w(true false)
+
+  defp custom_value_options(%{attribute_display_type: :list, attribute_values: values})
+       when is_list(values),
+       do: Enum.filter(values, &is_binary/1)
+
+  defp custom_value_options(_), do: []
+
+  defp parse_index(index) when is_binary(index) do
+    case Integer.parse(index) do
+      {number, ""} when number >= 0 -> number
+      _ -> nil
+    end
+  end
+
+  defp parse_index(_), do: nil
+
+  defp selected_contacts(nil, _rows), do: %{}
+
+  defp selected_contacts(account, rows) do
+    rows
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {row, index}, acc ->
+      with "contact_id" <- row["attribute_key"],
+           {id, ""} <- Integer.parse(row["values"] || ""),
+           contact when not is_nil(contact) <- Contacts.get_contact(account, id) do
+        Map.put(acc, index, [contact_option(contact)])
+      else
+        _ -> acc
+      end
+    end)
+  end
+
+  defp contact_option(contact) do
+    label =
+      Enum.find(
+        [
+          contact.name,
+          contact.email,
+          contact.phone_number,
+          contact.identifier,
+          to_string(contact.id)
+        ],
+        &(is_binary(&1) && &1 != "")
+      )
+
+    {to_string(contact.id), label}
+  end
+
+  defp value_options(nil), do: %{"browser_language" => @languages}
+
+  defp value_options(account) do
+    %{
+      "assignee_id" =>
+        Accounts.list_account_users(account)
+        |> Enum.map(fn membership ->
+          user = membership.user
+
+          {to_string(user.id),
+           Enum.find([user.name, user.email, to_string(user.id)], &(is_binary(&1) && &1 != ""))}
+        end),
+      "inbox_id" => Enum.map(Inboxes.list_inboxes(account), &{to_string(&1.id), &1.name}),
+      "team_id" => Enum.map(Accounts.list_teams(account), &{to_string(&1.id), &1.name}),
+      "campaign_id" =>
+        Enum.map(Automations.list_campaigns(account), &{to_string(&1.id), &1.title}),
+      "browser_language" => @languages
+    }
+  end
+
+  defp decode_multi(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, values} when is_list(values) -> Enum.filter(values, &is_binary/1)
+      _ -> String.split(value, ",", trim: true) |> Enum.map(&String.trim/1)
+    end
+  end
+
+  defp decode_multi(_), do: []
 
   defp default_row,
     do: %{

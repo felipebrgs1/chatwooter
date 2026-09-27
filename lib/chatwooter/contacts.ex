@@ -23,6 +23,26 @@ defmodule Chatwooter.Contacts do
     Repo.get_by!(Contact, id: id, account_id: account_id)
   end
 
+  @doc "Searches account contacts for the conversation filter, including name-only records."
+  def search_filter_contacts(%Account{id: account_id}, query) when is_binary(query) do
+    term = "%#{String.trim(query)}%"
+
+    Contact
+    |> where([c], c.account_id == ^account_id)
+    |> where(
+      [c],
+      ilike(c.name, ^term) or ilike(c.email, ^term) or ilike(c.phone_number, ^term) or
+        ilike(c.identifier, ^term)
+    )
+    |> order_by([c], asc: c.id)
+    |> limit(15)
+    |> Repo.all()
+  end
+
+  @doc "Gets a contact only when it belongs to the account."
+  def get_contact(%Account{id: account_id}, id),
+    do: Repo.get_by(Contact, id: id, account_id: account_id)
+
   @search_page_size 15
 
   @doc """

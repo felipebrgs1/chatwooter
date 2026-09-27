@@ -21,7 +21,7 @@ defmodule ChatwooterWeb.Components.Next.Input do
   attr :class, :any, default: nil
 
   attr :rest, :global,
-    include: ~w(autocomplete disabled form min max phx-debounce autofocus required)
+    include: ~w(autocomplete disabled form min max step phx-debounce autofocus required)
 
   def next_input(assigns) do
     assigns =

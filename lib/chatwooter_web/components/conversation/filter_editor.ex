@@ -24,21 +24,47 @@ defmodule ChatwooterWeb.Components.Conversation.FilterEditor do
   attr :rows, :list, required: true
   attr :folder_form, Phoenix.HTML.Form, required: true
   attr :error, :string, default: nil
+  attr :custom_definitions, :list, default: []
+  attr :labels, :list, default: []
+  attr :value_options, :map, default: %{}
+  attr :contact_options, :map, default: %{}
 
   def conversation_filter_editor(assigns) do
-    assigns = assign(assigns, attributes: @attributes)
+    definitions =
+      assigns.custom_definitions
+      |> Enum.reject(&List.keymember?(@attributes, &1.attribute_key, 0))
+
+    standard = Enum.reject(@attributes, fn {key, _} -> key in ~w(browser_language referer) end)
+    additional = Enum.filter(@attributes, fn {key, _} -> key in ~w(browser_language referer) end)
+
+    custom =
+      Enum.map(
+        definitions,
+        &%{
+          value: &1.attribute_key,
+          label: &1.attribute_display_name,
+          icon: custom_icon(&1.attribute_display_type)
+        }
+      )
+
+    attributes =
+      group("standard", "Standard filters", Enum.map(standard, &attribute_option/1)) ++
+        group("additional", "Additional filters", Enum.map(additional, &attribute_option/1)) ++
+        group("customAttributes", "Custom attributes", custom)
+
+    assigns = assign(assigns, attributes: attributes, custom_definitions: definitions)
 
     ~H"""
     <div
       :if={@mode}
       id="conversation-filter-overlay"
-      class="fixed inset-0 z-50 bg-n-alpha-black1"
+      class="fixed inset-0 z-50 overflow-y-auto bg-n-alpha-black1"
       phx-click-away="filter:close"
     >
       <div
         id="conversation-filter-editor"
         phx-hook=".FilterTimezone"
-        class="absolute top-20 left-4 md:left-56 z-40 w-[min(34rem,calc(100vw-2rem))] lg:w-[750px] max-h-[calc(100vh-6rem)] overflow-y-auto border border-n-weak bg-n-alpha-3 backdrop-blur-[100px] shadow-lg rounded-xl p-6 grid gap-6 text-n-slate-12"
+        class="absolute top-20 left-4 md:left-56 z-40 w-[min(34rem,calc(100vw-2rem))] lg:w-[750px] overflow-visible border border-n-weak bg-n-alpha-3 backdrop-blur-[100px] shadow-lg rounded-xl p-6 grid gap-6 text-n-slate-12"
       >
         <.form
           :if={@mode == :edit}
@@ -57,7 +83,6 @@ defmodule ChatwooterWeb.Components.Conversation.FilterEditor do
             label="Folder Name"
             placeholder="Enter value"
           />
-          <%!-- Native selects and comma-separated values are temporary until the searchable multi-value ConditionRow picker is ported. --%>
           <ul class="grid gap-4 list-none min-w-0">
             <.conversation_filter_condition
               :for={{row, i} <- Enum.with_index(@rows)}
@@ -65,6 +90,12 @@ defmodule ChatwooterWeb.Components.Conversation.FilterEditor do
               previous={Enum.at(@rows, i - 1)}
               index={i}
               attributes={@attributes}
+              labels={@labels}
+              value_options={@value_options}
+              contact_options={@contact_options}
+              definition={
+                Enum.find(@custom_definitions, &(&1.attribute_key == row[:attribute_key].value))
+              }
             />
           </ul>
           <p :if={@error} id="conversation-filter-error" role="alert" class="text-sm text-n-ruby-9">
@@ -158,5 +189,44 @@ defmodule ChatwooterWeb.Components.Conversation.FilterEditor do
       </script>
     </div>
     """
+  end
+
+  defp group(_key, _label, []), do: []
+  defp group(key, label, options), do: [%{value: key, label: label, disabled: true} | options]
+
+  # The original uses Lucide; the project standard requires the corresponding Phosphor icons.
+  defp attribute_option({key, label}) do
+    icon = %{
+      "status" => "ph-record",
+      "priority" => "ph-cell-signal-high",
+      "assignee_id" => "ph-user",
+      "inbox_id" => "ph-tray",
+      "team_id" => "ph-users",
+      "contact_id" => "ph-address-book",
+      "display_id" => "ph-hash",
+      "campaign_id" => "ph-megaphone",
+      "browser_language" => "ph-globe",
+      "referer" => "ph-link",
+      "labels" => "ph-tag",
+      "created_at" => "ph-calendar",
+      "last_activity_at" => "ph-pulse"
+    }
+
+    %{value: key, label: label, icon: Map.fetch!(icon, key)}
+  end
+
+  defp custom_icon(type) do
+    Map.get(
+      %{
+        text: "ph-text-t",
+        number: "ph-hash",
+        link: "ph-link",
+        date: "ph-calendar",
+        list: "ph-list",
+        checkbox: "ph-check-square"
+      },
+      type,
+      "ph-tag"
+    )
   end
 end

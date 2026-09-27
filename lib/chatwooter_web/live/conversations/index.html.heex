@@ -58,6 +58,10 @@
       rows={@filter_rows}
       folder_form={@folder_form}
       error={@filter_error}
+      custom_definitions={@custom_filter_definitions}
+      labels={@filter_labels}
+      value_options={@filter_value_options}
+      contact_options={@filter_contact_options}
     />
 
     <main class={["min-w-0 flex-1 flex-col", @selected && "flex", !@selected && "hidden lg:flex"]}>

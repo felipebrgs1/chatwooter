@@ -51,29 +51,120 @@ defmodule Chatwooter.ConversationFiltersTest do
 
   test "custom attributes are validated against this account's conversation definitions", ctx do
     [a, b, c] = ctx.conversations
-    for {key, type} <- [{"plan", :text}, {"amount", :number}, {"paid", :checkbox}, {"due", :date}, {"tier", :list}, {"url", :link}] do
-      Repo.insert!(%Contacts.CustomAttributeDefinition{account_id: ctx.account.id, attribute_key: key, attribute_display_name: key, attribute_display_type: type, attribute_model: :conversation_attribute})
+
+    for {key, type} <- [
+          {"plan", :text},
+          {"amount", :number},
+          {"paid", :checkbox},
+          {"due", :date},
+          {"tier", :list},
+          {"url", :link}
+        ] do
+      Repo.insert!(%Contacts.CustomAttributeDefinition{
+        account_id: ctx.account.id,
+        attribute_key: key,
+        attribute_display_name: key,
+        attribute_display_type: type,
+        attribute_model: :conversation_attribute
+      })
     end
-    Repo.update!(Ecto.Changeset.change(a, custom_attributes: %{"plan" => "GOLD", "amount" => 12.5, "paid" => true, "due" => "2030-01-01", "tier" => "Premium", "url" => "https://EXAMPLE.test"}))
-    Repo.update!(Ecto.Changeset.change(b, custom_attributes: %{"plan" => "Silver", "amount" => "4.25", "paid" => false, "due" => "2020-01-01"}))
-    for row <- [condition("plan", ["gold"]), condition("plan", ["ol"], "contains"), condition("amount", ["10.5"], "is_greater_than"), condition("paid", ["true"]), condition("due", ["2029-01-01"], "is_greater_than"), condition("tier", ["premium"]), condition("url", ["https://example.test"])] do
+
+    Repo.update!(
+      Ecto.Changeset.change(a,
+        custom_attributes: %{
+          "plan" => "GOLD",
+          "amount" => 12.5,
+          "paid" => true,
+          "due" => "2030-01-01",
+          "tier" => "Premium",
+          "url" => "https://EXAMPLE.test"
+        }
+      )
+    )
+
+    Repo.update!(
+      Ecto.Changeset.change(b,
+        custom_attributes: %{
+          "plan" => "Silver",
+          "amount" => "4.25",
+          "paid" => false,
+          "due" => "2020-01-01"
+        }
+      )
+    )
+
+    for row <- [
+          condition("plan", ["gold"]),
+          condition("plan", ["ol"], "contains"),
+          condition("amount", ["10.5"], "is_greater_than"),
+          condition("paid", ["true"]),
+          condition("due", ["2029-01-01"], "is_greater_than"),
+          condition("tier", ["premium"]),
+          condition("url", ["https://example.test"])
+        ] do
       assert {:ok, %{conversations: [match]}} = filter(ctx, [row])
       assert match.id == a.id
     end
-    assert {:ok, %{conversations: matches}} = filter(ctx, [condition("plan", ["gold"], "not_equal_to")])
+
+    assert {:ok, %{conversations: matches}} =
+             filter(ctx, [condition("plan", ["gold"], "not_equal_to")])
+
     assert Enum.sort(Enum.map(matches, & &1.id)) == Enum.sort([b.id, c.id])
     assert {:ok, %{counts: %{all: 1}}} = filter(ctx, [condition("amount", ["4.25"])])
     assert {:ok, %{counts: %{all: 2}}} = filter(ctx, [condition("paid", [], "is_present")])
     assert {:ok, %{counts: %{all: 1}}} = filter(ctx, [condition("due", ["1"], "days_before")])
-    for row <- [condition("missing", ["gold"]), condition("amount", ["NaN"]), condition("amount", ["invalid"]), condition("due", ["2030-02-30"]), condition("paid", ["maybe"])] do
+
+    for row <- [
+          condition("missing", ["gold"]),
+          condition("amount", ["NaN"]),
+          condition("amount", ["invalid"]),
+          condition("due", ["2030-02-30"]),
+          condition("paid", ["maybe"])
+        ] do
       assert {:error, _} = filter(ctx, [row])
     end
   end
 
-  test "custom definitions cannot leak between accounts or contact and conversation models", ctx do
+  test "invalid restored custom scalar values do not crash the filtered list", ctx do
+    [a | _] = ctx.conversations
+
+    for {key, type} <- [{"amount", :number}, {"paid", :checkbox}, {"due", :date}] do
+      Repo.insert!(%Contacts.CustomAttributeDefinition{
+        account_id: ctx.account.id,
+        attribute_key: key,
+        attribute_display_name: key,
+        attribute_display_type: type,
+        attribute_model: :conversation_attribute
+      })
+    end
+
+    Repo.update!(
+      Ecto.Changeset.change(a,
+        custom_attributes: %{"amount" => "bad-number", "paid" => "maybe", "due" => "2030-02-30"}
+      )
+    )
+
+    for {key, value} <- [{"amount", "10"}, {"paid", "true"}, {"due", "2030-01-01"}] do
+      assert {:ok, %{counts: %{all: 0}}} = filter(ctx, [condition(key, [value])])
+      assert {:ok, %{counts: %{all: 3}}} = filter(ctx, [condition(key, [], "is_not_present")])
+    end
+  end
+
+  test "custom definitions cannot leak between accounts or contact and conversation models",
+       ctx do
     foreign = Repo.insert!(%Accounts.Account{name: "Foreign custom attributes"})
-    for {account_id, model, key} <- [{foreign.id, :conversation_attribute, "foreign_key"}, {ctx.account.id, :contact_attribute, "contact_key"}] do
-      Repo.insert!(%Contacts.CustomAttributeDefinition{account_id: account_id, attribute_model: model, attribute_key: key, attribute_display_name: key})
+
+    for {account_id, model, key} <- [
+          {foreign.id, :conversation_attribute, "foreign_key"},
+          {ctx.account.id, :contact_attribute, "contact_key"}
+        ] do
+      Repo.insert!(%Contacts.CustomAttributeDefinition{
+        account_id: account_id,
+        attribute_model: model,
+        attribute_key: key,
+        attribute_display_name: key
+      })
+
       assert {:error, _} = filter(ctx, [condition(key, ["value"])])
     end
   end

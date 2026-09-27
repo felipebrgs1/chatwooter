@@ -242,7 +242,7 @@ defmodule Chatwooter.Conversations do
 
   @doc "Executes the upstream saved-view payload and counts the same filtered relation."
   def filter_conversations(%Account{} = account, query, opts \\ []) do
-    with {:ok, predicate} <- FilterQuery.compile(query) do
+    with {:ok, predicate} <- FilterQuery.compile(query, account) do
       opts = Keyword.put(opts, :advanced_predicate, predicate)
 
       {:ok,
