@@ -20,6 +20,7 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
   attr :conversation, :map, required: true
   attr :path, :string, required: true
   attr :active, :boolean, default: false
+  attr :selected, :boolean, default: false
   attr :show_inbox_name, :boolean, default: false
   attr :show_assignee, :boolean, default: false
 
@@ -57,15 +58,29 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
       data-conversation-id={@conversation.id}
       class={[
         "relative flex items-start flex-grow-0 flex-shrink-0 w-auto max-w-full py-0 cursor-pointer conversation border-b border-n-slate-3 hover:border-n-surface-1 hover:bg-n-alpha-1 dark:hover:bg-n-alpha-3 group hover:z-[1] before:content-[none] before:absolute before:-top-px before:inset-x-0 before:h-px before:bg-n-surface-1 before:pointer-events-none hover:before:content-[''] px-3",
-        @active && "active animate-card-select bg-n-background border-n-surface-1!"
+        @active && "active animate-card-select bg-n-background border-n-surface-1!",
+        @selected && "selected bg-n-slate-2 border-n-surface-1!"
       ]}
     >
-      <div class="relative">
+      <div class="relative group/avatar">
         <.avatar
           name={@contact.name}
           size={32}
           class={if(@show_inbox_name, do: "mt-8", else: "mt-4")}
         />
+        <%!-- Avatar #overlay of ConversationCard.vue: the checkbox shows on hover or when selected. --%>
+        <span
+          id={"#{@id}-select"}
+          phx-hook=".CardSelect"
+          data-conversation-id={@conversation.id}
+          class={[
+            "items-center justify-center rounded-full cursor-pointer absolute left-0 z-10 size-8 backdrop-blur-[2px]",
+            if(@show_inbox_name, do: "top-8", else: "top-4"),
+            if(@selected, do: "flex", else: "hidden group-hover/avatar:flex")
+          ]}
+        >
+          <.next_checkbox checked={@selected} />
+        </span>
       </div>
       <div class="px-0 py-3 flex-1 min-w-0">
         <div :if={@show_meta} class="flex items-center min-w-0 gap-1 ml-2">
@@ -126,6 +141,18 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
           </span>
         </div>
       </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CardSelect">
+        // The checkbox sits inside the card link: keep the click from opening the conversation.
+        export default {
+          mounted() {
+            this.el.addEventListener("click", e => {
+              e.preventDefault()
+              e.stopPropagation()
+              this.pushEvent("bulk:toggle", {id: this.el.dataset.conversationId})
+            })
+          }
+        }
+      </script>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CardContextMenu">
         // ConversationItem.vue → openContextMenu: the menu opens at the cursor.
         export default {

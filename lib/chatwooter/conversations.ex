@@ -319,8 +319,21 @@ defmodule Chatwooter.Conversations do
   end
 
   @doc "Agentes que podem receber a conversa: membros da inbox e administradores da conta."
-  def assignable_agents(%Account{} = account, %Conversation{inbox_id: inbox_id}) do
-    members = account |> Inboxes.list_members(inbox_id) |> Enum.map(& &1.user)
+  def assignable_agents(%Account{} = account, %Conversation{inbox_id: inbox_id}),
+    do: assignable_agents_for_inboxes(account, [inbox_id])
+
+  @doc """
+  Agentes atribuíveis em todas as inboxes dadas (`AssignableAgentsController`: interseção
+  dos membros de cada inbox, mais os administradores).
+  """
+  def assignable_agents_for_inboxes(%Account{} = account, inbox_ids) do
+    common =
+      inbox_ids
+      |> Enum.uniq()
+      |> Enum.map(fn id -> account |> Inboxes.list_members(id) |> Enum.map(& &1.user) end)
+      |> Enum.reduce(fn users, acc ->
+        Enum.filter(acc, &Enum.any?(users, fn u -> u.id == &1.id end))
+      end)
 
     admins =
       account
@@ -328,7 +341,7 @@ defmodule Chatwooter.Conversations do
       |> Enum.filter(&(&1.role == :administrator))
       |> Enum.map(& &1.user)
 
-    (members ++ admins)
+    (common ++ admins)
     |> Enum.uniq_by(& &1.id)
     |> Enum.sort_by(&String.downcase(if &1.name in [nil, ""], do: &1.email, else: &1.name))
   end
@@ -356,6 +369,66 @@ defmodule Chatwooter.Conversations do
       broadcast(conversation, {:conversation_updated, id})
       {:ok, conversation}
     end
+  end
+
+  # Ações em massa (`BulkActionsJob`): só conversas da conta; devolvem quantas mudaram.
+  def bulk_set_status(%Account{} = account, ids, status)
+      when status in ~w(open pending resolved) do
+    account |> account_conversations(ids) |> each_ok(&set_status(&1, status))
+  end
+
+  def bulk_add_labels(%Account{} = account, ids, titles) do
+    existing = account |> Contacts.list_labels() |> Enum.map(& &1.title)
+
+    if titles != [] and Enum.all?(titles, &(&1 in existing)) do
+      account
+      |> account_conversations(ids)
+      |> each_ok(&tag_labels(&1, titles))
+    else
+      {:error, :not_found}
+    end
+  end
+
+  def bulk_remove_labels(%Account{} = account, ids, titles) do
+    account
+    |> account_conversations(ids)
+    |> each_ok(fn conv ->
+      Enum.reduce(titles, {:ok, []}, fn t, _ -> remove_label(conv, t) end)
+    end)
+  end
+
+  def bulk_assign_agent(%Account{} = account, ids, nil) do
+    account |> account_conversations(ids) |> each_ok(&update_system(&1, assignee_id: nil))
+  end
+
+  def bulk_assign_agent(%Account{} = account, ids, user_id) do
+    convs = account_conversations(account, ids)
+    agents = assignable_agents_for_inboxes(account, Enum.map(convs, & &1.inbox_id))
+
+    if Enum.any?(agents, &(&1.id == user_id)),
+      do: each_ok(convs, &update_system(&1, assignee_id: user_id)),
+      else: {:error, :not_assignable}
+  end
+
+  def bulk_assign_team(%Account{} = account, ids, nil) do
+    account |> account_conversations(ids) |> each_ok(&update_system(&1, team_id: nil))
+  end
+
+  def bulk_assign_team(%Account{} = account, ids, team_id) do
+    if Enum.any?(Accounts.list_teams(account), &(&1.id == team_id)),
+      do: account |> account_conversations(ids) |> each_ok(&update_system(&1, team_id: team_id)),
+      else: {:error, :not_found}
+  end
+
+  defp tag_labels(conversation, titles),
+    do: Repo.transaction(fn -> Enum.each(titles, &tag_label(conversation, &1)) end)
+
+  defp account_conversations(%Account{id: account_id}, ids) do
+    Repo.all(from c in Conversation, where: c.account_id == ^account_id and c.id in ^ids)
+  end
+
+  defp each_ok(conversations, fun) do
+    {:ok, Enum.count(conversations, &match?({:ok, _}, fun.(&1)))}
   end
 
   # Campos definidos pelo sistema (validados acima), fora do cast do changeset.

@@ -40,7 +40,8 @@ Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Filtros avançados + salvar/editar/excluir pasta + visão Folder e seção "Folders" na sidebar (`components-next/filter/ConversationFilter.vue`, `SaveCustomView.vue`, `customviews/DeleteCustomViews.vue`) — backend: `custom_filters`
 - [x] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
   - Snooze só visual (depende do backend do item "Snooze" em 1.2); atributos obrigatórios ao resolver ficam para o 1.2.
-- [ ] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
+- [x] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
+  - Snooze em massa só visual (depende do item "Snooze" em 1.2).
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)
 - [ ] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`
 - [ ] Paginação por scroll (25 por página) + "All conversations loaded"

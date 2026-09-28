@@ -5,7 +5,7 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
   alias Chatwooter.{Accounts, Conversations, Inboxes}
   alias Chatwooter.Workers.TelegramSender
   alias ChatwooterWeb.Components.Conversation.{ChatListHeader, ChatTypeTabs}
-  alias ChatwooterWeb.ConversationsLive.{CardActions, FilterEditor}
+  alias ChatwooterWeb.ConversationsLive.{BulkActions, CardActions, FilterEditor}
 
   import CardActions, only: [conversation_path: 1, conversation_path: 2]
 
@@ -25,6 +25,7 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       |> assign(:folder, nil)
       |> FilterEditor.mount()
       |> CardActions.mount()
+      |> BulkActions.mount()
       |> assign(:view_title, "Conversations")
       |> assign_chat_filters(user)
       |> assign(:composer_mode, :reply)
@@ -318,12 +319,14 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
         socket
         |> assign(:conversation_count, length(conversations))
         |> assign(:tab_counts, counts)
+        |> BulkActions.listed(conversations)
         |> stream(:conversations, conversations, reset: true)
 
       {:error, _} ->
         socket
         |> assign(:conversation_count, 0)
         |> assign(:tab_counts, %{mine: 0, unassigned: 0, all: 0})
+        |> BulkActions.listed([])
         |> stream(:conversations, [], reset: true)
         |> put_flash(:error, "This folder contains unsupported or invalid filters")
     end
@@ -358,6 +361,7 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       :tab_counts,
       Conversations.conversation_counts(account, [user_id: user.id] ++ filters)
     )
+    |> BulkActions.listed(conversations)
     |> stream(:conversations, conversations, reset: true)
   end
 

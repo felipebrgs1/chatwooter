@@ -49,6 +49,18 @@
       >
         There are no active conversations in this group.
       </p>
+      <.conversation_bulk_actions
+        :if={MapSet.size(@bulk_selected) > 0}
+        count={MapSet.size(@bulk_selected)}
+        all_selected={BulkActions.all_selected?(@listed, @bulk_selected)}
+        menu={@bulk_menu}
+        statuses={BulkActions.statuses(@listed, @bulk_selected)}
+        labels={@bulk_labels}
+        picked={@bulk_picked}
+        agents={@bulk_agents}
+        teams={@bulk_teams}
+        pending={@bulk_pending}
+      />
       <div class="flex-1 min-h-0 overflow-y-auto conversations-list">
         <div
           id="conversation-items"
@@ -61,6 +73,7 @@
             conversation={conv}
             path={conversation_path(@view, conv.id)}
             active={@selected != nil and @selected.id == conv.id}
+            selected={conv.id in @bulk_selected}
             show_inbox_name={is_nil(@view["inbox_id"]) and length(@inboxes) > 1}
             show_assignee={@assignee_tab == "all"}
           />
