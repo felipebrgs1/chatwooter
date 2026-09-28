@@ -16,7 +16,30 @@
         sort={@chat_sort}
         filtered={@folder != nil || @advanced_query != nil}
         folder={@folder != nil}
-      />
+        filter_open={@filter_editor == :edit}
+        save_open={@filter_editor == :save}
+      >
+        <:filter_popover>
+          <.conversation_filter_editor
+            :if={@filter_editor == :edit}
+            folder={@folder}
+            form={@filter_form}
+            rows={@filter_rows}
+            error={@filter_error}
+            custom_definitions={@custom_filter_definitions}
+            labels={@filter_labels}
+            value_options={@filter_value_options}
+            contact_options={@filter_contact_options}
+          />
+        </:filter_popover>
+        <:save_popover>
+          <.conversation_save_custom_view
+            :if={@filter_editor == :save}
+            form={@folder_form}
+            error={@filter_error}
+          />
+        </:save_popover>
+      </.chat_list_header>
       <.chat_type_tabs active={@assignee_tab} counts={@tab_counts} />
 
       <p
@@ -51,17 +74,22 @@
         </p>
       </div>
     </section>
-    <.conversation_filter_editor
-      mode={@filter_editor}
-      folder={@folder}
-      form={@filter_form}
-      rows={@filter_rows}
-      folder_form={@folder_form}
-      error={@filter_error}
-      custom_definitions={@custom_filter_definitions}
-      labels={@filter_labels}
-      value_options={@filter_value_options}
-      contact_options={@filter_contact_options}
+    <.conversation_delete_custom_view :if={@filter_editor == :delete && @folder} folder={@folder} />
+    <.conversation_context_menu
+      :if={@context_menu}
+      conversation={@context_menu.conversation}
+      x={@context_menu.x}
+      y={@context_menu.y}
+      path={@context_menu.path}
+      labels={@context_menu.labels}
+      conversation_labels={@context_menu.conversation_labels}
+      agents={@context_menu.agents}
+      teams={@context_menu.teams}
+      admin={@admin?}
+    />
+    <.conversation_delete_dialog
+      :if={@deleting_conversation}
+      conversation={@deleting_conversation}
     />
 
     <main class={["min-w-0 flex-1 flex-col", @selected && "flex", !@selected && "hidden lg:flex"]}>

@@ -241,18 +241,24 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     {:halt, socket |> assign(:filter_error, nil) |> set_form([default_row()], name)}
   end
 
-  defp event("filter:apply", %{"filters" => params}, socket) do
-    query = payload(rows(params))
-    socket = set_form(socket, rows(params), params["name"] || "")
+  # ChatList.vue → resetFilters: leaves the filtered list for the unfiltered one.
+  defp event("filter:reset", _, socket) do
+    {:halt, socket |> assign(:filter_editor, nil) |> push_patch(to: ~p"/app")}
+  end
 
-    case FilterQuery.compile(query, socket.assigns.account) do
-      {:ok, _} ->
-        {:halt, apply_query(socket, query, params["name"])}
-
-      {:error, _} ->
-        {:halt, assign(socket, :filter_error, "Value is required or the filter is invalid.")}
+  # Deviation from ConversationFilter.vue, which rejects an empty draft: removing the only
+  # condition of an applied filter and applying is how people expect to drop it.
+  # Folders still need a condition, and with nothing applied the draft is still validated.
+  defp event("filter:apply", %{"filters" => params}, %{assigns: %{folder: nil}} = socket)
+       when is_map(params) and socket.assigns.advanced_query != nil do
+    if Enum.all?(rows(params), &blank_row?/1) do
+      event("filter:reset", %{}, socket)
+    else
+      apply_filters(params, socket)
     end
   end
+
+  defp event("filter:apply", %{"filters" => params}, socket), do: apply_filters(params, socket)
 
   defp event("filter:save_open", _, socket) do
     {:halt, socket |> assign(:filter_editor, :save) |> assign(:filter_error, nil)}
@@ -320,6 +326,24 @@ defmodule ChatwooterWeb.ConversationsLive.FilterEditor do
     else
       row
     end
+  end
+
+  defp apply_filters(params, socket) do
+    query = payload(rows(params))
+    socket = set_form(socket, rows(params), params["name"] || "")
+
+    case FilterQuery.compile(query, socket.assigns.account) do
+      {:ok, _} ->
+        {:halt, apply_query(socket, query, params["name"])}
+
+      {:error, _} ->
+        {:halt, assign(socket, :filter_error, "Value is required or the filter is invalid.")}
+    end
+  end
+
+  defp blank_row?(row) do
+    row["filter_operator"] not in ~w(is_present is_not_present) &&
+      String.trim(to_string(row["values"])) in ["", "[]"]
   end
 
   defp apply_query(%{assigns: %{folder: nil}} = socket, query, _name) do

@@ -4,8 +4,8 @@ defmodule Chatwooter.Conversations do
   import Ecto.Query, warn: false
   alias Chatwooter.Repo
 
+  alias Chatwooter.{Accounts, Contacts, Inboxes}
   alias Chatwooter.Accounts.Account
-  alias Chatwooter.Contacts
   alias Chatwooter.Contacts.{Contact, Tag, Tagging}
 
   alias Chatwooter.Conversations.{
@@ -267,6 +267,11 @@ defmodule Chatwooter.Conversations do
     |> Repo.one()
   end
 
+  @doc "O `unread_count` da listagem para uma conversa só (menu do card)."
+  def count_unread(%Conversation{id: id}) do
+    Repo.one(from c in Conversation, where: c.id == ^id, select: unread_count(c))
+  end
+
   @doc "Marca a conversa como vista pelo agente (zera o unread_count)."
   def mark_seen(%Conversation{id: id}) do
     now = DateTime.utc_now()
@@ -275,6 +280,183 @@ defmodule Chatwooter.Conversations do
       Repo.update_all(from(c in Conversation, where: c.id == ^id), set: [agent_last_seen_at: now])
 
     {:ok, now}
+  end
+
+  @doc """
+  "Mark as unread" do menu do card (`ConversationsController#unread`): o agente
+  volta a ter visto só até um segundo antes da última mensagem recebida.
+  """
+  def mark_unread(%Conversation{id: id} = conversation) do
+    last_incoming =
+      Repo.one(
+        from m in Message,
+          where: m.conversation_id == ^id and m.message_type == :incoming,
+          select: max(m.inserted_at)
+      )
+
+    seen_at = last_incoming && DateTime.add(last_incoming, -1, :second)
+
+    {1, _} =
+      Repo.update_all(from(c in Conversation, where: c.id == ^id),
+        set: [agent_last_seen_at: seen_at, assignee_last_seen_at: seen_at]
+      )
+
+    broadcast(conversation, {:conversation_updated, id})
+    {:ok, %{conversation | agent_last_seen_at: seen_at, assignee_last_seen_at: seen_at}}
+  end
+
+  # enum do Rails: low 0, medium 1, high 2, urgent 3
+  @priorities %{"low" => 0, "medium" => 1, "high" => 2, "urgent" => 3}
+
+  def set_priority(%Conversation{} = conversation, nil),
+    do: update_system(conversation, priority: nil)
+
+  def set_priority(%Conversation{} = conversation, priority) do
+    case Map.fetch(@priorities, priority) do
+      {:ok, value} -> update_system(conversation, priority: value)
+      :error -> {:error, :invalid_priority}
+    end
+  end
+
+  @doc "Agentes que podem receber a conversa: membros da inbox e administradores da conta."
+  def assignable_agents(%Account{} = account, %Conversation{inbox_id: inbox_id}) do
+    members = account |> Inboxes.list_members(inbox_id) |> Enum.map(& &1.user)
+
+    admins =
+      account
+      |> Accounts.list_account_users()
+      |> Enum.filter(&(&1.role == :administrator))
+      |> Enum.map(& &1.user)
+
+    (members ++ admins)
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.sort_by(&String.downcase(if &1.name in [nil, ""], do: &1.email, else: &1.name))
+  end
+
+  def assign_agent(%Account{}, %Conversation{} = conversation, nil),
+    do: update_system(conversation, assignee_id: nil)
+
+  def assign_agent(%Account{} = account, %Conversation{} = conversation, user_id) do
+    if Enum.any?(assignable_agents(account, conversation), &(&1.id == user_id)),
+      do: update_system(conversation, assignee_id: user_id),
+      else: {:error, :not_assignable}
+  end
+
+  def assign_team(%Account{}, %Conversation{} = conversation, nil),
+    do: update_system(conversation, team_id: nil)
+
+  def assign_team(%Account{} = account, %Conversation{} = conversation, team_id) do
+    if Enum.any?(Accounts.list_teams(account), &(&1.id == team_id)),
+      do: update_system(conversation, team_id: team_id),
+      else: {:error, :not_found}
+  end
+
+  def delete_conversation(%Conversation{id: id} = conversation) do
+    with {:ok, _} <- delete_conversation_data([id]) do
+      broadcast(conversation, {:conversation_updated, id})
+      {:ok, conversation}
+    end
+  end
+
+  # Campos definidos pelo sistema (validados acima), fora do cast do changeset.
+  defp update_system(conversation, changes) do
+    conversation
+    |> Ecto.Changeset.change(changes)
+    |> Repo.update()
+    |> case do
+      {:ok, conv} ->
+        broadcast(conv, {:conversation_updated, conv.id})
+        {:ok, conv}
+
+      error ->
+        error
+    end
+  end
+
+  # Etiquetas da conversa = acts_as_taggable_on :labels, com o cached_label_list do Rails.
+  @label_context "labels"
+
+  def list_labels(%Conversation{id: id}) do
+    Repo.all(
+      from t in Tag,
+        join: tg in Tagging,
+        on: tg.tag_id == t.id,
+        where:
+          tg.taggable_type == "Conversation" and tg.taggable_id == ^id and
+            tg.context == @label_context,
+        order_by: t.name,
+        select: t.name
+    )
+  end
+
+  def add_label(%Account{} = account, %Conversation{} = conversation, title) do
+    if Enum.any?(Contacts.list_labels(account), &(&1.title == title)),
+      do: Repo.transaction(fn -> tag_label(conversation, title) end),
+      else: {:error, :not_found}
+  end
+
+  defp tag_label(conversation, title) do
+    tag = Repo.get_by(Tag, name: title) || Repo.insert!(%Tag{name: title, taggings_count: 0})
+
+    unless Repo.exists?(label_tagging(conversation, tag.id)) do
+      Repo.insert_all(Tagging, [
+        %{
+          tag_id: tag.id,
+          taggable_type: "Conversation",
+          taggable_id: conversation.id,
+          context: @label_context,
+          created_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      Repo.update_all(from(t in Tag, where: t.id == ^tag.id), inc: [taggings_count: 1])
+    end
+
+    cache_labels(conversation)
+  end
+
+  def remove_label(%Conversation{} = conversation, title) do
+    Repo.transaction(fn ->
+      with %Tag{id: tag_id} <- Repo.get_by(Tag, name: title),
+           {n, _} when n > 0 <- Repo.delete_all(label_tagging(conversation, tag_id)) do
+        Repo.update_all(from(t in Tag, where: t.id == ^tag_id), inc: [taggings_count: -n])
+      end
+
+      cache_labels(conversation)
+    end)
+  end
+
+  defp cache_labels(%Conversation{id: id} = conversation) do
+    labels = list_labels(conversation)
+
+    Repo.update_all(from(c in Conversation, where: c.id == ^id),
+      set: [cached_label_list: Enum.join(labels, ", ")]
+    )
+
+    broadcast(conversation, {:conversation_updated, id})
+    labels
+  end
+
+  defp label_tagging(%Conversation{id: id}, tag_id) do
+    from tg in Tagging,
+      where:
+        tg.tag_id == ^tag_id and tg.taggable_type == "Conversation" and tg.taggable_id == ^id and
+          tg.context == @label_context
+  end
+
+  defp delete_label_taggings(ids) do
+    taggings =
+      from tg in Tagging,
+        where: tg.taggable_type == "Conversation" and tg.taggable_id in ^ids
+
+    counts =
+      Repo.all(from tg in taggings, group_by: tg.tag_id, select: {tg.tag_id, count(tg.id)})
+
+    for {tag_id, n} <- counts do
+      Repo.update_all(from(t in Tag, where: t.id == ^tag_id), inc: [taggings_count: -n])
+    end
+
+    Repo.delete_all(taggings)
   end
 
   defp conversations_query(account_id, opts) do
@@ -731,6 +913,7 @@ defmodule Chatwooter.Conversations do
 
   defp delete_conversation_data(ids) do
     Repo.transaction(fn ->
+      delete_label_taggings(ids)
       messages = from m in Message, where: m.conversation_id in ^ids, select: m.id
       Repo.delete_all(from s in AttachmentStorage, where: s.message_id in subquery(messages))
       Repo.delete_all(from a in Attachment, where: a.message_id in subquery(messages))

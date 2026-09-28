@@ -5,7 +5,9 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
   alias Chatwooter.{Accounts, Conversations, Inboxes}
   alias Chatwooter.Workers.TelegramSender
   alias ChatwooterWeb.Components.Conversation.{ChatListHeader, ChatTypeTabs}
-  alias ChatwooterWeb.ConversationsLive.FilterEditor
+  alias ChatwooterWeb.ConversationsLive.{CardActions, FilterEditor}
+
+  import CardActions, only: [conversation_path: 1, conversation_path: 2]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -22,6 +24,7 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       |> assign(:view, %{})
       |> assign(:folder, nil)
       |> FilterEditor.mount()
+      |> CardActions.mount()
       |> assign(:view_title, "Conversations")
       |> assign_chat_filters(user)
       |> assign(:composer_mode, :reply)
@@ -368,12 +371,6 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
       })
 
     load_conversations(socket)
-  end
-
-  defp conversation_path(view, conversation_id \\ nil) do
-    params = if conversation_id, do: Map.put(view, "conversation_id", conversation_id), else: view
-
-    if params == %{}, do: ~p"/app", else: ~p"/app?#{params}"
   end
 
   defp status_badge(:open), do: "Open"

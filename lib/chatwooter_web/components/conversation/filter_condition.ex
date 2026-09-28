@@ -27,113 +27,118 @@ defmodule ChatwooterWeb.Components.Conversation.FilterCondition do
 
   def conversation_filter_condition(assigns) do
     ~H"""
-    <li id={"condition-row-#{@index}"} class="grid gap-2">
-      <.conversation_filter_select
-        :if={@index > 0}
-        id={"condition-join-#{@index}"}
-        field={@previous[:query_operator]}
-        index={@index - 1}
-        options={[{"and", "AND"}, {"or", "OR"}]}
-        event="filter:pick_join"
-        join_picker
-        class="w-24"
-      />
-      <div class="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+    <li id={"condition-row-#{@index}"} class="list-none">
+      <div class="flex flex-wrap items-center gap-2 rounded-md">
+        <.conversation_filter_select
+          :if={@index > 0}
+          id={"condition-join-#{@index}"}
+          field={@previous[:query_operator]}
+          index={@index - 1}
+          options={[{"and", "AND"}, {"or", "OR"}]}
+          event="filter:pick_join"
+          hide_icon
+          class="text-sm shrink-0"
+        />
         <.conversation_filter_select
           id={"condition-attribute-#{@index}"}
           field={@row[:attribute_key]}
           index={@index}
           options={@attributes}
-          class="col-span-2 sm:col-span-1 min-w-0"
+          class="shrink-0"
         />
         <.conversation_filter_select
           id={"condition-operator-#{@index}"}
           field={@row[:filter_operator]}
           index={@index}
           options={operators_for(@row[:attribute_key].value, @definition)}
-          class="col-span-2 sm:col-span-1 min-w-0"
-        />
-        <.conversation_filter_select
-          :if={
-            @row[:filter_operator].value not in ~w(is_present is_not_present) &&
-              @row[:attribute_key].value in ~w(assignee_id inbox_id team_id contact_id campaign_id browser_language)
-          }
-          id={"condition-values-#{@index}"}
-          field={@row[:values]}
-          index={@index}
-          options={
-            if(@row[:attribute_key].value == "contact_id",
-              do: Map.get(@contact_options, @index, []),
-              else: Map.get(@value_options, @row[:attribute_key].value, [])
-            )
-          }
-          event="filter:pick_value"
-          search_event={if(@row[:attribute_key].value == "contact_id", do: "filter:search_contact")}
-          value_picker
-          class="min-w-0"
-        />
-        <.conversation_filter_multi_select
-          :if={
-            @row[:filter_operator].value not in ~w(is_present is_not_present) &&
-              @row[:attribute_key].value in ~w(status priority labels)
-          }
-          id={"condition-values-#{@index}"}
-          field={@row[:values]}
-          index={@index}
-          options={multi_options(@row[:attribute_key].value, @labels)}
-        />
-        <.next_input
-          :if={
-            @row[:filter_operator].value not in ~w(is_present is_not_present) &&
-              @row[:attribute_key].value not in ~w(status priority labels assignee_id inbox_id team_id contact_id campaign_id browser_language) &&
-              (is_nil(@definition) || @definition.attribute_display_type not in [:checkbox, :list])
-          }
-          field={@row[:values]}
-          type={value_type(@row[:attribute_key].value, @row[:filter_operator].value, @definition)}
-          step={if(@definition && @definition.attribute_display_type == :number, do: "any")}
-          min={if(@row[:filter_operator].value == "days_before", do: 1)}
-          max={if(@row[:filter_operator].value == "days_before", do: 998)}
-          size={:sm}
-          placeholder="Enter value"
-          class="flex-1"
-        />
-        <.conversation_filter_select
-          :if={
-            @row[:filter_operator].value not in ~w(is_present is_not_present) &&
-              @definition && @definition.attribute_display_type in [:checkbox, :list]
-          }
-          id={"condition-values-#{@index}"}
-          field={@row[:values]}
-          index={@index}
-          options={value_options(@definition)}
-          event="filter:pick_custom_value"
-          value_picker
-          class="min-w-0"
-        />
-        <input
-          :if={@row[:filter_operator].value in ~w(is_present is_not_present)}
-          type="hidden"
-          id={@row[:values].id}
-          name={@row[:values].name}
-          value={@row[:values].value}
-        />
-        <input
-          :if={@row[:attribute_key].value in ["created_at", "last_activity_at"]}
-          type="hidden"
-          name={@row[:timezone].name}
-          value={@row[:timezone].value || ""}
-          data-filter-timezone
-        />
-        <.next_button
-          id={"remove-condition-#{@index}"}
-          icon="ph-trash"
-          color={:ruby}
           variant={:ghost}
-          size={:sm}
-          title="Remove filter"
-          phx-click="filter:remove"
-          phx-value-index={@index}
+          class="shrink-0"
         />
+        <div class={[
+          if(@row[:filter_operator].value in ~w(is_present is_not_present),
+            do: "contents",
+            else: "flex items-start gap-2 min-w-0"
+          )
+        ]}>
+          <.conversation_filter_select
+            :if={
+              @row[:filter_operator].value not in ~w(is_present is_not_present) &&
+                @row[:attribute_key].value in ~w(assignee_id inbox_id team_id contact_id campaign_id browser_language)
+            }
+            id={"condition-values-#{@index}"}
+            field={@row[:values]}
+            index={@index}
+            options={
+              if(@row[:attribute_key].value == "contact_id",
+                do: Map.get(@contact_options, @index, []),
+                else: Map.get(@value_options, @row[:attribute_key].value, [])
+              )
+            }
+            event="filter:pick_value"
+            search_event={if(@row[:attribute_key].value == "contact_id", do: "filter:search_contact")}
+            value_picker
+          />
+          <.conversation_filter_multi_select
+            :if={
+              @row[:filter_operator].value not in ~w(is_present is_not_present) &&
+                @row[:attribute_key].value in ~w(status priority labels)
+            }
+            id={"condition-values-#{@index}"}
+            field={@row[:values]}
+            index={@index}
+            options={multi_options(@row[:attribute_key].value, @labels)}
+          />
+          <.next_input
+            :if={
+              @row[:filter_operator].value not in ~w(is_present is_not_present) &&
+                @row[:attribute_key].value not in ~w(status priority labels assignee_id inbox_id team_id contact_id campaign_id browser_language) &&
+                (is_nil(@definition) || @definition.attribute_display_type not in [:checkbox, :list])
+            }
+            field={@row[:values]}
+            type={value_type(@row[:attribute_key].value, @row[:filter_operator].value, @definition)}
+            step={if(@definition && @definition.attribute_display_type == :number, do: "any")}
+            min={if(@row[:filter_operator].value == "days_before", do: 1)}
+            max={if(@row[:filter_operator].value == "days_before", do: 998)}
+            size={:sm}
+            placeholder="Enter value"
+          />
+          <.conversation_filter_select
+            :if={
+              @row[:filter_operator].value not in ~w(is_present is_not_present) &&
+                @definition && @definition.attribute_display_type in [:checkbox, :list]
+            }
+            id={"condition-values-#{@index}"}
+            field={@row[:values]}
+            index={@index}
+            options={value_options(@definition)}
+            event="filter:pick_custom_value"
+            value_picker
+          />
+          <input
+            :if={@row[:filter_operator].value in ~w(is_present is_not_present)}
+            type="hidden"
+            id={@row[:values].id}
+            name={@row[:values].name}
+            value={@row[:values].value}
+          />
+          <input
+            :if={@row[:attribute_key].value in ["created_at", "last_activity_at"]}
+            type="hidden"
+            name={@row[:timezone].name}
+            value={@row[:timezone].value || ""}
+            data-filter-timezone
+          />
+          <.next_button
+            id={"remove-condition-#{@index}"}
+            icon="ph-trash"
+            color={:slate}
+            size={:sm}
+            title="Remove filter"
+            class="flex-shrink-0"
+            phx-click="filter:remove"
+            phx-value-index={@index}
+          />
+        </div>
       </div>
     </li>
     """

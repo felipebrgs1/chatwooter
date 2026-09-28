@@ -35,14 +35,39 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
   attr :sort, :string, required: true
   attr :filtered, :boolean, default: false
   attr :folder, :boolean, default: false
+  attr :filter_open, :boolean, default: false
+  attr :save_open, :boolean, default: false
+
+  # The `Teleport` targets of ChatListHeader.vue: the popovers open under their buttons.
+  # The click-away sits on the wrapper so a click on the button itself toggles instead of reopening.
+  slot :filter_popover
+  slot :save_popover
 
   # ChatListHeader.vue (sem filtros avançados/pastas aplicados)
   def chat_list_header(assigns) do
     assigns = assign(assigns, statuses: @statuses, sorts: @sorts)
 
     ~H"""
-    <div id="chat-list-header" class="flex items-center justify-between gap-2 px-3 h-[3.25rem]">
+    <div
+      id="chat-list-header"
+      class={[
+        "flex items-center justify-between gap-2 px-3 h-[3.25rem]",
+        @filtered && "border-b border-n-strong"
+      ]}
+    >
       <div class="flex items-center justify-center min-w-0">
+        <.next_button
+          :if={@filtered && !@folder}
+          id="reset-conversation-filters"
+          icon="ph-caret-left"
+          color={:slate}
+          variant={:ghost}
+          size={:sm}
+          title="Clear filters"
+          aria-label="Clear filters"
+          class="shrink-0 -ms-2 !h-6 !w-6 me-1"
+          phx-click="filter:reset"
+        />
         <h1 class="text-base font-medium truncate text-n-slate-12" title={@title}>{@title}</h1>
         <span
           :if={!@filtered}
@@ -53,17 +78,25 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
         </span>
       </div>
       <div class="flex items-center gap-1">
-        <.next_button
+        <div
           :if={@filtered && !@folder}
-          id="save-conversation-filter"
-          icon="ph-floppy-disk"
-          color={:slate}
-          variant={:faded}
-          size={:xs}
-          title="Save filter"
-          phx-click="filter:save_open"
-        />
-        <div class="relative">
+          class="relative"
+          phx-click-away={@save_open && "filter:close"}
+        >
+          <.next_button
+            id="save-conversation-filter"
+            icon="ph-floppy-disk"
+            color={:slate}
+            variant={:faded}
+            size={:xs}
+            title="Save filter"
+            phx-click={if(@save_open, do: "filter:close", else: "filter:save_open")}
+          />
+          <div id="saveFilterTeleportTarget" class="absolute z-50 mt-2">
+            {render_slot(@save_popover)}
+          </div>
+        </div>
+        <div class="relative" phx-click-away={@filter_open && "filter:close"}>
           <.next_button
             id="toggleConversationFilterButton"
             icon={if(@folder, do: "ph-pencil-line", else: "ph-funnel-simple")}
@@ -71,8 +104,11 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
             variant={:faded}
             size={:xs}
             title={if(@folder, do: "Edit folder", else: "Filter conversations")}
-            phx-click="filter:open"
+            phx-click={if(@filter_open, do: "filter:close", else: "filter:open")}
           />
+          <div id="conversationFilterTeleportTarget" class="absolute z-50 mt-2">
+            {render_slot(@filter_popover)}
+          </div>
         </div>
         <.next_button
           :if={@folder}

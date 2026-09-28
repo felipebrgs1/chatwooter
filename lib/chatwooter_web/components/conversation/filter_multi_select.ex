@@ -1,7 +1,6 @@
 defmodule ChatwooterWeb.Components.Conversation.FilterMultiSelect do
   @moduledoc "Port of components-next/filter/inputs/MultiSelect.vue for fixed conversation values."
   use ChatwooterWeb, :component
-  import ChatwooterWeb.Components.Next.SearchableList
 
   attr :id, :string, required: true
   attr :field, Phoenix.HTML.FormField, required: true
@@ -26,41 +25,54 @@ defmodule ChatwooterWeb.Components.Conversation.FilterMultiSelect do
     >
       <input type="hidden" id={@field.id} name={@field.name} value={@field.value} />
       <button
+        :if={@selected != []}
         type="button"
-        class="flex h-8 max-w-full items-center gap-1 rounded-lg bg-n-alpha-2 px-2 text-sm text-n-slate-12"
-        phx-click={
-          JS.toggle_attribute({"hidden", ""}, to: "##{@id}-dropdown")
-          |> JS.focus(to: "##{@id}-dropdown input")
-        }
+        class="bg-n-alpha-2 py-2 rounded-lg h-8 flex items-center px-0 max-w-full"
+        phx-click={toggle(@id)}
       >
-        <%= if @selected == [] do %>
-          <span class="ph-plus size-4" aria-hidden="true" /> Select an option...
-        <% else %>
-          <span
-            :for={{value, label} <- @options}
-            :if={value in @selected}
-            id={"#{@id}-chip-#{value}"}
-            class="max-w-24 truncate border-r border-n-weak px-1"
-          >{label}</span>
+        <span
+          :for={{value, label} <- @options}
+          :if={value in @selected}
+          id={"#{@id}-chip-#{value}"}
+          class="px-3 border-e border-n-weak text-n-slate-12 text-sm flex gap-2 items-center max-w-[100px] min-w-0"
+        >
+          <span class="truncate">{label}</span>
+        </span>
+        <span class="flex items-center border-none px-3 gap-2 flex-shrink-0">
           <span class="ph-plus size-4" aria-hidden="true" />
-        <% end %>
+        </span>
       </button>
+      <.next_button
+        :if={@selected == []}
+        color={:slate}
+        variant={:faded}
+        size={:sm}
+        class="max-w-full"
+        phx-click={toggle(@id)}
+      >
+        <span class="ph-plus size-4 shrink-0 text-n-slate-11" aria-hidden="true" />
+        <span class="text-n-slate-11 min-w-0 truncate">Select an option...</span>
+      </.next_button>
       <.searchable_list
         id={"#{@id}-dropdown"}
         hidden
-        class="absolute bottom-full z-50 mb-1 min-w-48 rounded-lg border border-n-strong bg-n-solid-1 shadow-lg sm:bottom-auto sm:right-full sm:top-0 sm:me-2 sm:mb-0"
+        class="absolute top-0 z-50 min-w-48 text-sm bg-n-alpha-3 backdrop-blur-[100px] border border-n-strong rounded-xl shadow-sm py-2 px-2 grid gap-2"
       >
-        <div class="relative border-b border-n-strong">
-          <span class="ph-magnifying-glass absolute top-2.5 start-3 size-4" />
+        <div :if={length(@options) > 8} class="relative">
+          <span class="ph-magnifying-glass absolute size-4 start-2 top-2" aria-hidden="true" />
           <input
             type="search"
             data-search-input
             form="searchable-list-detached"
             placeholder="Search..."
-            class="w-full bg-n-solid-1 py-2 ps-10 pe-2 text-sm"
+            class="w-full p-1.5 ps-8 rounded-lg text-n-slate-11 bg-n-alpha-1 border-none focus:outline-none"
           />
         </div>
-        <ul role="listbox" aria-multiselectable="true" class="max-h-72 overflow-auto py-1">
+        <ul
+          role="listbox"
+          aria-multiselectable="true"
+          class="-mx-2 px-2 grid gap-2 list-none max-h-72 overflow-y-auto"
+        >
           <li
             :for={{value, label} <- @options}
             id={"#{@id}-option-#{value}"}
@@ -68,13 +80,13 @@ defmodule ChatwooterWeb.Components.Conversation.FilterMultiSelect do
             data-search-text={label}
             role="option"
             aria-selected={value in @selected}
-            class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-n-alpha-2"
+            class="flex cursor-pointer items-center justify-between gap-3 p-2 text-sm text-n-slate-12 rounded-lg hover:bg-n-alpha-2"
             phx-click={JS.push("filter:toggle_value", value: %{index: @index, value: value})}
           >
             {label}
             <span :if={value in @selected} class="ph-check size-4 text-n-blue-11" />
           </li>
-          <li data-search-empty hidden class="px-3 py-2 text-sm text-n-slate-11">
+          <li data-search-empty hidden class="p-2 text-sm text-n-slate-11">
             No results found.
           </li>
         </ul>
@@ -109,5 +121,10 @@ defmodule ChatwooterWeb.Components.Conversation.FilterMultiSelect do
       </script>
     </div>
     """
+  end
+
+  defp toggle(id) do
+    JS.toggle_attribute({"hidden", ""}, to: "##{id}-dropdown")
+    |> JS.focus(to: "##{id}-dropdown input")
   end
 end

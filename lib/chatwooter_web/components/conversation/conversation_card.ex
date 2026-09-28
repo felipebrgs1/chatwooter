@@ -53,6 +53,8 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
     <.link
       id={@id}
       patch={@path}
+      phx-hook=".CardContextMenu"
+      data-conversation-id={@conversation.id}
       class={[
         "relative flex items-start flex-grow-0 flex-shrink-0 w-auto max-w-full py-0 cursor-pointer conversation border-b border-n-slate-3 hover:border-n-surface-1 hover:bg-n-alpha-1 dark:hover:bg-n-alpha-3 group hover:z-[1] before:content-[none] before:absolute before:-top-px before:inset-x-0 before:h-px before:bg-n-surface-1 before:pointer-events-none hover:before:content-[''] px-3",
         @active && "active animate-card-select bg-n-background border-n-surface-1!"
@@ -124,6 +126,17 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
           </span>
         </div>
       </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CardContextMenu">
+        // ConversationItem.vue → openContextMenu: the menu opens at the cursor.
+        export default {
+          mounted() {
+            this.el.addEventListener("contextmenu", e => {
+              e.preventDefault()
+              this.pushEvent("card:context_menu", {id: this.el.dataset.conversationId, x: e.clientX, y: e.clientY})
+            })
+          }
+        }
+      </script>
     </.link>
     """
   end

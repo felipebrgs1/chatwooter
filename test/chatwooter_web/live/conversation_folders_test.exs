@@ -103,6 +103,64 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     assert nil == Accounts.get_custom_filter(Scope.for_user(ctx.user), ctx.account, folder.id)
   end
 
+  test "editor and save form open as popovers anchored to their header buttons", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    assert has_element?(lv, "#conversationFilterTeleportTarget #conversation-filter-editor")
+    refute has_element?(lv, "#conversation-filter-editor button", "Cancel")
+
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+    refute has_element?(lv, "#conversation-filter-editor")
+
+    lv |> element("#save-conversation-filter") |> render_click()
+    assert has_element?(lv, "#saveFilterTeleportTarget #save-filter-form")
+  end
+
+  test "the back button in the header clears applied filters", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+    lv |> element("#chat-tab-all") |> render_click()
+    refute has_element?(lv, "#conv-#{ctx.open.id}")
+
+    lv |> element("#reset-conversation-filters") |> render_click()
+    assert_patch(lv, ~p"/app")
+    refute has_element?(lv, "#reset-conversation-filters")
+    refute has_element?(lv, "#save-conversation-filter")
+    lv |> element("#chat-tab-all") |> render_click()
+    assert has_element?(lv, "#conv-#{ctx.open.id}")
+  end
+
+  test "removing the only condition and applying clears the applied filter", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#condition-values-0-option-resolved") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#remove-condition-0") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+
+    assert_patch(lv, ~p"/app")
+    refute has_element?(lv, "#conversation-filter-error")
+    refute has_element?(lv, "#reset-conversation-filters")
+  end
+
+  test "a folder still needs a condition", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app?folder_id=#{ctx.folder.id}")
+    lv |> element("#toggleConversationFilterButton") |> render_click()
+    lv |> element("#remove-condition-0") |> render_click()
+    lv |> form("#conversation-filter-form") |> render_submit()
+    assert has_element?(lv, "#conversation-filter-error", "Value is required")
+  end
+
+  test "folders have no back button; they are left through the sidebar", ctx do
+    {:ok, lv, _} = live(ctx.conn, ~p"/app?folder_id=#{ctx.folder.id}")
+    refute has_element?(lv, "#reset-conversation-filters")
+  end
+
   test "invalid filters keep the editor open and do not replace the current results", ctx do
     {:ok, lv, _} = live(ctx.conn, ~p"/app")
     lv |> element("#toggleConversationFilterButton") |> render_click()
@@ -284,7 +342,7 @@ defmodule ChatwooterWeb.ConversationFoldersTest do
     lv |> element("#condition-values-0-option-open") |> render_click()
     lv |> element("#condition-values-1-option-resolved") |> render_click()
 
-    assert has_element?(lv, "#condition-join-1 input[type=search]")
+    refute has_element?(lv, "#condition-join-1 input[type=search]")
     lv |> element("#condition-join-1-option-or") |> render_click()
     lv |> form("#conversation-filter-form") |> render_submit()
 
