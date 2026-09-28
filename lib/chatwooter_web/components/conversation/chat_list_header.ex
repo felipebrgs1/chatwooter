@@ -36,6 +36,7 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
   attr :filtered, :boolean, default: false
   attr :folder, :boolean, default: false
   attr :filter_open, :boolean, default: false
+  attr :expanded, :boolean, default: false
   attr :save_open, :boolean, default: false
 
   # The `Teleport` targets of ChatListHeader.vue: the popovers open under their buttons.
@@ -92,7 +93,7 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
             title="Save filter"
             phx-click={if(@save_open, do: "filter:close", else: "filter:save_open")}
           />
-          <div id="saveFilterTeleportTarget" class="absolute z-50 mt-2">
+          <div id="saveFilterTeleportTarget" class={["absolute z-50 mt-2", @expanded && "right-0"]}>
             {render_slot(@save_popover)}
           </div>
         </div>
@@ -106,7 +107,10 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
             title={if(@folder, do: "Edit folder", else: "Filter conversations")}
             phx-click={if(@filter_open, do: "filter:close", else: "filter:open")}
           />
-          <div id="conversationFilterTeleportTarget" class="absolute z-50 mt-2">
+          <div
+            id="conversationFilterTeleportTarget"
+            class={["absolute z-50 mt-2", @expanded && "right-0"]}
+          >
             {render_slot(@filter_popover)}
           </div>
         </div>
@@ -136,7 +140,10 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
           <div
             id="chat-sort-menu-body"
             hidden
-            class="mt-1 bg-n-alpha-3 backdrop-blur-[100px] border border-n-weak w-72 rounded-xl p-4 absolute z-40 top-full left-0"
+            class={[
+              "mt-1 bg-n-alpha-3 backdrop-blur-[100px] border border-n-weak w-72 rounded-xl p-4 absolute z-40 top-full",
+              if(@expanded, do: "right-0", else: "left-0")
+            ]}
           >
             <div :if={!@filtered} class="flex items-center justify-between gap-2">
               <span class="text-sm truncate text-n-slate-12">Status</span>
@@ -160,13 +167,16 @@ defmodule ChatwooterWeb.Components.Conversation.ChatListHeader do
             </div>
           </div>
         </div>
+        <%!-- SwitchLayout.vue --%>
         <.next_button
-          icon="ph-arrow-line-right"
+          id="switch-view-layout"
+          icon={if(@expanded, do: "ph-arrow-line-left", else: "ph-arrow-line-right")}
           color={:slate}
           variant={:faded}
           size={:xs}
-          title="Switch view layout"
-          class="flex-shrink-0 md:inline-flex hidden"
+          title="Switch the layout"
+          class="flex-shrink-0 rtl:rotate-180 md:inline-flex hidden"
+          phx-click="chat:toggle_layout"
         />
       </div>
     </div>

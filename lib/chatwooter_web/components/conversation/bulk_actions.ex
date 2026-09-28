@@ -16,12 +16,16 @@ defmodule ChatwooterWeb.Components.Conversation.BulkActions do
   attr :agents, :list, default: []
   attr :teams, :list, default: []
   attr :pending, :map, default: nil
+  attr :class, :any, default: nil
 
   def conversation_bulk_actions(assigns) do
     ~H"""
     <div
       id="bulk-actions"
-      class="px-2 absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 w-full origin-bottom"
+      class={[
+        "px-2 absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 w-full origin-bottom",
+        @class
+      ]}
     >
       <div
         :if={@all_selected}

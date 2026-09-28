@@ -2,12 +2,22 @@
   <div id="inbox-workspace" class="flex h-screen overflow-hidden bg-canvas text-ink">
     <.sidebar current_scope={@current_scope} sidebar={@sidebar} />
 
+    <%!-- ConversationView.vue: on the expanded layout the list takes the page and hides while a
+         conversation is open (showConversationList); it stays in the DOM for its stream. --%>
     <section
       id="conversation-list"
+      data-layout={if(@expanded, do: "expanded", else: "condensed")}
+      hidden={@expanded && @selected != nil}
       class={[
-        "flex-col flex-shrink-0 bg-n-surface-1 relative w-full sm:w-[340px] 2xl:w-[412px] border-r border-n-weak",
-        @selected && "hidden lg:flex",
-        !@selected && "flex"
+        "flex-col bg-n-surface-1 relative",
+        if(@expanded,
+          do: "basis-full min-w-0 flex",
+          else: [
+            "flex-shrink-0 w-full sm:w-[340px] 2xl:w-[412px] border-r border-n-weak",
+            @selected && "hidden lg:flex",
+            !@selected && "flex"
+          ]
+        )
       ]}
     >
       <.chat_list_header
@@ -16,6 +26,7 @@
         sort={@chat_sort}
         filtered={@folder != nil || @advanced_query != nil}
         folder={@folder != nil}
+        expanded={@expanded}
         filter_open={@filter_editor == :edit}
         save_open={@filter_editor == :save}
       >
@@ -51,6 +62,7 @@
       </p>
       <.conversation_bulk_actions
         :if={MapSet.size(@bulk_selected) > 0}
+        class={@expanded && "sm:w-[24rem]! w-full!"}
         count={MapSet.size(@bulk_selected)}
         all_selected={BulkActions.all_selected?(@listed, @bulk_selected)}
         menu={@bulk_menu}
@@ -67,16 +79,29 @@
           phx-update="stream"
           class="[&>a:has(+_a.active)]:border-n-surface-1!"
         >
-          <.conversation_card
-            :for={{id, conv} <- @streams.conversations}
-            id={id}
-            conversation={conv}
-            path={conversation_path(@view, conv.id)}
-            active={@selected != nil and @selected.id == conv.id}
-            selected={conv.id in @bulk_selected}
-            show_inbox_name={is_nil(@view["inbox_id"]) and length(@inboxes) > 1}
-            show_assignee={@assignee_tab == "all"}
-          />
+          <%= for {id, conv} <- @streams.conversations do %>
+            <.conversation_card_expanded
+              :if={@expanded}
+              id={id}
+              conversation={conv}
+              path={conversation_path(@view, conv.id)}
+              active={@selected != nil and @selected.id == conv.id}
+              selected={conv.id in @bulk_selected}
+              account_labels={@filter_labels}
+              show_inbox_name={is_nil(@view["inbox_id"]) and length(@inboxes) > 1}
+            />
+            <.conversation_card
+              :if={!@expanded}
+              id={id}
+              conversation={conv}
+              path={conversation_path(@view, conv.id)}
+              active={@selected != nil and @selected.id == conv.id}
+              selected={conv.id in @bulk_selected}
+              account_labels={@filter_labels}
+              show_inbox_name={is_nil(@view["inbox_id"]) and length(@inboxes) > 1}
+              show_assignee={@assignee_tab == "all"}
+            />
+          <% end %>
         </div>
         <p
           :if={@conversation_count > 0}
@@ -105,7 +130,12 @@
       conversation={@deleting_conversation}
     />
 
-    <main class={["min-w-0 flex-1 flex-col", @selected && "flex", !@selected && "hidden lg:flex"]}>
+    <%!-- ConversationView.vue → showMessageView: the expanded layout only shows an open conversation. --%>
+    <main
+      :if={!@expanded || @selected}
+      id="conversation-view"
+      class={["min-w-0 flex-1 flex-col", @selected && "flex", !@selected && "hidden lg:flex"]}
+    >
       <div :if={!@selected} class="flex flex-1 items-center justify-center">
         <div class="text-center">
           <.icon name="ph-chats-circle" class="mx-auto mb-3 size-10 text-brand" />
@@ -121,8 +151,9 @@
         >
           <div class="flex min-w-0 items-center gap-3">
             <.link
+              id="conversation-back"
               patch={conversation_path(@view)}
-              class="rounded-lg p-1 hover:bg-highlight lg:hidden"
+              class={["rounded-lg p-1 hover:bg-highlight", !@expanded && "lg:hidden"]}
               aria-label="Back to conversations"
             ><.icon name="ph-arrow-left" class="size-5" /></.link>
             <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-bold text-brand-deep">
@@ -241,6 +272,7 @@
     </main>
 
     <aside
+      :if={!@expanded || @selected}
       id="contact-panel"
       class="hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface p-5 xl:flex"
     >

@@ -4,23 +4,19 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
   """
   use ChatwooterWeb, :component
 
+  import ChatwooterWeb.Components.Conversation.{CardLabels, CardLink, CardSelect}
+
+  alias ChatwooterWeb.Components.Conversation.CardHelpers
   import ChatwooterWeb.Components.Conversation.MessagePreview
 
   alias ChatwooterWeb.TimeAgo
-
-  # CardPriorityIcon.vue (enum do Rails: low 0, medium 1, high 2, urgent 3)
-  @priority_icons %{
-    0 => "ph-cell-signal-low",
-    1 => "ph-cell-signal-medium",
-    2 => "ph-cell-signal-high",
-    3 => "ph-cell-signal-full"
-  }
 
   attr :id, :string, required: true
   attr :conversation, :map, required: true
   attr :path, :string, required: true
   attr :active, :boolean, default: false
   attr :selected, :boolean, default: false
+  attr :account_labels, :list, default: []
   attr :show_inbox_name, :boolean, default: false
   attr :show_assignee, :boolean, default: false
 
@@ -29,7 +25,7 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
     conv = assigns.conversation
     unread = conv.unread_count || 0
     assignee_name = conv.assignee && available_name(conv.assignee)
-    priority_icon = @priority_icons[conv.priority]
+    priority_icon = with {icon, _} <- CardHelpers.priority(conv.priority), do: icon
 
     show_meta =
       assigns.show_inbox_name or (assigns.show_assignee and assignee_name != nil) or
@@ -43,7 +39,7 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
         assignee_name: assignee_name,
         priority_icon: priority_icon,
         show_meta: show_meta,
-        last_message: last_message(conv.messages || []),
+        last_message: CardHelpers.last_message(conv.messages || []),
         preview_class: [
           if(unread > 0, do: "font-medium text-n-slate-12", else: "text-n-slate-11"),
           unread > 0 && "pr-4"
@@ -51,11 +47,11 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
       )
 
     ~H"""
-    <.link
+    <.conversation_card_link
       id={@id}
-      patch={@path}
-      phx-hook=".CardContextMenu"
-      data-conversation-id={@conversation.id}
+      path={@path}
+      conversation_id={@conversation.id}
+      data-layout="condensed"
       class={[
         "relative flex items-start flex-grow-0 flex-shrink-0 w-auto max-w-full py-0 cursor-pointer conversation border-b border-n-slate-3 hover:border-n-surface-1 hover:bg-n-alpha-1 dark:hover:bg-n-alpha-3 group hover:z-[1] before:content-[none] before:absolute before:-top-px before:inset-x-0 before:h-px before:bg-n-surface-1 before:pointer-events-none hover:before:content-[''] px-3",
         @active && "active animate-card-select bg-n-background border-n-surface-1!",
@@ -69,18 +65,16 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
           class={if(@show_inbox_name, do: "mt-8", else: "mt-4")}
         />
         <%!-- Avatar #overlay of ConversationCard.vue: the checkbox shows on hover or when selected. --%>
-        <span
+        <.conversation_card_select
           id={"#{@id}-select"}
-          phx-hook=".CardSelect"
-          data-conversation-id={@conversation.id}
+          conversation_id={@conversation.id}
+          selected={@selected}
           class={[
             "items-center justify-center rounded-full cursor-pointer absolute left-0 z-10 size-8 backdrop-blur-[2px]",
             if(@show_inbox_name, do: "top-8", else: "top-4"),
             if(@selected, do: "flex", else: "hidden group-hover/avatar:flex")
           ]}
-        >
-          <.next_checkbox checked={@selected} />
-        </span>
+        />
       </div>
       <div class="px-0 py-3 flex-1 min-w-0">
         <div :if={@show_meta} class="flex items-center min-w-0 gap-1 ml-2">
@@ -118,6 +112,13 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
           {@contact.name}
         </h4>
         <.message_preview message={@last_message} class={@preview_class} />
+        <%!-- SLACardLabel (#before slot) needs Enterprise SLA policies and the SLA job: not ported. --%>
+        <.conversation_card_labels
+          id={"#{@id}-labels"}
+          conversation_labels={CardHelpers.labels(@conversation)}
+          account_labels={@account_labels}
+          class="mt-0.5 mx-2 mb-0"
+        />
         <div class={["absolute flex flex-col right-3", if(@show_meta, do: "top-8", else: "top-4")]}>
           <span class="ml-auto font-normal leading-4 text-xxs">
             <div
@@ -141,37 +142,7 @@ defmodule ChatwooterWeb.Components.Conversation.ConversationCard do
           </span>
         </div>
       </div>
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".CardSelect">
-        // The checkbox sits inside the card link: keep the click from opening the conversation.
-        export default {
-          mounted() {
-            this.el.addEventListener("click", e => {
-              e.preventDefault()
-              e.stopPropagation()
-              this.pushEvent("bulk:toggle", {id: this.el.dataset.conversationId})
-            })
-          }
-        }
-      </script>
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".CardContextMenu">
-        // ConversationItem.vue → openContextMenu: the menu opens at the cursor.
-        export default {
-          mounted() {
-            this.el.addEventListener("contextmenu", e => {
-              e.preventDefault()
-              this.pushEvent("card:context_menu", {id: this.el.dataset.conversationId, x: e.clientX, y: e.clientY})
-            })
-          }
-        }
-      </script>
-    </.link>
+    </.conversation_card_link>
     """
-  end
-
-  # getLastMessage (conversationHelper.js): última não-activity, senão a última
-  defp last_message([]), do: nil
-
-  defp last_message(messages) do
-    messages |> Enum.reject(&(&1.message_type == :activity)) |> List.last() || List.last(messages)
   end
 end

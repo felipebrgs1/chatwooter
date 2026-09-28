@@ -43,7 +43,9 @@ Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
   - Snooze em massa só visual (depende do item "Snooze" em 1.2).
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)
-- [ ] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`
+  - Etiquetas prontas. Falta o selo de SLA: depende de políticas de SLA, horário comercial e do job de eventos (recursos Enterprise, sem backend aqui).
+- [x] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`
+  - Fora: troca automática para expandido em tela pequena (`Dashboard.vue`) e card condensado abaixo de `lg` no modo expandido.
 - [ ] Paginação por scroll (25 por página) + "All conversations loaded"
 - [ ] Atalhos: Alt+J/K (anterior/próxima), Alt+N (abas)
 - [ ] `TimeAgo` que se atualiza sozinho (hook)

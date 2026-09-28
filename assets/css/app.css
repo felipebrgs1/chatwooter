@@ -124,6 +124,13 @@
   letter-spacing: -0.28px;
 }
 
+@utility text-heading-3 {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 21px;
+  letter-spacing: -0.27px;
+}
+
 @utility text-button {
   font-size: var(--text-sm);
   font-weight: 460;

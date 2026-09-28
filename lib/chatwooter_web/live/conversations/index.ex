@@ -51,7 +51,11 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
     status = filter_by["status"]
     sort = filter_by["order_by"]
 
+    # useUISettings → isOnExpandedLayout: anything but "condensed" (the default) is expanded.
+    layout = (user.ui_settings || %{})["conversation_display_type"]
+
     socket
+    |> assign(:expanded, layout not in [nil, "condensed"])
     |> assign(:assignee_tab, "me")
     |> assign(:chat_status, if(ChatListHeader.valid_status?(status), do: status, else: "open"))
     |> assign(
@@ -198,6 +202,19 @@ defmodule ChatwooterWeb.ConversationsLive.Index do
     if ChatListHeader.valid_sort?(sort),
       do: {:noreply, socket |> assign(:chat_sort, sort) |> save_chat_filters()},
       else: {:noreply, socket}
+  end
+
+  # ChatListHeader.vue → toggleConversationLayout
+  def handle_event("chat:toggle_layout", _params, socket) do
+    layout = if socket.assigns.expanded, do: "condensed", else: "expanded"
+
+    {:ok, _} =
+      Accounts.update_ui_settings(socket.assigns.current_scope.user, %{
+        "conversation_display_type" => layout,
+        "previously_used_conversation_display_type" => layout
+      })
+
+    {:noreply, socket |> assign(:expanded, layout == "expanded") |> load_conversations()}
   end
 
   def handle_event("noop", _params, socket), do: {:noreply, socket}
