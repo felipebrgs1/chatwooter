@@ -1,5 +1,11 @@
 # Chatwooter — guia para agentes
 
+> **Migração em curso (2026-09-30):** a stack está indo de Elixir/Phoenix para Go + React — ver
+> `ROADMAP_MIGRACAO_GO_REACT.md`. O Elixir está congelado (só bug). Código novo vai em `server/` (Go) e
+> `web/` (React); `make precommit` é o gate deles. TDD, port 1:1 do `.vue` e regras de tokens/Phosphor
+> continuam valendo. Backend Go em **MVC** (`router → controllers → models`, respostas em `views`;
+> regras no `server/.golangci.yml`); um único `web/tsconfig.json`. As seções "Phoenix/Elixir" abaixo só se aplicam ao app Elixir.
+
 Reimplementação do Chatwoot em Elixir/Phoenix LiveView. Visão: `ROTEIRO_ELIXIR.md`; o que falta para
 ficar 1:1 (checklist, em ordem): `ROADMAP_PARIDADE_PRODUTO.md` — marque os itens ao concluir.
 `chatwoot/` é a referência read-only do original (Rails + Vue) — **nunca editar**.
@@ -7,6 +13,29 @@ Escopo v1: só WhatsApp Cloud API + Telegram Bot API.
 
 O app roda em Docker (`deps/` e `_build/` em volumes do `chatwooter-web-1`). Rode mix lá dentro:
 `docker exec chatwooter-web-1 sh -c 'MIX_ENV=test mix test'`. Mudou `mix.lock`? `mix deps.get` no container e reinicie.
+
+## Go + React (stack nova — `server/` e `web/`)
+
+Comandos (raiz): `make precommit` (gate), `make test`, `make sqlc`, `make migrate`, `make schema-diff`,
+`make i18n-sync`. Testes do Go precisam de Postgres: `docker compose up -d db` (porta `5434`, `TEST_DATABASE_URL`
+já vem do Makefile). Stack de dev: `docker compose --profile go up` (API `:4100`, web `:5173`).
+
+**Backend (MVC)** — `router → controllers → models`, resposta em `views` (regras impostas pelo `depguard`).
+- Controller nunca importa `pgx`/`db`; model nunca importa `net/http`; view só serializa.
+- SQL fica em `internal/db/queries/*.sql` e vira código com `sqlc`; só `models` usa o código gerado.
+  Não edite `internal/db/sqlc/`. Schema novo = migration `goose` nova em `internal/db/migrations`, nunca editar o baseline.
+- O schema tem de continuar idêntico ao `schema.rb` do Chatwoot: `internal/schemaparity` é o gate.
+- Dados de teste: `internal/factory`; banco real descartável por teste: `internal/testdb`. Sem mocks de banco.
+- Segredos (tokens de canal) só via `models.InboxConfigs` (AES-GCM); nunca logar nem guardar em claro.
+- Jobs com efeito externo só pelo River (`internal/jobs`); worker novo entra em `jobs.Workers()`.
+- Teste primeiro; `*_test.go` ao lado do código, pacote `_test`.
+
+**Frontend**
+- Rota = arquivo em `src/routes` (TanStack Router); `routeTree.gen.ts` é gerado, não edite.
+- Textos vêm do i18n (`t('CHAVE.DO.CHATWOOT')`), só `en` e `pt_BR`; nunca string fixa na tela.
+  Sintaxe vue-i18n (`{var}`, `a | b`) já é tratada. Atualizou a referência? `make i18n-sync`.
+- Um `tsconfig.json` só. Cores só por tokens (`src/styles/tokens.css`), ícones só Phosphor.
+- Teste com Testing Library; ache elementos por papel/texto, não por implementação.
 
 ## TDD (obrigatório)
 

@@ -1,0 +1,51 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - depguard
+    - errorlint
+    - bodyclose
+    - gosec
+  settings:
+    depguard:
+      rules:
+        # MVC: router -> controllers -> models; controllers renderizam via views.
+        # Só models fala com o banco; views não conhecem models nem HTTP de entrada.
+        controllers-sem-db:
+          files: ["**/internal/controllers/**"]
+          deny:
+            - pkg: github.com/jackc/pgx
+              desc: controllers usam models, nunca o banco
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/db
+              desc: controllers usam models, nunca o banco
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/router
+              desc: dependência só no sentido router -> controllers
+        views-puras:
+          files: ["**/internal/views/**"]
+          deny:
+            - pkg: github.com/jackc/pgx
+              desc: views só serializam
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/models
+              desc: views recebem dados prontos do controller
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/controllers
+              desc: views não conhecem controllers
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/router
+              desc: views não conhecem o router
+        models-sem-web:
+          files: ["**/internal/models/**"]
+          deny:
+            - pkg: net/http
+              desc: models não conhecem HTTP
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/controllers
+              desc: models não conhecem controllers
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/views
+              desc: models não conhecem views
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/router
+              desc: models não conhecem o router
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec]
+formatters:
+  enable:
+    - gofumpt

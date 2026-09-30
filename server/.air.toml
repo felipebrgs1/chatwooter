@@ -1,0 +1,8 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/chatwooter ./cmd/chatwooter"
+entrypoint = ["./tmp/chatwooter"]
+include_ext = ["go", "sql"]
+exclude_dir = ["tmp"]

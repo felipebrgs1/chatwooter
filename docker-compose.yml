@@ -1,6 +1,8 @@
 services:
   db:
     image: pgvector/pgvector:pg18
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432" # testes do Go rodam no host
     env_file:
       - .env
     environment:
@@ -55,7 +57,43 @@ services:
     stdin_open: true
     tty: true
 
+  # Stack Go + React (migração, ver ROADMAP_MIGRACAO_GO_REACT.md). Suba com: docker compose --profile go up
+  server:
+    profiles: ["go"]
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4100:4100"
+    environment:
+      PORT: "4100"
+      # Só para desenvolvimento. Em produção: openssl rand -base64 32
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-Y2hhdHdvb3Rlci1kZXYtb25seS1rZXktMzJieXRlcyE=}
+      DATABASE_URL: postgres://${PGUSER:-postgres}:${PGPASSWORD:-postgres}@db:5432/${PGDATABASE:-chatwooter_dev}?sslmode=disable
+    volumes:
+      - ./server:/app/server
+      - go_mod:/go/pkg/mod
+    depends_on:
+      - db
+
+  web-ui:
+    profiles: ["go"]
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_TARGET: http://server:4100
+    volumes:
+      - ./web:/app/web
+      - web_node_modules:/app/web/node_modules
+    depends_on:
+      - server
+
 volumes:
+  go_mod:
+  web_node_modules:
   pgdata:
   rustfsdata:
   app_deps:
