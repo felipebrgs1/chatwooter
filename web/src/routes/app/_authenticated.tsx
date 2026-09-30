@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { profileQuery } from '../../api/auth'
@@ -22,6 +23,7 @@ export const Route = createFileRoute('/app/_authenticated')({
 })
 
 function Shell() {
-  const { profile } = Route.useRouteContext()
+  // O contexto da rota é só a foto do beforeLoad; o cache (que já está cheio) acompanha as gravações.
+  const { data: profile } = useSuspenseQuery(profileQuery)
   return <AppShell profile={profile} />
 }

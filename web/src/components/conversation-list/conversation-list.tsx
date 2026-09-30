@@ -61,11 +61,13 @@ export function ConversationList({
   useChatListKeyboardEvents(listRef)
 
   const conversations = useMemo(() => {
+    // a lista da aba anterior (placeholder) só segura os contadores; os cards esperam a aba nova
+    if (query.isPlaceholderData) return []
     const seen = new Set<number>()
     return (query.data?.pages ?? [])
       .flatMap((page) => page.data.payload)
       .filter((c) => !seen.has(c.id) && seen.add(c.id))
-  }, [query.data])
+  }, [query.data, query.isPlaceholderData])
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
   useEffect(() => {
@@ -109,7 +111,7 @@ export function ConversationList({
       />
 
       <div ref={listRef} className="conversations-list min-h-0 flex-1 overflow-y-auto">
-        {query.isPending && (
+        {(query.isPending || query.isPlaceholderData) && (
           <p className="p-4 text-center text-n-slate-11">{t('CHAT_LIST.LOADING')}</p>
         )}
         {query.isError && (
@@ -117,7 +119,7 @@ export function ConversationList({
             {t('CHAT_LIST.FETCH_ERROR')}
           </p>
         )}
-        {query.isSuccess && conversations.length === 0 && (
+        {query.isSuccess && !query.isPlaceholderData && conversations.length === 0 && (
           <p className="flex items-center justify-center overflow-auto p-4">
             {t('CHAT_LIST.LIST.404')}
           </p>

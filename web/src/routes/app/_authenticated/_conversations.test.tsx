@@ -45,7 +45,7 @@ test('os filtros da URL viram pedidos à API e aparecem na tela', async () => {
 test('parâmetros inválidos caem nos padrões', async () => {
   await renderRoute('/app?status=lixo&team_id=abc')
   await screen.findByRole('link', { name: /Ana Souza/ })
-  const params = requests.at(-1)!
+  const params = requests[0]
   expect(params.get('status')).toBe('open')
   expect(params.get('assignee_type')).toBe('me')
   expect(params.has('team_id')).toBe(false)
@@ -57,7 +57,7 @@ test('trocar de aba muda a URL e refaz a busca', async () => {
   await waitFor(() =>
     expect(router.state.location.search).toMatchObject({ assignee_type: 'unassigned' }),
   )
-  await waitFor(() => expect(requests.at(-1)!.get('assignee_type')).toBe('unassigned'))
+  await waitFor(() => expect(requests.map((p) => p.get('assignee_type'))).toContain('unassigned'))
 })
 
 test('abrir uma conversa navega para ela e mantém os filtros', async () => {

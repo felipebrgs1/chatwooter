@@ -29,7 +29,7 @@ Convenções de código e regras para agentes: [`AGENTS.md`](./AGENTS.md).
 
 ## Rodando em dev
 
-Pré-requisitos: Docker. Para rodar testes e ferramentas no host: Go e Node (versões em `.tool-versions`).
+Pré-requisitos: Docker. Para rodar testes e ferramentas no host: Go (versão em `server/go.mod`) e Bun.
 
 ```bash
 cp .env.example .env

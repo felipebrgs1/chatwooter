@@ -22,6 +22,8 @@ export function AccountSwitcher({ accounts, currentAccountId, collapsed, onSwitc
   return (
     <DropdownContainer
       id="sidebar-account-menu"
+      // SidebarHeader do Sidebar.vue põe `flex-grow -mx-1 min-w-0` na raiz do switcher: ele ocupa o espaço livre
+      className={collapsed ? undefined : 'flex-grow -mx-1 min-w-0'}
       trigger={({ toggle }) =>
         collapsed ? (
           // recolhida: o logo abre a lista de contas
@@ -39,7 +41,7 @@ export function AccountSwitcher({ accounts, currentAccountId, collapsed, onSwitc
             id="sidebar-account-menu-trigger"
             type="button"
             onClick={toggle}
-            className="flex items-center gap-2 justify-between w-full rounded-lg px-2 cursor-pointer flex-grow -mx-1 min-w-0 hover:bg-n-alpha-1"
+            className="flex items-center gap-2 justify-between w-full rounded-lg px-2 cursor-pointer hover:bg-n-alpha-1"
           >
             <span
               className="text-sm font-medium leading-5 text-n-slate-12 truncate"

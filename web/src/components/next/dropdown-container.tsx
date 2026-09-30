@@ -2,6 +2,8 @@
 // e fecha com clique fora ou Esc.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
+import { cx } from './cx'
+
 export type DropdownTriggerArgs = {
   open: boolean
   toggle: () => void
@@ -15,9 +17,11 @@ type Props = {
   trigger: (args: DropdownTriggerArgs) => ReactNode
   children: ReactNode | ((args: { close: () => void }) => ReactNode)
   onClose?: () => void
+  /** Classes da raiz (no Vue, as que o pai põe no componente caem aqui). */
+  className?: string
 }
 
-export function DropdownContainer({ id, trigger, children, onClose }: Props) {
+export function DropdownContainer({ id, trigger, children, onClose, className }: Props) {
   const generated = useId()
   const baseId = id ?? generated
   const [open, setOpen] = useState(false)
@@ -44,8 +48,10 @@ export function DropdownContainer({ id, trigger, children, onClose }: Props) {
     }
   }, [open, close])
 
+  // O .vue usa `space-y-2` (Tailwind v3: margin-top no corpo, que é absoluto). No v4 o space-y vira
+  // margin-bottom de quem não é o último, e o gatilho ganharia 8px ao abrir — por isso o mt-2 no corpo.
   return (
-    <div ref={ref} className="relative space-y-2">
+    <div ref={ref} className={cx('relative', className)}>
       {trigger({
         open,
         toggle: () => (open ? close() : setOpen(true)),
@@ -53,7 +59,7 @@ export function DropdownContainer({ id, trigger, children, onClose }: Props) {
         triggerProps: { id: `${baseId}-trigger`, className: open ? 'bg-n-alpha-1' : undefined },
       })}
       {open && (
-        <div id={`${baseId}-body`} className="absolute">
+        <div id={`${baseId}-body`} className="absolute mt-2">
           {typeof children === 'function' ? children({ close }) : children}
         </div>
       )}

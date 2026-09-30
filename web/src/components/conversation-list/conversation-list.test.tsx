@@ -141,7 +141,7 @@ test('página curta: tudo carregado, sem pedir mais', async () => {
   await list()
   expect(await screen.findByText('All conversations loaded 🎉')).toBeInTheDocument()
   act(() => scrollToEnd())
-  expect(seen).toHaveLength(1)
+  expect(seen.filter((p) => p.get('assignee_type') === 'me')).toHaveLength(1)
 })
 
 test('rolar até o fim carrega a próxima página e depois mostra "All conversations loaded"', async () => {
@@ -154,7 +154,8 @@ test('rolar até o fim carrega a próxima página e depois mostra "All conversat
   act(() => scrollToEnd())
 
   expect(await screen.findByRole('link', { name: /Última Pessoa/ })).toBeInTheDocument()
-  expect(seen.map((p) => p.get('page'))).toEqual(['1', '2'])
+  const mine = seen.filter((p) => p.get('assignee_type') === 'me')
+  expect(mine.map((p) => p.get('page'))).toEqual(['1', '2'])
   await screen.findByText('All conversations loaded 🎉')
   expect(screen.getAllByRole('link')).toHaveLength(26)
 })
@@ -202,7 +203,9 @@ test('trocar o filtro busca de novo do começo', async () => {
   expect(queryClient.isFetching()).toBe(0)
 
   rerender(<ConversationList search={search({ status: 'resolved' })} onSearchChange={() => {}} />)
-  await waitFor(() => expect(seen.map((p) => p.get('status'))).toEqual(['open', 'resolved']))
+  // só a aba ativa (as vizinhas são pré-carregadas à parte)
+  const mine = () => seen.filter((p) => p.get('assignee_type') === 'me')
+  await waitFor(() => expect(mine().map((p) => p.get('status'))).toEqual(['open', 'resolved']))
 })
 
 test('as etiquetas do card usam a cor e a descrição das etiquetas da conta', async () => {
@@ -278,4 +281,27 @@ test('filtrando por time, o título é o nome do time', async () => {
   )
   await list({ search: search({ team_id: 2 }) })
   expect(await screen.findByRole('heading', { level: 1, name: 'Vendas' })).toBeInTheDocument()
+})
+
+test('trocar de aba mostra a lista da outra aba na hora, sem zerar os contadores', async () => {
+  const tabs: (string | null)[] = []
+  server.use(
+    http.get('/api/v1/accounts/1/conversations', ({ request }) => {
+      const tab = new URL(request.url).searchParams.get('assignee_type')
+      tabs.push(tab)
+      const payload =
+        tab === 'unassigned' ? [conversation(2, 'Bruno Lima')] : [conversation(1, 'Ana Souza')]
+      return HttpResponse.json({ data: { meta: counts, payload } })
+    }),
+  )
+  const { rerender } = await list()
+  expect(await screen.findByRole('link', { name: /Ana Souza/ })).toBeInTheDocument()
+  await waitFor(() => expect(tabs).toContain('unassigned'))
+
+  rerender(
+    <ConversationList search={search({ assignee_type: 'unassigned' })} onSearchChange={() => {}} />,
+  )
+  expect(screen.queryByText('Fetching conversations')).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Bruno Lima/ })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'Unassigned 2' })).toBeInTheDocument()
 })

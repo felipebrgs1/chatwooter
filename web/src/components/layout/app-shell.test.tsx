@@ -145,3 +145,23 @@ test('a sidebar lista times e etiquetas e filtra a lista por eles', async () => 
   await waitFor(() => expect(router.state.location.search).toMatchObject({ label: 'vip' }))
   expect(router.state.location.search).not.toHaveProperty('team_id')
 })
+
+test('a largura gravada continua valendo depois de salvar (não volta ao padrão)', async () => {
+  const state = statefulProfile()
+  server.use(
+    http.put('/api/v1/profile', async ({ request }) => {
+      const body = (await request.json()) as { profile: { ui_settings: Record<string, unknown> } }
+      state.set({ ...state.get(), ui_settings: body.profile.ui_settings })
+      return HttpResponse.json(state.get())
+    }),
+  )
+  await renderRoute('/app')
+  const user = userEvent.setup()
+
+  const aside = await screen.findByRole('complementary')
+  await user.dblClick(aside.querySelector('#sidebar-resize-handle') as Element)
+
+  await waitFor(() => expect(state.get().ui_settings).toMatchObject({ sidebar_width: 56 }))
+  await waitFor(() => expect(aside).toHaveAttribute('data-collapsed', 'true'))
+  expect(aside.style.getPropertyValue('--sidebar-width')).toBe('56px')
+})
