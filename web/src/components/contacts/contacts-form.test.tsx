@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 
 import { contactFixture } from '../../test/conversation-fixtures'
-import { renderWithI18n } from '../../test/i18n'
+import { renderWithApp } from '../conversation-list/test-utils'
 import { ContactsForm } from './contacts-form'
 
 const contact = contactFixture({
@@ -23,14 +23,14 @@ const contact = contactFixture({
 })
 
 test('preenche os campos a partir do contato (nome dividido como o splitName)', async () => {
-  await renderWithI18n(<ContactsForm contact={contact} onChange={() => {}} />)
+  await renderWithApp(<ContactsForm contact={contact} onChange={() => {}} />)
   expect(screen.getByPlaceholderText('Enter the first name')).toHaveValue('Mary Jane')
   expect(screen.getByPlaceholderText('Enter the last name')).toHaveValue('Smith')
   expect(screen.getByPlaceholderText('Enter the email address')).toHaveValue('mary@x.com')
   expect(screen.getByPlaceholderText('Enter the phone number')).toHaveValue('11999990000')
   expect(screen.getByPlaceholderText('Enter the city name')).toHaveValue('Recife')
   expect(screen.getByPlaceholderText('Enter the bio')).toHaveValue('Cliente antiga')
-  expect(screen.getByPlaceholderText('Enter the company name')).toHaveValue('Acme')
+  expect(screen.getByRole('button', { name: 'Acme' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Brazil/ })).toBeInTheDocument()
   expect(screen.getByPlaceholderText('Add Github')).toHaveValue('mary')
   // o usuário do WhatsApp perde os @ do começo
@@ -39,7 +39,7 @@ test('preenche os campos a partir do contato (nome dividido como o splitName)', 
 
 test('editar o nome junta nome e sobrenome e avisa o pai', async () => {
   const onChange = vi.fn()
-  await renderWithI18n(<ContactsForm contact={contact} onChange={onChange} />)
+  await renderWithApp(<ContactsForm contact={contact} onChange={onChange} />)
   const last = screen.getByPlaceholderText('Enter the last name')
   await userEvent.clear(last)
   await userEvent.type(last, 'Watson')
@@ -52,7 +52,7 @@ test('editar o nome junta nome e sobrenome e avisa o pai', async () => {
 
 test('nome vazio ou e-mail inválido deixam o formulário inválido', async () => {
   const onChange = vi.fn()
-  await renderWithI18n(<ContactsForm contact={contact} onChange={onChange} />)
+  await renderWithApp(<ContactsForm contact={contact} onChange={onChange} />)
   const email = screen.getByPlaceholderText('Enter the email address')
   await userEvent.clear(email)
   await userEvent.type(email, 'nao-e-email')
@@ -66,7 +66,7 @@ test('nome vazio ou e-mail inválido deixam o formulário inválido', async () =
 
 test('escolher o país grava o código e o nome', async () => {
   const onChange = vi.fn()
-  await renderWithI18n(<ContactsForm contact={contact} onChange={onChange} />)
+  await renderWithApp(<ContactsForm contact={contact} onChange={onChange} />)
   await userEvent.click(screen.getByRole('button', { name: /Brazil/ }))
   await userEvent.type(screen.getByPlaceholderText('Search...'), 'Portugal')
   await userEvent.click(screen.getByRole('option', { name: 'Portugal' }))

@@ -1,8 +1,9 @@
 // Port de components-next/Contacts/ContactsForm/ContactsForm.vue: dados do contato + redes sociais.
-// O CompanySelector só aparece com a feature "companies", que ainda não existe aqui: vale o campo de texto.
+// v1 habilita companies em todas as contas, como as rotas de empresas.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { CompanySelector } from '../companies/company-selector'
 import { countries } from '../../shared/countries'
 import { splitName } from '../../shared/split-name'
 import { Combobox } from '../next/combobox'
@@ -14,6 +15,7 @@ import { PhoneNumberInput } from '../next/phone-number-input'
 export type SocialProfiles = Record<(typeof SOCIAL_KEYS)[number], string> & Record<string, string>
 
 export type ContactFormData = {
+  company_id: number | null
   id: number
   name: string
   email: string
@@ -29,6 +31,7 @@ export type ContactFormData = {
 }
 
 export type ContactFormSource = {
+  company_id?: number | null
   id: number
   name: string
   email: string | null
@@ -85,6 +88,7 @@ function initialState(contact: ContactFormSource): State {
   const social = Object.fromEntries(SOCIAL_KEYS.map((k) => [k, ''])) as SocialProfiles
   return {
     id: contact.id,
+    company_id: contact.company_id ?? null,
     name: contact.name ?? '',
     firstName,
     lastName,
@@ -124,9 +128,9 @@ export function ContactsForm({ contact, isDetailsView = false, onChange }: Props
   function update(next: State) {
     setState(next)
     // emitContactUpdate: o pai recebe o nome já junto, sem nome/sobrenome separados
-    const { id, name, email, phone_number, additional_attributes } = next
+    const { id, name, email, phone_number, additional_attributes, company_id } = next
     onChange(
-      { id, name, email, phone_number, additional_attributes },
+      { id, name, email, phone_number, additional_attributes, company_id },
       next.firstName.trim() === '' || !validEmail(next.email),
     )
   }
@@ -234,12 +238,17 @@ export function ContactsForm({ contact, isDetailsView = false, onChange }: Props
             className="w-full"
             onChange={(e) => setAttr('description', e.target.value)}
           />
-          <Input
-            value={state.additional_attributes.company_name}
-            placeholder={placeholder('COMPANY_NAME')}
-            inputClassName={inputClass}
-            className="w-full"
-            onChange={(e) => setAttr('company_name', e.target.value)}
+          <CompanySelector
+            value={state.company_id}
+            selectedName={state.additional_attributes.company_name}
+            isDetailsView={isDetailsView}
+            onSelect={({ id, name }) =>
+              update({
+                ...state,
+                company_id: id,
+                additional_attributes: { ...state.additional_attributes, company_name: name },
+              })
+            }
           />
         </div>
       </div>

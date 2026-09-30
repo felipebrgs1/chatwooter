@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -70,4 +71,49 @@ func (c Companies) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	views.JSON(w, http.StatusOK, views.CompanyShow(company))
+}
+
+func (c Companies) Update(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		c.UploadAvatar(w, r)
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "company_id"), 10, 64)
+	if err != nil {
+		notFoundJSON(w)
+		return
+	}
+	var input struct {
+		Company map[string]json.RawMessage `json:"company"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if len(input.Company) == 0 {
+		views.JSON(w, http.StatusBadRequest, views.Error("param is missing or the value is empty: company"))
+		return
+	}
+	company, err := c.Companies.Update(r.Context(), CurrentMembership(r).AccountID, id, input.Company)
+	if err != nil {
+		contactError(w, err)
+		return
+	}
+	views.JSON(w, http.StatusOK, views.CompanyShow(company))
+}
+
+func (c Companies) Destroy(w http.ResponseWriter, r *http.Request) {
+	if !CurrentMembership(r).Administrator() {
+		unauthorized(w)
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "company_id"), 10, 64)
+	if err != nil {
+		notFoundJSON(w)
+		return
+	}
+	if err := c.Companies.Delete(r.Context(), CurrentMembership(r).AccountID, id); err != nil {
+		contactError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

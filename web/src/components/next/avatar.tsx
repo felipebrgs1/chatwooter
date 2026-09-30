@@ -1,4 +1,5 @@
 // Port de components-next/avatar/Avatar.vue + helpers de nome/iniciais.
+import { useState } from 'react'
 import { cx } from './cx'
 import { Icon } from './icon'
 import { initials } from './initials'
@@ -30,13 +31,16 @@ function radius(size: number) {
 }
 
 type Props = {
+  src?: string | null
   name?: string | null
   size?: number
   status?: AvatarStatus | null
   className?: string
 }
 
-export function Avatar({ name, size = 32, status = null, className }: Props) {
+export function Avatar({ src, name, size = 32, status = null, className }: Props) {
+  const [failedSource, setFailedSource] = useState<string | null>(null)
+  const showImage = !!src && src !== failedSource
   const color = name ? avatarColors[name.length % avatarColors.length] : null
   const badge = Math.max(size * 0.35, 8)
   const badgeOffset = size - badge / 1.1
@@ -63,7 +67,14 @@ export function Avatar({ name, size = 32, status = null, className }: Props) {
         )}
         style={{ width: size, height: size }}
       >
-        {color && name ? (
+        {showImage ? (
+          <img
+            src={src!}
+            alt=""
+            className="size-full object-cover"
+            onError={() => setFailedSource(src!)}
+          />
+        ) : color && name ? (
           <span className="select-none" style={{ fontSize: Math.min(size / 2.5, 24) }}>
             {initials(name)}
           </span>

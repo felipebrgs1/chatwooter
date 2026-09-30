@@ -52,13 +52,13 @@ type Contacts struct {
 func NewContacts(db DB) *Contacts { return &Contacts{db: db} }
 
 const contactColumns = `c.id, c.name, COALESCE(c.email, ''), COALESCE(c.phone_number, ''), COALESCE(c.identifier, ''), c.blocked,
-	COALESCE(c.additional_attributes, '{}'), COALESCE(c.custom_attributes, '{}'), c.created_at, c.last_activity_at`
+	COALESCE(c.additional_attributes, '{}'), COALESCE(c.custom_attributes, '{}'), c.created_at, c.last_activity_at, c.company_id`
 
 func scanContact(row pgx.Row) (Contact, error) {
 	var ct Contact
 	var name *string
 	err := row.Scan(&ct.ID, &name, &ct.Email, &ct.PhoneNumber, &ct.Identifier, &ct.Blocked,
-		&ct.AdditionalAttributes, &ct.CustomAttributes, &ct.CreatedAt, &ct.LastActivityAt)
+		&ct.AdditionalAttributes, &ct.CustomAttributes, &ct.CreatedAt, &ct.LastActivityAt, &ct.CompanyID)
 	if name != nil {
 		ct.Name = *name
 	}

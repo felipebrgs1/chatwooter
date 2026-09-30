@@ -73,8 +73,8 @@ func TestContactsIndexReturnsChatwootShape(t *testing.T) {
 	if _, ok := got["created_at"].(float64); !ok {
 		t.Errorf("created_at em epoch: %+v", got["created_at"])
 	}
-	if _, ok := got["company_id"]; ok {
-		t.Error("company_id só sai com a feature companies")
+	if value, ok := got["company_id"]; !ok || value != nil {
+		t.Error("unlinked contact must expose company_id null with companies enabled")
 	}
 	cis, _ := got["contact_inboxes"].([]any)
 	if len(cis) != 1 {

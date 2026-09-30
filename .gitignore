@@ -6,3 +6,6 @@ chatwoot
 
 .tanstack
 /tmp/
+
+# Local avatar storage (UPLOADS_DIR).
+server/storage/

@@ -59,6 +59,14 @@ func (c Contacts) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in models.ContactUpdate
+	if rawID, ok := raw["company_id"]; ok {
+		var id *int64
+		if err := json.Unmarshal(rawID, &id); err != nil {
+			views.JSON(w, 400, views.Error("Invalid company_id"))
+			return
+		}
+		in.CompanyID = &id
+	}
 	for key, field := range map[string]**string{
 		"name": &in.Name, "identifier": &in.Identifier, "email": &in.Email, "phone_number": &in.PhoneNumber,
 	} {

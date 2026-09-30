@@ -87,6 +87,7 @@ export interface ContactInbox {
 
 /** Contato das listas (/contacts, /contacts/search): _contact.json.jbuilder com contact_inboxes */
 export interface ContactListItem extends Contact {
+  company_id?: number | null
   contact_inboxes?: ContactInbox[]
 }
 

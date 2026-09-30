@@ -6,6 +6,7 @@ import (
 )
 
 type Contact struct {
+	CompanyID            *int64
 	ID                   int32
 	Name                 string
 	Email                string

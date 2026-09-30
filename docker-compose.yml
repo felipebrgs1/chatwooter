@@ -40,6 +40,7 @@ services:
       - "4100:4100"
     environment:
       PORT: "4100"
+      UPLOADS_DIR: ${UPLOADS_DIR:-./storage}
       # Só para desenvolvimento. Em produção: openssl rand -base64 32
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-Y2hhdHdvb3Rlci1kZXYtb25seS1rZXktMzJieXRlcyE=}
       DATABASE_URL: postgres://${PGUSER:-postgres}:${PGPASSWORD:-postgres}@db:5432/${PGDATABASE:-chatwooter_dev}?sslmode=disable

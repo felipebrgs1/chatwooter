@@ -1,11 +1,20 @@
 // Port de routes/dashboard/contacts/pages/ContactsIndex.vue: lista paginada ou busca, ordenação em ui_settings.
 // Fora desta fatia: segmentos, filtros avançados, visão por etiqueta, "active" e ações em massa.
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { profileQuery, updateUiSettings } from '../../api/auth'
-import { CONTACTS_PER_PAGE, contactKeys, contactsQuery } from '../../api/contacts'
+import {
+  CONTACTS_PER_PAGE,
+  contactKeys,
+  contactsQuery,
+  updateContact,
+  deleteContact,
+  type ContactUpdate,
+} from '../../api/contacts'
+import { ApiError } from '../../api/client'
+import { showAlert } from '../toast/alert'
 import { api } from '../../api/client'
 import type { ContactsPage, Profile } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
@@ -42,6 +51,42 @@ export function ContactsIndex({ page, search, onNavigate, onShowContact }: Props
   const { data: profile } = useQuery(profileQuery)
   const { sort, order } = parseSort(profile?.ui_settings.contacts_sort_by)
   const sortAttr = `${order}${sort}`
+
+  const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
+  const isAdmin =
+    profile?.accounts.find((account) => account.id === accountId)?.role === 'administrator'
+  const update = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ContactUpdate }) =>
+      updateContact(accountId, id, data),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(contactKeys.detail(accountId, saved.id), saved)
+      void queryClient.invalidateQueries({ queryKey: contactKeys.all(accountId) })
+      showAlert(t('CONTACTS_LAYOUT.CARD.EDIT_DETAILS_FORM.SUCCESS_MESSAGE'))
+    },
+    onError: (error) => {
+      const message = error instanceof ApiError ? error.messages.join(' ') : ''
+      const prefix = 'CONTACTS_LAYOUT.CARD.EDIT_DETAILS_FORM'
+      showAlert(
+        t(
+          /email/i.test(message)
+            ? `${prefix}.FORM.EMAIL_ADDRESS.DUPLICATE`
+            : /phone/i.test(message)
+              ? `${prefix}.FORM.PHONE_NUMBER.DUPLICATE`
+              : `${prefix}.ERROR_MESSAGE`,
+        ),
+      )
+    },
+  })
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteContact(accountId, id),
+    onSuccess: (_, id) => {
+      queryClient.removeQueries({ queryKey: contactKeys.detail(accountId, id) })
+      void queryClient.invalidateQueries({ queryKey: contactKeys.all(accountId) })
+      setExpandedCardId(null)
+      showAlert(t('CONTACTS_LAYOUT.DETAILS.DELETE_DIALOG.API.SUCCESS_MESSAGE'))
+    },
+    onError: () => showAlert(t('CONTACTS_LAYOUT.DETAILS.DELETE_DIALOG.API.ERROR_MESSAGE')),
+  })
 
   // o campo muda na hora; a URL (e a busca) só depois da pausa de digitação
   const [searchValue, setSearchValue] = useState(search)
@@ -146,7 +191,18 @@ export function ContactsIndex({ page, search, onNavigate, onShowContact }: Props
             <div className="flex flex-col gap-4">
               {contacts.map((contact) => (
                 <div key={contact.id} className="relative">
-                  <ContactsCard contact={contact} onShowContact={onShowContact} />
+                  <ContactsCard
+                    contact={contact}
+                    onShowContact={onShowContact}
+                    isExpanded={expandedCardId === contact.id}
+                    isUpdating={update.isPending}
+                    isAdmin={isAdmin}
+                    onToggle={() =>
+                      setExpandedCardId(expandedCardId === contact.id ? null : contact.id)
+                    }
+                    onUpdate={(data) => update.mutate({ id: contact.id, data })}
+                    onDelete={() => remove.mutate(contact.id)}
+                  />
                 </div>
               ))}
             </div>

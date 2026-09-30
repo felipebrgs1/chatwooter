@@ -15,6 +15,7 @@ import (
 // ContactUpdate são os permitted_params do update; nil = campo ausente no pedido (não muda).
 // Os dois mapas de atributos são mesclados sobre os existentes (contact_update_params).
 type ContactUpdate struct {
+	CompanyID            **int64
 	Name                 *string
 	Identifier           *string
 	Email                *string
@@ -145,6 +146,11 @@ func (c *Contacts) Update(ctx context.Context, accountID, id int32, in ContactUp
 	}
 	if err != nil {
 		return Contact{}, err
+	}
+	if in.CompanyID != nil {
+		if err := NewCompanies(tx).Membership(ctx, accountID, id, *in.CompanyID, nil); err != nil {
+			return Contact{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Contact{}, err

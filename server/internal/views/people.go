@@ -20,7 +20,8 @@ type ContactJSON struct {
 	CustomAttributes     json.RawMessage `json:"custom_attributes"`
 	LastActivityAt       *int64          `json:"last_activity_at,omitempty"`
 	CreatedAt            int64           `json:"created_at,omitempty"`
-	// company_id só sai com a feature `companies`, e as features da conta ainda não têm origem: omitido.
+	// v1 habilita companies em todas as contas, como as rotas de empresas.
+	CompanyID *int64 `json:"company_id"`
 	// contact_inboxes só nos endpoints de /contacts (with_contact_inboxes); nil = ausente.
 	ContactInboxes *[]ContactInboxJSON `json:"contact_inboxes,omitempty"`
 }
@@ -44,6 +45,7 @@ type InboxSlimJSON struct {
 func Contact(c models.Contact) ContactJSON {
 	out := ContactJSON{
 		AdditionalAttributes: c.AdditionalAttributes,
+		CompanyID:            c.CompanyID,
 		// Sem presença de contatos ainda: todo contato aparece offline.
 		AvailabilityStatus: "offline",
 		Email:              nilIfEmpty(c.Email),

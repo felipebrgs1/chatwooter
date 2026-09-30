@@ -7,9 +7,144 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const assignContactCompany = `-- name: AssignContactCompany :exec
+UPDATE contacts SET company_id=$1, additional_attributes=(COALESCE(additional_attributes,'{}'::jsonb) - 'company_name') || CASE WHEN $2::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('company_name',$2::text) END, updated_at=now()
+WHERE account_id= $3 AND id= $4
+`
+
+type AssignContactCompanyParams struct {
+	CompanyID   pgtype.Int8
+	CompanyName pgtype.Text
+	AccountID   int32
+	ID          int32
+}
+
+func (q *Queries) AssignContactCompany(ctx context.Context, arg AssignContactCompanyParams) error {
+	_, err := q.db.Exec(ctx, assignContactCompany,
+		arg.CompanyID,
+		arg.CompanyName,
+		arg.AccountID,
+		arg.ID,
+	)
+	return err
+}
+
+const attachCompanyAvatar = `-- name: AttachCompanyAvatar :exec
+INSERT INTO active_storage_attachments (name,record_type,record_id,blob_id,created_at) VALUES ('avatar','Company',$1,$2,now())
+`
+
+type AttachCompanyAvatarParams struct {
+	RecordID int64
+	BlobID   int64
+}
+
+func (q *Queries) AttachCompanyAvatar(ctx context.Context, arg AttachCompanyAvatarParams) error {
+	_, err := q.db.Exec(ctx, attachCompanyAvatar, arg.RecordID, arg.BlobID)
+	return err
+}
+
+const companyAvatar = `-- name: CompanyAvatar :one
+SELECT b.id, b.key, b.filename, b.content_type, b.metadata, b.byte_size, b.checksum, b.created_at, b.service_name FROM active_storage_blobs b JOIN active_storage_attachments a ON a.blob_id=b.id JOIN companies c ON c.id=a.record_id WHERE c.account_id = $1 AND c.id = $2 AND a.record_type='Company' AND a.name='avatar' AND b.service_name='chatwooter_local'
+`
+
+type CompanyAvatarParams struct {
+	AccountID int64
+	ID        int64
+}
+
+func (q *Queries) CompanyAvatar(ctx context.Context, arg CompanyAvatarParams) (ActiveStorageBlob, error) {
+	row := q.db.QueryRow(ctx, companyAvatar, arg.AccountID, arg.ID)
+	var i ActiveStorageBlob
+	err := row.Scan(
+		&i.ID,
+		&i.Key,
+		&i.Filename,
+		&i.ContentType,
+		&i.Metadata,
+		&i.ByteSize,
+		&i.Checksum,
+		&i.CreatedAt,
+		&i.ServiceName,
+	)
+	return i, err
+}
+
+const companyConversationIDs = `-- name: CompanyConversationIDs :many
+SELECT c.display_id FROM conversations c JOIN contacts ct ON ct.id=c.contact_id AND ct.account_id=c.account_id
+WHERE c.account_id= $1 AND ct.company_id= $2 AND ($3::boolean OR c.inbox_id IN (SELECT im.inbox_id FROM inbox_members im JOIN inboxes i ON i.id=im.inbox_id WHERE im.user_id= $4 AND i.account_id= $1))
+ORDER BY c.last_activity_at DESC,c.id DESC LIMIT 20
+`
+
+type CompanyConversationIDsParams struct {
+	AccountID int32
+	CompanyID pgtype.Int8
+	IsAdmin   bool
+	UserID    int32
+}
+
+func (q *Queries) CompanyConversationIDs(ctx context.Context, arg CompanyConversationIDsParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, companyConversationIDs,
+		arg.AccountID,
+		arg.CompanyID,
+		arg.IsAdmin,
+		arg.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var display_id int32
+		if err := rows.Scan(&display_id); err != nil {
+			return nil, err
+		}
+		items = append(items, display_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const companyNoteIDs = `-- name: CompanyNoteIDs :many
+SELECT n.id,ct.id AS contact_id FROM notes n JOIN contacts ct ON ct.id=n.contact_id AND ct.account_id=n.account_id WHERE n.account_id= $1 AND ct.company_id= $2 ORDER BY n.created_at DESC,n.id DESC LIMIT 20
+`
+
+type CompanyNoteIDsParams struct {
+	AccountID int64
+	CompanyID pgtype.Int8
+}
+
+type CompanyNoteIDsRow struct {
+	ID        int64
+	ContactID int32
+}
+
+func (q *Queries) CompanyNoteIDs(ctx context.Context, arg CompanyNoteIDsParams) ([]CompanyNoteIDsRow, error) {
+	rows, err := q.db.Query(ctx, companyNoteIDs, arg.AccountID, arg.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CompanyNoteIDsRow{}
+	for rows.Next() {
+		var i CompanyNoteIDsRow
+		if err := rows.Scan(&i.ID, &i.ContactID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const countCompanies = `-- name: CountCompanies :one
 SELECT count(*) FROM companies
@@ -26,6 +161,55 @@ func (q *Queries) CountCompanies(ctx context.Context, arg CountCompaniesParams) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countCompanyContacts = `-- name: CountCompanyContacts :one
+SELECT count(*) FROM contacts WHERE account_id= $1 AND (CASE WHEN $2::boolean THEN (company_id IS NULL OR company_id != $3) AND (name ILIKE '%' || $4::text || '%' OR email ILIKE '%' || $4::text || '%' OR phone_number ILIKE '%' || $4::text || '%' OR identifier ILIKE '%' || $4::text || '%') ELSE company_id= $3 END)
+`
+
+type CountCompanyContactsParams struct {
+	AccountID int32
+	Searching bool
+	CompanyID pgtype.Int8
+	Term      string
+}
+
+func (q *Queries) CountCompanyContacts(ctx context.Context, arg CountCompanyContactsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompanyContacts,
+		arg.AccountID,
+		arg.Searching,
+		arg.CompanyID,
+		arg.Term,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createAvatarBlob = `-- name: CreateAvatarBlob :one
+INSERT INTO active_storage_blobs (key,filename,content_type,metadata,byte_size,checksum,created_at,service_name)
+VALUES ($1,$2,$3,'{}',$4,$5,now(),'chatwooter_local') RETURNING id
+`
+
+type CreateAvatarBlobParams struct {
+	Key         string
+	Filename    string
+	ContentType pgtype.Text
+	ByteSize    int64
+	Checksum    pgtype.Text
+}
+
+func (q *Queries) CreateAvatarBlob(ctx context.Context, arg CreateAvatarBlobParams) (int64, error) {
+	row := q.db.QueryRow(ctx, createAvatarBlob,
+		arg.Key,
+		arg.Filename,
+		arg.ContentType,
+		arg.ByteSize,
+		arg.Checksum,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const createCompany = `-- name: CreateCompany :one
@@ -69,6 +253,38 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 	return i, err
 }
 
+const deleteAvatarBlob = `-- name: DeleteAvatarBlob :exec
+DELETE FROM active_storage_blobs WHERE active_storage_blobs.id = $1 AND service_name='chatwooter_local' AND NOT EXISTS (SELECT 1 FROM active_storage_attachments WHERE blob_id = $1)
+`
+
+func (q *Queries) DeleteAvatarBlob(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteAvatarBlob, id)
+	return err
+}
+
+const deleteCompany = `-- name: DeleteCompany :exec
+DELETE FROM companies WHERE account_id = $1 AND id = $2
+`
+
+type DeleteCompanyParams struct {
+	AccountID int64
+	ID        int64
+}
+
+func (q *Queries) DeleteCompany(ctx context.Context, arg DeleteCompanyParams) error {
+	_, err := q.db.Exec(ctx, deleteCompany, arg.AccountID, arg.ID)
+	return err
+}
+
+const detachCompanyAvatar = `-- name: DetachCompanyAvatar :exec
+DELETE FROM active_storage_attachments WHERE record_type='Company' AND record_id = $1 AND name='avatar'
+`
+
+func (q *Queries) DetachCompanyAvatar(ctx context.Context, recordID int64) error {
+	_, err := q.db.Exec(ctx, detachCompanyAvatar, recordID)
+	return err
+}
+
 const getCompany = `-- name: GetCompany :one
 SELECT id, name, domain, description, additional_attributes, account_id, created_at, updated_at, custom_attributes, contacts_count, last_activity_at FROM companies WHERE account_id = $1 AND id = $2
 `
@@ -95,6 +311,22 @@ func (q *Queries) GetCompany(ctx context.Context, arg GetCompanyParams) (Company
 		&i.LastActivityAt,
 	)
 	return i, err
+}
+
+const getContactCompanyID = `-- name: GetContactCompanyID :one
+SELECT company_id FROM contacts WHERE account_id= $1 AND id= $2
+`
+
+type GetContactCompanyIDParams struct {
+	AccountID int32
+	ID        int32
+}
+
+func (q *Queries) GetContactCompanyID(ctx context.Context, arg GetContactCompanyIDParams) (pgtype.Int8, error) {
+	row := q.db.QueryRow(ctx, getContactCompanyID, arg.AccountID, arg.ID)
+	var company_id pgtype.Int8
+	err := row.Scan(&company_id)
+	return company_id, err
 }
 
 const listCompanies = `-- name: ListCompanies :many
@@ -159,4 +391,194 @@ func (q *Queries) ListCompanies(ctx context.Context, arg ListCompaniesParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const listCompanyContactIDs = `-- name: ListCompanyContactIDs :many
+SELECT id FROM contacts WHERE account_id= $1 AND (CASE WHEN $2::boolean THEN (company_id IS NULL OR company_id != $3) AND (name ILIKE '%' || $4::text || '%' OR email ILIKE '%' || $4::text || '%' OR phone_number ILIKE '%' || $4::text || '%' OR identifier ILIKE '%' || $4::text || '%') ELSE company_id= $3 END) ORDER BY name, id LIMIT 15 OFFSET $5
+`
+
+type ListCompanyContactIDsParams struct {
+	AccountID  int32
+	Searching  bool
+	CompanyID  pgtype.Int8
+	Term       string
+	PageOffset int32
+}
+
+func (q *Queries) ListCompanyContactIDs(ctx context.Context, arg ListCompanyContactIDsParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listCompanyContactIDs,
+		arg.AccountID,
+		arg.Searching,
+		arg.CompanyID,
+		arg.Term,
+		arg.PageOffset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCompany = `-- name: LockCompany :one
+SELECT id, name, domain, description, additional_attributes, account_id, created_at, updated_at, custom_attributes, contacts_count, last_activity_at FROM companies WHERE account_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockCompanyParams struct {
+	AccountID int64
+	ID        int64
+}
+
+func (q *Queries) LockCompany(ctx context.Context, arg LockCompanyParams) (Company, error) {
+	row := q.db.QueryRow(ctx, lockCompany, arg.AccountID, arg.ID)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.Description,
+		&i.AdditionalAttributes,
+		&i.AccountID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CustomAttributes,
+		&i.ContactsCount,
+		&i.LastActivityAt,
+	)
+	return i, err
+}
+
+const lockCompanyContact = `-- name: LockCompanyContact :one
+SELECT id, account_id, name, phone_number, email, additional_attributes, created_at, updated_at, company_id, identifier, custom_attributes, last_activity_at, contact_type, middle_name, last_name, location, country_code, blocked FROM contacts WHERE account_id= $1 AND id= $2 FOR UPDATE
+`
+
+type LockCompanyContactParams struct {
+	AccountID int32
+	ID        int32
+}
+
+func (q *Queries) LockCompanyContact(ctx context.Context, arg LockCompanyContactParams) (Contact, error) {
+	row := q.db.QueryRow(ctx, lockCompanyContact, arg.AccountID, arg.ID)
+	var i Contact
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Name,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.AdditionalAttributes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompanyID,
+		&i.Identifier,
+		&i.CustomAttributes,
+		&i.LastActivityAt,
+		&i.ContactType,
+		&i.MiddleName,
+		&i.LastName,
+		&i.Location,
+		&i.CountryCode,
+		&i.Blocked,
+	)
+	return i, err
+}
+
+const refreshCompanyContactCount = `-- name: RefreshCompanyContactCount :exec
+UPDATE companies SET contacts_count=(SELECT count(*) FROM contacts WHERE contacts.account_id= $1::integer AND contacts.company_id=companies.id), last_activity_at=GREATEST(last_activity_at, $2::timestamp) WHERE companies.account_id= $1::integer AND companies.id= $3
+`
+
+type RefreshCompanyContactCountParams struct {
+	AccountID int32
+	Activity  *time.Time
+	ID        int64
+}
+
+func (q *Queries) RefreshCompanyContactCount(ctx context.Context, arg RefreshCompanyContactCountParams) error {
+	_, err := q.db.Exec(ctx, refreshCompanyContactCount, arg.AccountID, arg.Activity, arg.ID)
+	return err
+}
+
+const syncCompanyContactNames = `-- name: SyncCompanyContactNames :exec
+UPDATE contacts SET additional_attributes = COALESCE(additional_attributes, '{}'::jsonb) || jsonb_build_object('company_name', $1::text)
+WHERE account_id = $2 AND company_id = $3
+`
+
+type SyncCompanyContactNamesParams struct {
+	CompanyName string
+	AccountID   int32
+	CompanyID   pgtype.Int8
+}
+
+func (q *Queries) SyncCompanyContactNames(ctx context.Context, arg SyncCompanyContactNamesParams) error {
+	_, err := q.db.Exec(ctx, syncCompanyContactNames, arg.CompanyName, arg.AccountID, arg.CompanyID)
+	return err
+}
+
+const unlinkCompanyContacts = `-- name: UnlinkCompanyContacts :exec
+UPDATE contacts SET company_id = NULL, additional_attributes = COALESCE(additional_attributes, '{}'::jsonb) - 'company_name'
+WHERE account_id = $1 AND company_id = $2
+`
+
+type UnlinkCompanyContactsParams struct {
+	AccountID int32
+	CompanyID pgtype.Int8
+}
+
+func (q *Queries) UnlinkCompanyContacts(ctx context.Context, arg UnlinkCompanyContactsParams) error {
+	_, err := q.db.Exec(ctx, unlinkCompanyContacts, arg.AccountID, arg.CompanyID)
+	return err
+}
+
+const updateCompany = `-- name: UpdateCompany :one
+UPDATE companies SET name = $1, domain = $2, description = $3,
+ additional_attributes = $4, custom_attributes = $5, updated_at = now()
+WHERE account_id = $6 AND id = $7 RETURNING id, name, domain, description, additional_attributes, account_id, created_at, updated_at, custom_attributes, contacts_count, last_activity_at
+`
+
+type UpdateCompanyParams struct {
+	Name                 string
+	Domain               pgtype.Text
+	Description          pgtype.Text
+	AdditionalAttributes []byte
+	CustomAttributes     []byte
+	AccountID            int64
+	ID                   int64
+}
+
+func (q *Queries) UpdateCompany(ctx context.Context, arg UpdateCompanyParams) (Company, error) {
+	row := q.db.QueryRow(ctx, updateCompany,
+		arg.Name,
+		arg.Domain,
+		arg.Description,
+		arg.AdditionalAttributes,
+		arg.CustomAttributes,
+		arg.AccountID,
+		arg.ID,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.Description,
+		&i.AdditionalAttributes,
+		&i.AccountID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CustomAttributes,
+		&i.ContactsCount,
+		&i.LastActivityAt,
+	)
+	return i, err
 }

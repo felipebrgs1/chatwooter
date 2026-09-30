@@ -26,7 +26,7 @@ func Company(c models.Company) CompanyResponse {
 		v := c.LastActivityAt.Unix()
 		activity = &v
 	}
-	return CompanyResponse{ID: c.ID, Name: c.Name, Domain: c.Domain, Description: c.Description, ContactsCount: c.ContactsCount, CustomAttributes: c.CustomAttributes, AvatarURL: "", LastActivityAt: activity, CreatedAt: c.CreatedAt.Unix(), UpdatedAt: c.UpdatedAt.Unix()}
+	return CompanyResponse{ID: c.ID, Name: c.Name, Domain: c.Domain, Description: c.Description, ContactsCount: c.ContactsCount, CustomAttributes: c.CustomAttributes, AvatarURL: c.AvatarURL, LastActivityAt: activity, CreatedAt: c.CreatedAt.Unix(), UpdatedAt: c.UpdatedAt.Unix()}
 }
 
 // CompaniesPage espelha api/v1/accounts/companies/index.json.jbuilder e search.json.jbuilder.

@@ -13,6 +13,15 @@ function CompanyPage() {
     <CompanyDetail
       key={companyId}
       companyId={Number(companyId)}
+      onContact={(id) =>
+        void navigate({ to: '/app/contacts/$contactId', params: { contactId: String(id) } })
+      }
+      onConversation={(id) =>
+        void navigate({
+          to: '/app/conversations/$conversationId',
+          params: { conversationId: String(id) },
+        })
+      }
       onBack={() => {
         if (window.history.length > 1) router.history.back()
         else void navigate({ to: '/app/companies' })

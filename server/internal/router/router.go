@@ -64,6 +64,17 @@ func New(d Deps) http.Handler {
 				r.Get("/search", companies.Search)
 				r.Post("/", companies.Create)
 				r.Get("/{company_id}", companies.Show)
+				r.Put("/{company_id}", companies.Update)
+				r.Patch("/{company_id}", companies.Update)
+				r.Delete("/{company_id}", companies.Destroy)
+				r.Get("/{company_id}/contacts", companies.Contacts)
+				r.Get("/{company_id}/contacts/search", companies.SearchContacts)
+				r.Post("/{company_id}/contacts", companies.LinkContact)
+				r.Delete("/{company_id}/contacts/{contact_id}", companies.UnlinkContact)
+				r.Get("/{company_id}/avatar", companies.Avatar)
+				r.Delete("/{company_id}/avatar", companies.DeleteAvatar)
+				r.Get("/{company_id}/notes", companies.Notes)
+				r.Get("/{company_id}/conversations", companies.Conversations)
 			})
 
 			contacts := controllers.Contacts{Contacts: d.Contacts}

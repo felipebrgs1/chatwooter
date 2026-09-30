@@ -22,7 +22,12 @@ export function CompaniesCard({
         onClick={() => onShowCompany(company.id)}
         className="flex w-full cursor-pointer items-center gap-4 text-start"
       >
-        <Avatar name={company.name || t('COMPANIES.UNNAMED')} size={42} className="shrink-0" />
+        <Avatar
+          name={company.name || t('COMPANIES.UNNAMED')}
+          src={company.avatar_url}
+          size={42}
+          className="shrink-0"
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
             <span className="truncate text-base font-medium text-n-slate-12">

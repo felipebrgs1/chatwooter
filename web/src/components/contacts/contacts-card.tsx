@@ -1,15 +1,20 @@
-// Port de components-next/Contacts/ContactsCard/ContactsCard.vue (linha recolhida).
-// O chevron abre o formulário de edição rápida e a seção de exclusão, que entram com a edição de contato.
+// Port de components-next/Contacts/ContactsCard/ContactsCard.vue.
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ContactUpdate } from '../../api/contacts'
 import { countries } from '../../shared/countries'
 import { Avatar } from '../next/avatar'
 import { Button } from '../next/button'
 import { CardLayout } from '../next/card-layout'
+import { Dialog } from '../next/dialog'
+import { cx } from '../next/cx'
 import { Flag } from '../next/flag'
 import { Icon } from '../next/icon'
+import { ContactsForm, type ContactFormData } from './contacts-form'
 
 export type ContactCardData = {
+  company_id?: number | null
   id: number
   name: string
   email: string | null
@@ -19,6 +24,12 @@ export type ContactCardData = {
 
 type Props = {
   contact: ContactCardData
+  isExpanded?: boolean
+  isUpdating?: boolean
+  isAdmin?: boolean
+  onToggle?: () => void
+  onUpdate?: (data: ContactUpdate) => void
+  onDelete?: () => void
   onShowContact?: (id: number) => void
 }
 
@@ -37,14 +48,115 @@ function location(attributes: Record<string, unknown>) {
   return { code: found.id, text: [city ? `${city},` : null, found.name].filter(Boolean).join(' ') }
 }
 
-export function ContactsCard({ contact, onShowContact }: Props) {
+export function ContactsCard({
+  contact,
+  onShowContact,
+  isExpanded = false,
+  isUpdating = false,
+  isAdmin = false,
+  onToggle,
+  onUpdate,
+  onDelete,
+}: Props) {
   const { t } = useTranslation()
+  const [form, setForm] = useState<{ data: ContactFormData | null; invalid: boolean }>({
+    data: null,
+    invalid: false,
+  })
+  const [wasExpanded, setWasExpanded] = useState(isExpanded)
+  if (wasExpanded !== isExpanded) {
+    setWasExpanded(isExpanded)
+    setForm({ data: null, invalid: false })
+  }
+  const [showDelete, setShowDelete] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const attributes = contact.additional_attributes ?? {}
   const companyName = typeof attributes.company_name === 'string' ? attributes.company_name : ''
   const place = location(attributes)
 
   return (
-    <CardLayout layout="row">
+    <CardLayout
+      layout="row"
+      after={
+        <div
+          id={`contact-${contact.id}-edit`}
+          className={cx(
+            'transition-all duration-500 ease-in-out grid overflow-hidden',
+            isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+          )}
+        >
+          <div className="overflow-hidden">
+            {isExpanded && (
+              <>
+                <div className="flex flex-col gap-6 p-6 border-t border-n-strong">
+                  <ContactsForm
+                    contact={contact}
+                    onChange={(data, invalid) => setForm({ data, invalid })}
+                  />
+                  <div>
+                    <Button
+                      label={t('CONTACTS_LAYOUT.CARD.EDIT_DETAILS_FORM.UPDATE_BUTTON')}
+                      size="sm"
+                      isLoading={isUpdating}
+                      disabled={isUpdating || form.invalid || (!contact.name.trim() && !form.data)}
+                      onClick={() =>
+                        onUpdate?.(
+                          form.data ?? {
+                            ...contact,
+                            email: contact.email ?? '',
+                            phone_number: contact.phone_number ?? '',
+                          },
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div className="flex flex-col items-start border-t border-n-strong px-6 py-5">
+                    <Button
+                      label={t('CONTACTS_LAYOUT.DETAILS.DELETE_CONTACT')}
+                      icon="ph-caret-down"
+                      trailingIcon
+                      variant="link"
+                      color="slate"
+                      size="sm"
+                      className="hover:!no-underline text-n-slate-12"
+                      aria-expanded={showDelete}
+                      onClick={() => setShowDelete(!showDelete)}
+                    />
+                    {showDelete && (
+                      <span className="inline-flex text-n-slate-11 text-sm items-center gap-1 mt-2">
+                        {t('CONTACTS_LAYOUT.CARD.DELETE_CONTACT.MESSAGE')}
+                        <Button
+                          label={t('CONTACTS_LAYOUT.CARD.DELETE_CONTACT.BUTTON')}
+                          size="sm"
+                          color="ruby"
+                          variant="link"
+                          onClick={() => setConfirmDelete(true)}
+                        />
+                      </span>
+                    )}
+                  </div>
+                )}
+                <Dialog
+                  open={confirmDelete}
+                  type="alert"
+                  title={t('CONTACTS_LAYOUT.DETAILS.DELETE_DIALOG.TITLE')}
+                  description={t('CONTACTS_LAYOUT.DETAILS.DELETE_DIALOG.DESCRIPTION')}
+                  confirmLabel={t('CONTACTS_LAYOUT.DETAILS.DELETE_DIALOG.CONFIRM')}
+                  cancelLabel={t('DIALOG.BUTTONS.CANCEL')}
+                  onClose={() => setConfirmDelete(false)}
+                  onConfirm={() => {
+                    setConfirmDelete(false)
+                    onDelete?.()
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      }
+    >
       <div className="flex flex-1 items-center justify-start gap-4">
         <div className="relative">
           <Avatar name={contact.name} size={42} />
@@ -94,8 +206,20 @@ export function ContactsCard({ contact, onShowContact }: Props) {
           </div>
         </div>
       </div>
-      {/* chevron de edição rápida: só visual até existir PUT /contacts/:id */}
-      <Button icon="ph-caret-down" variant="ghost" color="slate" size="xs" />
+      <Button
+        icon="ph-caret-down"
+        variant="ghost"
+        color="slate"
+        size="xs"
+        aria-label={t('CONTACTS_LAYOUT.CARD.EDIT_DETAILS_FORM.TITLE')}
+        aria-expanded={isExpanded}
+        aria-controls={`contact-${contact.id}-edit`}
+        className={isExpanded ? 'rotate-180' : undefined}
+        onClick={() => {
+          setForm({ data: null, invalid: false })
+          onToggle?.()
+        }}
+      />
     </CardLayout>
   )
 }

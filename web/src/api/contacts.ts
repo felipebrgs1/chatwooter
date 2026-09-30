@@ -47,6 +47,7 @@ export const contactQuery = (accountId: number, id: number) =>
 // ---- Detalhe: contacts_controller#update/#destroy e os controllers aninhados em contacts/ ----
 
 export type ContactUpdate = Partial<{
+  company_id: number | null
   name: string
   email: string
   phone_number: string

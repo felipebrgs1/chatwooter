@@ -27,7 +27,7 @@ Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (
 | Lista de conversas | ✅ | abas, status, ordenação, card, visões, layout expandido; faltam extras (Marco 1.1) |
 | Thread, cabeçalho, composer | 🟡 | 1:1 no básico; faltam painel do contato, rich text, canned, anexos, menções |
 | Lista e detalhe de contatos | 🟡 | lista, busca, ordenação, detalhe, bloquear, etiquetas, notas, histórico, excluir; faltam criar, filtros, merge, atributos, mídia, nova conversa |
-| Empresas | 🟡 | lista, busca, ordenação, paginação, criação e detalhe básico; faltam edição, exclusão, avatar, vínculos, histórico/notas e selector inline |
+| Empresas | 🟡 | lista, busca, ordenação, paginação, criação, edição/exclusão, avatar, vínculos, histórico/notas e selector inline; faltam atributos personalizados e favicon automático |
 | Settings (general, inboxes, agents, profile) | ⬜ | — |
 | Telegram, WhatsApp Cloud | ⬜ | só schema |
 | API v1 | 🟡 | profile, contas, conversas, mensagens, labels, teams e inboxes (leitura); o resto ⬜ |
@@ -145,14 +145,21 @@ só pelas telas, que batem com o Chatwoot.
 
 Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboard/contacts|companies`
 - [ ] Lista de contatos com a paleta `n-*`: cards, busca, ordenação, filtros avançados
-  - Feitos: cards, busca (Load more), ordenação em `ui_settings`, paginação. Faltam filtros avançados, edição rápida no card e seleção em massa.
+  - Feitos: cards, busca (Load more), ordenação em `ui_settings`, paginação. Faltam filtros avançados e seleção em massa.
+  - [x] Seta do card expande a edição rápida (dados e redes sociais), atualização pela API e exclusão com confirmação para administradores.
 - [ ] Rotas Active, Segments (filtro salvo) e "Tagged with" (etiqueta) + sidebar
 - [ ] Criar contato (`CreateNewContactDialog.vue`), import/export CSV (`ContactImportDialog.vue`, `ContactExportDialog.vue`)
 - [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
 - [ ] Detalhe do contato: avatar (upload/excluir)
 - [ ] Empresas: lista e detalhe 1:1, `CompanySelector` com criação inline
   - [x] Lista com cards, busca por nome/domínio (debounce 300ms), paginação de 25, ordenação em `ui_settings`, criação e rotas na sidebar; API Go index/search/create/show escopada pela conta.
-  - Detalhe básico em leitura disponível; faltam editar/excluir, avatar, contatos vinculados, histórico/notas e `CompanySelector`. Botão de edição fica desabilitado até o backend correspondente.
+  - [x] Detalhe com edição de nome/domínio/descrição, validação, atualização e exclusão com confirmação para administradores; API PUT/PATCH/DELETE por conta. Renomear sincroniza o nome nos contatos; excluir desvincula sem apagar contatos.
+  - [x] Avatar com upload PNG/JPEG/GIF/WebP, leitura autenticada, substituição e exclusão; catálogo ActiveStorage e arquivos locais em `UPLOADS_DIR` (volume persistente em produção).
+  - [x] Painel de contatos paginado com busca, confirmação de vínculo/reassociação, remoção e navegação ao contato; contagens e nomes sincronizados por conta.
+  - [x] Histórico (20 conversas, respeitando inboxes do agente) e notas (20 mais recentes) agregados dos contatos vinculados, com navegação para conversa/contato.
+  - [x] `CompanySelector` no formulário de contato, com busca, criação inline pelo diálogo, seleção e desvinculação salvas em `company_id`.
+  - Faltam atributos personalizados de empresas (definições e editor) e favicon automático; marco completo ainda não concluído.
+  - Desvio v1: sincronização de nomes e exclusão são transações locais síncronas; avatar usa arquivos locais com catálogo ActiveStorage; callbacks externos ainda não portados.
   - Desvio v1: empresas disponíveis em todas as contas; gate `feature_flags` da conta ainda não portado. Favicon automático aguarda jobs River de avatar.
 - [ ] Nova conversa a partir da sidebar (botão de compose)
 

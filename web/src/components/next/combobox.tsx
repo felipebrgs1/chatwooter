@@ -15,6 +15,10 @@ export type ComboboxOption = {
 }
 
 type Props = {
+  disabled?: boolean
+  onOpen?: () => void
+  displayLabel?: string
+  useApiResults?: boolean
   id: string
   options: ComboboxOption[]
   value: ComboboxOption['value'] | null
@@ -33,6 +37,10 @@ const isHeader = (option: ComboboxOption) => option.disabled === true
 const getText = (option: ComboboxOption) => option.label
 
 export function Combobox({
+  disabled = false,
+  onOpen,
+  displayLabel,
+  useApiResults = false,
   id,
   options,
   value,
@@ -59,7 +67,8 @@ export function Combobox({
   }, [setQuery])
 
   const selected = options.find((o) => String(o.value) === String(value))
-  const selectable = useMemo(() => visible.filter((o) => !isHeader(o)), [visible])
+  const shown = useApiResults ? options : visible
+  const selectable = useMemo(() => shown.filter((o) => !isHeader(o)), [shown])
 
   useEffect(() => {
     if (open) searchRef.current?.focus()
@@ -119,12 +128,19 @@ export function Combobox({
         trailingIcon={!selected?.icon}
         noAnimation
         size="md"
-        label={selected ? selected.label : placeholder}
+        disabled={disabled}
+        label={selected ? selected.label : displayLabel || placeholder}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         className="justify-between! w-full px-3! py-2.5! h-8! bg-n-alpha-black2! font-normal outline-n-weak! group-hover/combobox:outline-n-slate-6! focus:outline-n-brand! text-n-slate-12"
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => {
+          if (open) close()
+          else {
+            setOpen(true)
+            onOpen?.()
+          }
+        }}
       />
       {open && (
         <div
@@ -157,7 +173,7 @@ export function Combobox({
             role="listbox"
             className={cx('py-1 mb-0 overflow-auto max-h-56', listClassName)}
           >
-            {visible.map((option) =>
+            {shown.map((option) =>
               isHeader(option) ? (
                 <li
                   key={option.value}
@@ -194,7 +210,9 @@ export function Combobox({
                 </li>
               ),
             )}
-            {isEmpty && <li className="px-3 py-2 text-sm text-n-slate-11">{emptyState}</li>}
+            {(useApiResults ? shown.length === 0 : isEmpty) && (
+              <li className="px-3 py-2 text-sm text-n-slate-11">{emptyState}</li>
+            )}
           </ul>
         </div>
       )}

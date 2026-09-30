@@ -188,3 +188,114 @@ test('a sidebar leva à lista de contatos', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/app/contacts'))
   expect(await screen.findByText('Contato 1')).toBeInTheDocument()
 })
+
+test('a seta expande a edição rápida, salva e descarta alterações ao reabrir', async () => {
+  let current = contact(1)
+  const updates: unknown[] = []
+  server.use(
+    http.get('/api/v1/accounts/1/contacts', () =>
+      HttpResponse.json({
+        meta: { count: 1, current_page: '1' },
+        payload: [current],
+      }),
+    ),
+    http.put('/api/v1/accounts/1/contacts/1', async ({ request }) => {
+      const data = (await request.json()) as Partial<ContactListItem>
+      updates.push(data)
+      current = { ...current, ...data }
+      return HttpResponse.json({ payload: current })
+    }),
+  )
+  await renderRoute('/app/contacts')
+  await screen.findByText('Contato 1')
+  const user = userEvent.setup()
+  const toggle = screen.getByRole('button', { name: 'Edit contact details' })
+  await user.click(toggle)
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const firstName = screen.getByPlaceholderText('Enter the first name')
+  await user.clear(firstName)
+  expect(screen.getByRole('button', { name: 'Update contact' })).toBeDisabled()
+  await user.type(firstName, 'Alice')
+  await user.click(screen.getByRole('button', { name: 'Update contact' }))
+  await waitFor(() => expect(updates).toHaveLength(1))
+  expect(updates[0]).toMatchObject({ name: 'Alice 1' })
+  await screen.findByText('Alice 1')
+  await user.clear(firstName)
+  await user.type(firstName, 'Unsaved')
+  await user.click(toggle)
+  expect(screen.queryByPlaceholderText('Enter the first name')).not.toBeInTheDocument()
+  await user.click(toggle)
+  expect(screen.getByPlaceholderText('Enter the first name')).toHaveValue('Alice')
+})
+
+test('a lista abre um card por vez e exige confirmação para excluir', async () => {
+  let remaining = [contact(1), contact(2)]
+  const deleted: string[] = []
+  server.use(
+    http.get('/api/v1/accounts/1/contacts', () =>
+      HttpResponse.json({
+        meta: { count: remaining.length, current_page: '1' },
+        payload: remaining,
+      }),
+    ),
+    http.delete('/api/v1/accounts/1/contacts/2', () => {
+      deleted.push('2')
+      remaining = [remaining[0]!]
+      return new HttpResponse(null, { status: 200 })
+    }),
+  )
+  await renderRoute('/app/contacts')
+  await screen.findByText('Contato 1')
+  const user = userEvent.setup()
+  const toggles = screen.getAllByRole('button', { name: 'Edit contact details' })
+  await user.click(toggles[0]!)
+  await user.click(toggles[1]!)
+  expect(toggles[0]).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getAllByPlaceholderText('Enter the first name')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Delete contact' }))
+  await user.click(screen.getByRole('button', { name: 'Delete now' }))
+  const dialog = screen.getByRole('dialog')
+  expect(deleted).toHaveLength(0)
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  expect(deleted).toHaveLength(0)
+  await user.click(screen.getByRole('button', { name: 'Delete now' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Yes, Delete' }))
+  await waitFor(() => expect(screen.queryByText('Contato 2')).not.toBeInTheDocument())
+  expect(deleted).toEqual(['2'])
+})
+
+test('agentes podem editar no card sem ver a exclusão', async () => {
+  const profile = profileFixture()
+  asSignedIn({
+    ...profile,
+    accounts: profile.accounts.map((account) => ({ ...account, role: 'agent' })),
+  })
+  respond([[contact(1)]])
+  await renderRoute('/app/contacts')
+  await screen.findByText('Contato 1')
+  await userEvent.click(screen.getByRole('button', { name: 'Edit contact details' }))
+  expect(screen.getByRole('button', { name: 'Update contact' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Delete contact' })).not.toBeInTheDocument()
+})
+
+test('falha ao salvar mantém a edição e informa e-mail duplicado', async () => {
+  respond([[contact(1)]])
+  server.use(
+    http.put('/api/v1/accounts/1/contacts/1', () =>
+      HttpResponse.json({ message: 'email has already been taken' }, { status: 422 }),
+    ),
+  )
+  await renderRoute('/app/contacts')
+  await screen.findByText('Contato 1')
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Edit contact details' }))
+  const email = screen.getByPlaceholderText('Enter the email address')
+  await user.clear(email)
+  await user.type(email, 'duplicate@acme.com')
+  await user.click(screen.getByRole('button', { name: 'Update contact' }))
+  expect(
+    await screen.findByText('This email address is in use for another contact.'),
+  ).toBeInTheDocument()
+  expect(email).toHaveValue('duplicate@acme.com')
+  expect(screen.getByText('Contato 1')).toBeInTheDocument()
+})

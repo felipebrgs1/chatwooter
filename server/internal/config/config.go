@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	UploadsDir  string
 	Port        string
 	DatabaseURL string
 	// EncryptionKey é a chave AES-256 (base64) dos segredos em repouso; validada por quem a usa.
@@ -18,6 +19,7 @@ type Config struct {
 // Load recebe getenv para os testes não dependerem do ambiente real.
 func Load(getenv func(string) string) (Config, error) {
 	return Config{
+		UploadsDir:    or(getenv("UPLOADS_DIR"), "./storage"),
 		Port:          or(getenv("PORT"), "4000"),
 		DatabaseURL:   databaseURL(getenv),
 		EncryptionKey: getenv("ENCRYPTION_KEY"),

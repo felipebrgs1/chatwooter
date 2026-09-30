@@ -8,14 +8,21 @@ import { Dialog } from '../next/dialog'
 import { Input } from '../next/input'
 
 type Props = {
+  initialName?: string
   isLoading: boolean
   error?: string
   onClose: () => void
   onCreate: (company: CompanyInput) => void
 }
-export function CompanyCreateDialog({ isLoading, error, onClose, onCreate }: Props) {
+export function CompanyCreateDialog({
+  initialName = '',
+  isLoading,
+  error,
+  onClose,
+  onCreate,
+}: Props) {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName)
   const [domain, setDomain] = useState('')
   const [description, setDescription] = useState('')
   const invalid = !name.trim() || isLoading
