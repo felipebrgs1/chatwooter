@@ -32,8 +32,8 @@ func TestMigrateAppliesBaseline(t *testing.T) {
 	if river != 1 {
 		t.Error("tabela river_job ausente: migrations do River não rodaram")
 	}
-	if tables != 108 {
-		t.Errorf("tabelas = %d, want 108", tables)
+	if tables != 109 {
+		t.Errorf("tabelas = %d, want 109", tables)
 	}
 }
 
@@ -44,6 +44,7 @@ func TestMigrateAdoptsDatabaseThatAlreadyHasTheSchema(t *testing.T) {
 	for _, ddl := range []string{
 		`CREATE TABLE accounts (id serial PRIMARY KEY, name text)`,
 		`CREATE TABLE conversations (id serial PRIMARY KEY)`,
+		`CREATE TABLE users (id serial PRIMARY KEY)`,
 		`INSERT INTO accounts (name) VALUES ('existente')`,
 	} {
 		if _, err := pool.Exec(ctx, ddl); err != nil {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/felipeborgaco/chatwooter/server/internal/db"
 	"github.com/felipeborgaco/chatwooter/server/internal/factory"
 	"github.com/felipeborgaco/chatwooter/server/internal/testdb"
@@ -30,6 +32,14 @@ func TestFactoriesBuildAConnectedGraph(t *testing.T) {
 	}
 	if agent.Name != "Ana" {
 		t.Errorf("override ignorado: %q", agent.Name)
+	}
+
+	var hash string
+	if err := pool.QueryRow(ctx, `SELECT encrypted_password FROM users WHERE id=$1`, agent.ID).Scan(&hash); err != nil {
+		t.Fatal(err)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(factory.DefaultPassword)) != nil {
+		t.Error("senha padrão não confere com o hash gravado")
 	}
 
 	var role int

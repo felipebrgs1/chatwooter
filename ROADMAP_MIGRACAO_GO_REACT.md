@@ -101,7 +101,7 @@ Fluxo de uma request: `router → controller → model → (banco) → view → 
 Regras, verificadas pelo `depguard` no `make precommit`:
 - **controllers** nunca importam `pgx` nem `db`; só chamam models.
 - **models** nunca importam `net/http`, controllers, views nem router.
-- **views** recebem dados prontos: não importam models, controllers nem router.
+- **views** leem os tipos dos models, mas não importam banco, controllers nem router.
 - Dentro de `models/` a direção antiga continua:
   `channels → conversations → contacts → inboxes → accounts`; o que cruza vira orquestração em
   `models/platform` (`RecordDeletion`, `ContactMerge`).
@@ -152,14 +152,22 @@ contra o banco atual.
 
 ## Fase 2 — Autenticação e casca do app
 
-- [ ] Login com e-mail/senha validando o bcrypt do Devise (usuários restaurados entram) — `POST /auth/sign_in`
-- [ ] Sessão por cookie, logout, `GET /api/v1/profile`, troca de conta
-- [ ] Middleware de escopo: `account_id` em toda query (multitenancy), papel admin/agent
-- [ ] Access token (`api_access_token`) para a API externa
-- [ ] Tela de login 1:1 (`chatwoot/app/javascript/v3/views/login/`)
-- [ ] Layout + sidebar (expandida, recolhida, mobile, perfil + disponibilidade)
-- [ ] Componentes base `next/*`: avatar, breadcrumb, button, channel-icon, checkbox, combobox, dialog,
-      dropdown-container, dropdown-menu, input, searchable-list, switch, tab-bar
+- [x] Login com e-mail/senha validando o bcrypt do Devise (`POST /auth/sign_in`, resposta `{data: perfil}`). E-mail ambíguo, senha vazia
+      do Devise e usuário inexistente não autenticam (e custam o mesmo tempo). Testado com o usuário real do banco Elixir (`$2b$12$`)
+- [x] Sessão por cookie `HttpOnly; SameSite=Lax` (só o SHA-256 do token vai ao banco; tabela `chatwooter_sessions`, 30 dias, purge de hora em hora),
+      `DELETE /auth/sign_out`, `GET /api/v1/profile`; escritas com cookie exigem `Origin` do próprio site
+- [ ] Troca de conta (a conta ativa vem do perfil; falta a tela) e `PUT /api/v1/profile/availability`
+- [x] Middleware de escopo `/api/v1/accounts/{account_id}/...`: 404 conta inexistente, 401 quem não é membro (como o Chatwoot).
+      Primeira rota escopada: `GET /api/v1/accounts/{id}`
+- [ ] Guard de papel (`administrator`) por rota e `account_id` obrigatório nas queries dos models (entra com a primeira rota de dados)
+- [x] Access token (`api_access_token`) para a API externa
+- [x] Tela de login 1:1 (`chatwoot/app/javascript/v3/views/login/`), sem Google/SAML/MFA (fora do v1); "esqueceu a senha" só visual.
+      Guard das rotas `/app/*` com redirect seguro, toast (`useAlert`) portado
+- [x] Layout + sidebar (expandida, recolhida, mobile com flyout, menu do perfil, sair) — `AppShell` + `components/sidebar/`.
+      Largura e seções minimizadas ficam no `localStorage` até existir `PUT /api/v1/profile` (no Chatwoot vão em `ui_settings`)
+- [ ] Disponibilidade e troca de conta: o menu existe na sidebar, mas sem efeito (faltam os endpoints)
+- [x] Componentes base `next/*` portados em `web/src/components/next/` (avatar, breadcrumb, button, channel-icon, checkbox,
+      combobox, dialog, dropdown-container, dropdown-menu, input, searchable-list, switch, tab-bar + icon), com testes
 
 **DoD:** um usuário vindo de um dump do Chatwoot faz login e vê a casca do app idêntica à atual.
 

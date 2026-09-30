@@ -17,4 +17,7 @@ sql:
             go_type: "time.Time"
           - db_type: "pg_catalog.timestamp"
             nullable: true
-            go_type: "*time.Time"
+            go_type:
+              import: "time"
+              type: "Time"
+              pointer: true

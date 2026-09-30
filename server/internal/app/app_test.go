@@ -14,6 +14,7 @@ import (
 
 	"github.com/felipeborgaco/chatwooter/server/internal/app"
 	"github.com/felipeborgaco/chatwooter/server/internal/db"
+	"github.com/felipeborgaco/chatwooter/server/internal/factory"
 	"github.com/felipeborgaco/chatwooter/server/internal/testdb"
 )
 
@@ -126,5 +127,53 @@ func TestServeAnswersHealthAndStopsOnCancel(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("serve não parou depois do cancel")
+	}
+}
+
+func TestServeSignsInARealUser(t *testing.T) {
+	pool, url := testdb.NewWithURL(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := db.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	agent := factory.New(t, pool).User(factory.New(t, pool).Account())
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := fmt.Sprint(ln.Addr().(*net.TCPAddr).Port)
+	_ = ln.Close()
+	vars := map[string]string{"DATABASE_URL": url, "ENCRYPTION_KEY": newKey(t), "PORT": port}
+	done := make(chan error, 1)
+	go func() { done <- app.Run(ctx, []string{"serve"}, env(vars), &bytes.Buffer{}) }()
+
+	body := fmt.Sprintf(`{"email":%q,"password":%q}`, agent.Email, factory.DefaultPassword)
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("serve terminou: %v", err)
+		case <-deadline:
+			t.Fatal("login não respondeu")
+		default:
+		}
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:"+port+"/auth/sign_in", strings.NewReader(body))
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d", resp.StatusCode)
+		}
+		for _, c := range resp.Cookies() {
+			if c.Name == "chatwooter_session" && c.HttpOnly {
+				return
+			}
+		}
+		t.Fatal("cookie de sessão ausente")
 	}
 }

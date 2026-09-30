@@ -61,3 +61,17 @@ func TestLoadEncryptionKey(t *testing.T) {
 		t.Fatalf("EncryptionKey = %q, %v", cfg.EncryptionKey, err)
 	}
 }
+
+func TestLoadCookieSecure(t *testing.T) {
+	for value, want := range map[string]bool{"true": true, "false": false, "": false, "1": false} {
+		cfg, _ := config.Load(func(k string) string {
+			if k == "COOKIE_SECURE" {
+				return value
+			}
+			return ""
+		})
+		if cfg.CookieSecure != want {
+			t.Errorf("COOKIE_SECURE=%q: CookieSecure = %v, want %v", value, cfg.CookieSecure, want)
+		}
+	}
+}

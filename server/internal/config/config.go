@@ -11,6 +11,8 @@ type Config struct {
 	DatabaseURL string
 	// EncryptionKey é a chave AES-256 (base64) dos segredos em repouso; validada por quem a usa.
 	EncryptionKey string
+	// CookieSecure marca o cookie de sessão como Secure (obrigatório atrás de HTTPS, ou seja, em produção).
+	CookieSecure bool
 }
 
 // Load recebe getenv para os testes não dependerem do ambiente real.
@@ -19,6 +21,7 @@ func Load(getenv func(string) string) (Config, error) {
 		Port:          or(getenv("PORT"), "4000"),
 		DatabaseURL:   databaseURL(getenv),
 		EncryptionKey: getenv("ENCRYPTION_KEY"),
+		CookieSecure:  getenv("COOKIE_SECURE") == "true",
 	}, nil
 }
 

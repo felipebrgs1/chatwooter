@@ -21,7 +21,7 @@ Comandos (raiz): `make precommit` (gate), `make test`, `make sqlc`, `make migrat
 já vem do Makefile). Stack de dev: `docker compose --profile go up` (API `:4100`, web `:5173`).
 
 **Backend (MVC)** — `router → controllers → models`, resposta em `views` (regras impostas pelo `depguard`).
-- Controller nunca importa `pgx`/`db`; model nunca importa `net/http`; view só serializa.
+- Controller nunca importa `pgx`/`db`; model nunca importa `net/http`; view só serializa os tipos dos models (nunca banco, controller ou router).
 - SQL fica em `internal/db/queries/*.sql` e vira código com `sqlc`; só `models` usa o código gerado.
   Não edite `internal/db/sqlc/`. Schema novo = migration `goose` nova em `internal/db/migrations`, nunca editar o baseline.
 - O schema tem de continuar idêntico ao `schema.rb` do Chatwoot: `internal/schemaparity` é o gate.

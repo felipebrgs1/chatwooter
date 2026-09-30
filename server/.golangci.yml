@@ -10,7 +10,7 @@ linters:
     depguard:
       rules:
         # MVC: router -> controllers -> models; controllers renderizam via views.
-        # Só models fala com o banco; views não conhecem models nem HTTP de entrada.
+        # Só models fala com o banco; views leem os tipos dos models mas não conhecem HTTP de entrada.
         controllers-sem-db:
           files: ["**/internal/controllers/**"]
           deny:
@@ -25,8 +25,8 @@ linters:
           deny:
             - pkg: github.com/jackc/pgx
               desc: views só serializam
-            - pkg: github.com/felipeborgaco/chatwooter/server/internal/models
-              desc: views recebem dados prontos do controller
+            - pkg: github.com/felipeborgaco/chatwooter/server/internal/db
+              desc: views leem os tipos dos models, nunca o banco
             - pkg: github.com/felipeborgaco/chatwooter/server/internal/controllers
               desc: views não conhecem controllers
             - pkg: github.com/felipeborgaco/chatwooter/server/internal/router

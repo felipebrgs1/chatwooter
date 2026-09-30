@@ -82,6 +82,26 @@ func encryptProviderConfigs(ctx context.Context, cfg config.Config, out io.Write
 	})
 }
 
+const sessionTTL = 30 * 24 * time.Hour
+
+// purgeExpiredSessions roda na partida e de hora em hora até o processo parar.
+func purgeExpiredSessions(ctx context.Context, sessions *models.Sessions, log *slog.Logger) {
+	tick := time.NewTicker(time.Hour)
+	defer tick.Stop()
+	for {
+		if n, err := sessions.PurgeExpired(ctx); err != nil && ctx.Err() == nil {
+			log.Error("purge de sessões falhou", "err", err)
+		} else if n > 0 {
+			log.Info("sessões expiradas removidas", "count", n)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
 func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 	if _, err := newBox(cfg); err != nil {
 		return err
@@ -102,9 +122,19 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 			log.Info("nenhum worker registrado: fila não iniciada")
 		}
 
+		sessions := models.NewSessions(pool, sessionTTL)
+		go purgeExpiredSessions(ctx, sessions, log)
+
 		srv := &http.Server{
-			Addr:              ":" + cfg.Port,
-			Handler:           router.New(router.Deps{System: models.System{DB: pool}}),
+			Addr: ":" + cfg.Port,
+			Handler: router.New(router.Deps{
+				System:       models.System{DB: pool},
+				Users:        models.NewUsers(pool),
+				Sessions:     sessions,
+				Accounts:     models.NewAccounts(pool),
+				SessionTTL:   sessionTTL,
+				CookieSecure: cfg.CookieSecure,
+			}),
 			ReadHeaderTimeout: 10 * time.Second,
 		}
 		go func() {

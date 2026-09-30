@@ -1,6 +1,30 @@
 @import 'tailwindcss';
 @import './tokens.css';
 
+/* O tema é escolhido por [data-theme] na raiz, como no app antigo */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Tremida do formulário de login com erro (tailwind.config.js do Chatwoot) */
+@theme {
+  --animate-wiggle: wiggle 0.5s ease-in-out;
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    15%,
+    45%,
+    75% {
+      transform: translateX(0.375rem);
+    }
+    30%,
+    60%,
+    90% {
+      transform: translateX(-0.375rem);
+    }
+  }
+}
+
 /* Inter variável, igual ao shared/assets/fonts/inter.scss do Chatwoot (OFL) */
 @font-face {
   font-family: 'Inter';
@@ -16,4 +40,40 @@
   font-weight: 100 900;
   font-display: swap;
   src: url('/fonts/Inter/InterVariable-Italic.woff2') format('woff2');
+}
+
+/* Tipografia do Chatwoot (_woot.scss); lá é @apply, aqui CSS puro */
+@utility text-body-main {
+  font-size: var(--text-sm);
+  font-weight: 420;
+  line-height: 21px;
+  letter-spacing: -0.28px;
+}
+
+@utility text-heading-3 {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 21px;
+  letter-spacing: -0.27px;
+}
+
+@utility text-button {
+  font-size: var(--text-sm);
+  font-weight: 460;
+  line-height: 21px;
+  letter-spacing: -0.28px;
+}
+
+@utility text-label-small {
+  font-size: var(--text-xs);
+  font-weight: 440;
+  line-height: 16px;
+  letter-spacing: -0.24px;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

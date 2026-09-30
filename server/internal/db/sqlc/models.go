@@ -58,7 +58,7 @@ type AccountUser struct {
 	UpdatedAt             time.Time
 	Availability          int32
 	AutoOffline           bool
-	ActiveAt              **time.Time
+	ActiveAt              *time.Time
 	AgentCapacityPolicyID pgtype.Int8
 	CustomRoleID          pgtype.Int8
 	InviterID             pgtype.Int8
@@ -163,7 +163,7 @@ type AppliedSla struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	SlaStatus      pgtype.Int4
-	CompletedAt    **time.Time
+	CompletedAt    *time.Time
 }
 
 type Article struct {
@@ -243,7 +243,7 @@ type Audit struct {
 	Comment        pgtype.Text
 	RemoteAddress  pgtype.Text
 	RequestUuid    pgtype.Text
-	CreatedAt      **time.Time
+	CreatedAt      *time.Time
 	City           pgtype.Text
 	Country        pgtype.Text
 	CountryCode    pgtype.Text
@@ -289,7 +289,7 @@ type Call struct {
 	Provider          int32
 	Direction         int32
 	Status            string
-	StartedAt         **time.Time
+	StartedAt         *time.Time
 	DurationSeconds   pgtype.Int4
 	EndReason         pgtype.Text
 	Meta              []byte
@@ -314,11 +314,11 @@ type Campaign struct {
 	CampaignType                   int32
 	CampaignStatus                 int32
 	Audience                       []byte
-	ScheduledAt                    **time.Time
+	ScheduledAt                    *time.Time
 	TriggerOnlyDuringBusinessHours pgtype.Bool
 	TemplateParams                 []byte
-	StartedAt                      **time.Time
-	CompletedAt                    **time.Time
+	StartedAt                      *time.Time
+	CompletedAt                    *time.Time
 }
 
 type CampaignRecipient struct {
@@ -333,10 +333,10 @@ type CampaignRecipient struct {
 	ErrorTitle     pgtype.Text
 	ErrorMessage   pgtype.Text
 	MessageContent pgtype.Text
-	SentAt         **time.Time
-	DeliveredAt    **time.Time
-	ReadAt         **time.Time
-	FailedAt       **time.Time
+	SentAt         *time.Time
+	DeliveredAt    *time.Time
+	ReadAt         *time.Time
+	FailedAt       *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -408,8 +408,8 @@ type CaptainDocument struct {
 	Status              int32
 	Metadata            []byte
 	SyncStatus          pgtype.Int4
-	LastSyncedAt        **time.Time
-	LastSyncAttemptedAt **time.Time
+	LastSyncedAt        *time.Time
+	LastSyncAttemptedAt *time.Time
 }
 
 type CaptainFaqObservation struct {
@@ -608,7 +608,7 @@ type ChannelTwilioSm struct {
 	MessagingServiceSid         pgtype.Text
 	ApiKeySid                   pgtype.Text
 	ContentTemplates            []byte
-	ContentTemplatesLastUpdated **time.Time
+	ContentTemplatesLastUpdated *time.Time
 	VoiceEnabled                bool
 	TwimlAppSid                 pgtype.Text
 	ApiKeySecret                pgtype.Text
@@ -656,9 +656,9 @@ type ChannelWhatsapp struct {
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
 	MessageTemplates            []byte
-	MessageTemplatesLastUpdated **time.Time
+	MessageTemplatesLastUpdated *time.Time
 	PhoneNumberHealth           []byte
-	PhoneNumberHealthCheckedAt  **time.Time
+	PhoneNumberHealthCheckedAt  *time.Time
 	PhoneNumberHealthError      pgtype.Text
 }
 
@@ -677,6 +677,14 @@ type ChatwooterInboxConfig struct {
 	ProviderConfig []byte
 }
 
+type ChatwooterSession struct {
+	ID        int64
+	UserID    int32
+	TokenHash []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 type Company struct {
 	ID                   int64
 	Name                 string
@@ -688,7 +696,7 @@ type Company struct {
 	UpdatedAt            time.Time
 	CustomAttributes     []byte
 	ContactsCount        pgtype.Int4
-	LastActivityAt       **time.Time
+	LastActivityAt       *time.Time
 }
 
 type Contact struct {
@@ -703,7 +711,7 @@ type Contact struct {
 	CompanyID            pgtype.Int8
 	Identifier           pgtype.Text
 	CustomAttributes     []byte
-	LastActivityAt       **time.Time
+	LastActivityAt       *time.Time
 	ContactType          pgtype.Int4
 	MiddleName           pgtype.Text
 	LastName             pgtype.Text
@@ -733,26 +741,26 @@ type Conversation struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	AdditionalAttributes []byte
-	AgentLastSeenAt      **time.Time
+	AgentLastSeenAt      *time.Time
 	AiAssigneeType       pgtype.Text
 	AssigneeAgentBotID   pgtype.Int8
 	AssigneeID           pgtype.Int4
-	AssigneeLastSeenAt   **time.Time
+	AssigneeLastSeenAt   *time.Time
 	CachedLabelList      pgtype.Text
 	CampaignID           pgtype.Int8
 	ContactID            pgtype.Int8
-	ContactLastSeenAt    **time.Time
+	ContactLastSeenAt    *time.Time
 	CustomAttributes     []byte
 	DisplayID            int32
-	FirstReplyCreatedAt  **time.Time
+	FirstReplyCreatedAt  *time.Time
 	Identifier           pgtype.Text
 	Priority             pgtype.Int4
 	SlaPolicyID          pgtype.Int8
-	SnoozedUntil         **time.Time
-	StatusChangedAt      **time.Time
+	SnoozedUntil         *time.Time
+	StatusChangedAt      *time.Time
 	TeamID               pgtype.Int8
 	Uuid                 pgtype.UUID
-	WaitingSince         **time.Time
+	WaitingSince         *time.Time
 }
 
 type ConversationMonitor struct {
@@ -764,12 +772,12 @@ type ConversationMonitor struct {
 	Model              string
 	Threshold          float64
 	HistorySince       time.Time
-	PausedAt           **time.Time
-	ResumedAt          **time.Time
-	DeletedAt          **time.Time
+	PausedAt           *time.Time
+	ResumedAt          *time.Time
+	DeletedAt          *time.Time
 	DataRevision       int64
 	CollectionVersion  int64
-	RecheckRequestedAt **time.Time
+	RecheckRequestedAt *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	Icon               string
@@ -781,7 +789,7 @@ type ConversationMonitorDailyUsage struct {
 	AccountID      int64
 	UsageDate      pgtype.Date
 	CallsCount     int32
-	LimitReachedAt **time.Time
+	LimitReachedAt *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -798,8 +806,8 @@ type ConversationMonitorEvaluation struct {
 	Score            pgtype.Float8
 	Model            pgtype.Text
 	ErrorCode        pgtype.Text
-	MatchedAt        **time.Time
-	EvaluatedAt      **time.Time
+	MatchedAt        *time.Time
+	EvaluatedAt      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -812,8 +820,8 @@ type ConversationMonitorScan struct {
 	StartedAt         time.Time
 	EndedAt           time.Time
 	Cursor            int64
-	EnumeratedAt      **time.Time
-	CancelledAt       **time.Time
+	EnumeratedAt      *time.Time
+	CancelledAt       *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -826,13 +834,13 @@ type ConversationMonitorWorkItem struct {
 	ProcessedRevision   int64
 	FullHistoryRevision int64
 	Generation          int64
-	DueAt               **time.Time
+	DueAt               *time.Time
 	LeaseToken          pgtype.Text
-	LeaseExpiresAt      **time.Time
+	LeaseExpiresAt      *time.Time
 	Attempts            int32
 	ErrorCode           pgtype.Text
-	RequestedAt         **time.Time
-	ActivityAt          **time.Time
+	RequestedAt         *time.Time
+	ActivityAt          *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -843,20 +851,20 @@ type ConversationOutcome struct {
 	AssistantID           int64
 	ConversationID        int64
 	InboxID               int64
-	FirstCaptainReplyAt   **time.Time
-	LastCaptainReplyAt    **time.Time
+	FirstCaptainReplyAt   *time.Time
+	LastCaptainReplyAt    *time.Time
 	CaptainReplyCount     int32
-	FirstHumanReplyAt     **time.Time
-	HandoffAt             **time.Time
+	FirstHumanReplyAt     *time.Time
+	HandoffAt             *time.Time
 	HandoffReasonCategory pgtype.Text
-	ResolvedAt            **time.Time
+	ResolvedAt            *time.Time
 	CsatRating            pgtype.Int4
-	CsatReceivedAt        **time.Time
+	CsatReceivedAt        *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	EpisodeTrigger        string
 	StartedAt             time.Time
-	EndedAt               **time.Time
+	EndedAt               *time.Time
 }
 
 type ConversationParticipant struct {
@@ -900,7 +908,7 @@ type CsatSurveyResponse struct {
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 	CsatReviewNotes        pgtype.Text
-	ReviewNotesUpdatedAt   **time.Time
+	ReviewNotesUpdatedAt   *time.Time
 	ReviewNotesUpdatedByID pgtype.Int8
 }
 
@@ -970,10 +978,10 @@ type DataImport struct {
 	SourceMetadata   []byte
 	Stats            []byte
 	Cursor           []byte
-	StartedAt        **time.Time
-	CompletedAt      **time.Time
-	AbandonedAt      **time.Time
-	LastErrorAt      **time.Time
+	StartedAt        *time.Time
+	CompletedAt      *time.Time
+	AbandonedAt      *time.Time
+	LastErrorAt      *time.Time
 }
 
 type DataImportError struct {
@@ -1168,7 +1176,7 @@ type Leafe struct {
 	Status       int32
 	Reason       pgtype.Text
 	ApprovedByID pgtype.Int8
-	ApprovedAt   **time.Time
+	ApprovedAt   *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -1236,11 +1244,11 @@ type Notification struct {
 	PrimaryActorID     int64
 	SecondaryActorType pgtype.Text
 	SecondaryActorID   pgtype.Int8
-	ReadAt             **time.Time
+	ReadAt             *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	SnoozedUntil       **time.Time
-	LastActivityAt     **time.Time
+	SnoozedUntil       *time.Time
+	LastActivityAt     *time.Time
 	Meta               []byte
 }
 
@@ -1331,8 +1339,8 @@ type ReportingEvent struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	ValueInBusinessHours pgtype.Float8
-	EventStartTime       **time.Time
-	EventEndTime         **time.Time
+	EventStartTime       *time.Time
+	EventEndTime         *time.Time
 }
 
 type ReportingEventsRollup struct {
@@ -1389,7 +1397,7 @@ type Tagging struct {
 	TaggerType   pgtype.Text
 	TaggerID     pgtype.Int4
 	Context      pgtype.Text
-	CreatedAt    **time.Time
+	CreatedAt    *time.Time
 }
 
 type Team struct {
@@ -1416,13 +1424,13 @@ type User struct {
 	ID                  int32
 	Email               pgtype.Text
 	EncryptedPassword   string
-	ConfirmedAt         **time.Time
+	ConfirmedAt         *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	Name                string
-	LastSignInAt        **time.Time
-	CurrentSignInAt     **time.Time
-	ResetPasswordSentAt **time.Time
+	LastSignInAt        *time.Time
+	CurrentSignInAt     *time.Time
+	ResetPasswordSentAt *time.Time
 	SignInCount         int32
 	ResetPasswordToken  pgtype.Text
 	Uid                 string
@@ -1438,12 +1446,12 @@ type User struct {
 	Availability        pgtype.Int4
 	OtpBackupCodes      pgtype.Text
 	OtpSecret           pgtype.Text
-	ConfirmationSentAt  **time.Time
+	ConfirmationSentAt  *time.Time
 	DeviceTrustVersion  int32
 	UiSettings          []byte
 	ConfirmationToken   pgtype.Text
 	MessageSignature    pgtype.Text
-	RememberCreatedAt   **time.Time
+	RememberCreatedAt   *time.Time
 	UnconfirmedEmail    pgtype.Text
 	Provider            string
 }
@@ -1462,7 +1470,7 @@ type UserSession struct {
 	City            pgtype.Text
 	Country         pgtype.Text
 	CountryCode     pgtype.Text
-	LastActivityAt  **time.Time
+	LastActivityAt  *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

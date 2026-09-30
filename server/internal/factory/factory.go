@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Account struct {
@@ -15,11 +16,26 @@ type Account struct {
 	Name string
 }
 
+// DefaultPassword é a senha dos usuários criados pela factory, salvo se Password for alterada.
+const DefaultPassword = "Password1!"
+
 type User struct {
 	ID    int32
 	Name  string
 	Email string
-	Role  int32 // 0 agent, 1 administrator
+	// UID é a identidade do provider; por padrão igual ao e-mail (Devise).
+	UID      string
+	Password string
+	Role     int32 // 0 agent, 1 administrator
+	// AccessToken é o `api_access_token` do usuário (tabela access_tokens).
+	AccessToken string
+}
+
+func (u User) uid() string {
+	if u.UID != "" {
+		return u.UID
+	}
+	return u.Email
 }
 
 type Inbox struct {
@@ -99,15 +115,32 @@ func (f *Factory) Account(opts ...func(*Account)) Account {
 func (f *Factory) User(account Account, opts ...func(*User)) User {
 	f.t.Helper()
 	n := f.next()
-	u := User{Name: fmt.Sprintf("Agente %d", n), Email: fmt.Sprintf("agente%d@example.com", n)}
+	u := User{
+		Name: fmt.Sprintf("Agente %d", n), Email: fmt.Sprintf("agente%d@example.com", n), Password: DefaultPassword,
+		AccessToken: fmt.Sprintf("token-agente-%d", n),
+	}
 	for _, o := range opts {
 		o(&u)
 	}
-	u.ID = f.insert(`INSERT INTO users (name, email, uid, created_at, updated_at) VALUES ($1, $2, $2, now(), now()) RETURNING id`,
-		u.Name, u.Email)
+	// Custo mínimo: os testes criam muitos usuários e o custo padrão do bcrypt os deixaria lentos.
+	hash, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.MinCost)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	u.ID = f.insert(`INSERT INTO users (name, email, uid, encrypted_password, confirmed_at, created_at, updated_at)
+		VALUES ($1, $2, $4, $3, now(), now(), now()) RETURNING id`, u.Name, u.Email, string(hash), u.uid())
+	f.exec(`INSERT INTO access_tokens (owner_type, owner_id, token, created_at, updated_at) VALUES ('User', $1, $2, now(), now())`,
+		u.ID, u.AccessToken)
 	f.exec(`INSERT INTO account_users (account_id, user_id, role, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
 		account.ID, u.ID, u.Role)
 	return u
+}
+
+// Member vincula um usuário existente a outra conta.
+func (f *Factory) Member(account Account, user User, role int32) {
+	f.t.Helper()
+	f.exec(`INSERT INTO account_users (account_id, user_id, role, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
+		account.ID, user.ID, role)
 }
 
 // TelegramInbox cria a inbox e o canal `channel_telegram` que ela aponta.

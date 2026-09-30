@@ -1,10 +1,11 @@
-import { createMemoryHistory, createRouter } from '@tanstack/react-router'
+import { QueryClient } from '@tanstack/react-query'
+import { createMemoryHistory } from '@tanstack/react-router'
 import { expect, test } from 'vitest'
 
-import { routeTree } from '../routeTree.gen'
+import { createAppRouter } from '../router'
 
 // Rota = arquivo: o caminho da URL é exatamente o caminho do arquivo em src/routes.
-// Segmentos com "_" no início são layouts sem URL; "$x" é parâmetro; "index" é a raiz da pasta.
+// Segmentos com "_" no início são layouts sem URL (o arquivo `_x.tsx` do layout não conta como página); "$x" é parâmetro; "index" é a raiz da pasta.
 function urlFor(file: string) {
   const segments = file
     .replace('./', '')
@@ -16,11 +17,10 @@ function urlFor(file: string) {
 }
 
 test('cada arquivo de rota tem a URL do seu caminho, e vice-versa', () => {
-  const files = Object.keys(import.meta.glob(['./**/*.tsx', '!./**/*.test.tsx', '!./__root.tsx']))
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: ['/'] }),
-  })
+  const files = Object.keys(
+    import.meta.glob(['./**/*.tsx', '!./**/*.test.tsx', '!./__root.tsx', '!./**/_*.tsx']),
+  )
+  const router = createAppRouter(new QueryClient(), createMemoryHistory({ initialEntries: ['/'] }))
   const urls = Object.keys(router.routesByPath).sort()
 
   expect(files.map(urlFor).sort()).toEqual(urls)
