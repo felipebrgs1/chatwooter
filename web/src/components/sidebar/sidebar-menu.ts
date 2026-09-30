@@ -1,5 +1,5 @@
 // Árvore de navegação: o menuItems de components-next/sidebar/Sidebar.vue do Chatwoot, só com as telas que existem.
-import type { Inbox, Label, Team } from '../../api/types'
+import type { CustomFilter, Inbox, Label, Team } from '../../api/types'
 
 export type MenuLeaf = {
   name: string
@@ -41,15 +41,32 @@ export function isSubgroup(child: MenuChild): child is MenuSubgroup {
 export type Translate = (key: string) => string
 
 /** Dados da conta que viram itens do menu (Sidebar.vue: teams/getMyTeams, labels/getLabelsOnSidebar). */
-export type MenuData = { teams?: Team[]; inboxes?: Inbox[]; labels?: Label[] }
+export type MenuData = {
+  teams?: Team[]
+  inboxes?: Inbox[]
+  labels?: Label[]
+  folders?: CustomFilter[]
+}
 
-// Folders (custom_filters) entra quando houver o endpoint. A ordenação por seção e os contadores de não
-// lidas do Chatwoot também ficam para depois: aqui vale a ordem do getter (inboxes já vêm por nome).
+// A ordenação por seção e os contadores de não lidas do Chatwoot ficam para depois: aqui vale a ordem do
+// getter (pastas por criação, inboxes por nome).
 function conversationSubgroups(
   t: Translate,
-  { teams = [], inboxes = [], labels = [] }: MenuData,
+  { teams = [], inboxes = [], labels = [], folders = [] }: MenuData,
 ): MenuSubgroup[] {
   return [
+    {
+      name: 'folders',
+      label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
+      icon: 'ph-folder',
+      collapsible: true,
+      treeLine: true,
+      children: folders.map((folder) => ({
+        name: `folder-${folder.id}`,
+        label: folder.name,
+        to: `/app?folder_id=${folder.id}`,
+      })),
+    },
     {
       name: 'teams',
       label: t('SIDEBAR.TEAMS'),

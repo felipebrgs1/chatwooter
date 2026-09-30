@@ -4,9 +4,10 @@ import { useEffect } from 'react'
 import {
   conversationKeys,
   fetchConversations,
+  filterConversations,
   type ConversationFilters,
 } from '../../api/conversations'
-import type { AssigneeType } from '../../api/types'
+import type { AssigneeType, FilterCondition } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
 
 export const PAGE_SIZE = 25
@@ -33,12 +34,13 @@ function listOptions(accountId: number, filters: ConversationFilters) {
  * aqui a 1ª página das abas vizinhas é pré-carregada, e os contadores (iguais para as três) ficam na tela
  * enquanto uma aba ainda não carregada busca a sua (`isPlaceholderData`).
  */
-export function useConversations(filters: ConversationFilters) {
+export function useConversations(filters: ConversationFilters, { enabled = true } = {}) {
   const accountId = useAccountId()
   const queryClient = useQueryClient()
   const query = useInfiniteQuery({
     ...listOptions(accountId, filters),
     placeholderData: keepPreviousData,
+    enabled,
   })
 
   const loaded = query.isSuccess && !query.isPlaceholderData
@@ -55,4 +57,21 @@ export function useConversations(filters: ConversationFilters) {
   }, [loaded, accountId, filters, queryClient])
 
   return query
+}
+
+/**
+ * Lista de uma pasta ou de filtros avançados (POST /conversations/filter): mesma paginação, sem abas.
+ * `payload` indefinido (pasta ainda carregando) deixa a busca parada.
+ */
+export function useFilteredConversations(payload: FilterCondition[] | undefined, sortBy?: string) {
+  const accountId = useAccountId()
+  return useInfiniteQuery({
+    queryKey: conversationKeys.filtered(accountId, payload ?? [], sortBy),
+    queryFn: ({ pageParam }) =>
+      filterConversations(accountId, payload ?? [], { page: pageParam, sortBy }),
+    initialPageParam: 1,
+    enabled: !!payload,
+    getNextPageParam: (last, pages) =>
+      last.payload.length >= PAGE_SIZE ? pages.length + 1 : undefined,
+  })
 }

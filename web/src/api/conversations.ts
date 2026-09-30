@@ -7,6 +7,8 @@ import type {
   Conversation,
   ConversationList,
   ConversationStatus,
+  FilterCondition,
+  FilteredConversations,
   MessagesResponse,
   Message,
 } from './types'
@@ -39,10 +41,23 @@ export const conversationKeys = {
   all: (accountId: number) => ['accounts', accountId, 'conversations'] as const,
   list: (accountId: number, filters: ConversationFilters) =>
     [...conversationKeys.all(accountId), 'list', filters] as const,
+  filtered: (accountId: number, payload: FilterCondition[], sortBy?: string) =>
+    [...conversationKeys.all(accountId), 'filtered', payload, sortBy] as const,
   detail: (accountId: number, id: number) =>
     [...conversationKeys.all(accountId), 'detail', id] as const,
   messages: (accountId: number, id: number) =>
     [...conversationKeys.all(accountId), 'messages', id] as const,
+}
+
+/** ConversationApi.filter: as condições no corpo; página e ordenação na query string. */
+export const filterConversations = (
+  accountId: number,
+  payload: FilterCondition[],
+  { page, sortBy }: { page: number; sortBy?: string },
+) => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (sortBy) params.set('sort_by', sortBy)
+  return api.post<FilteredConversations>(`${base(accountId)}/filter?${params}`, { payload })
 }
 
 export const fetchConversations = (accountId: number, filters: ConversationFilters = {}) =>

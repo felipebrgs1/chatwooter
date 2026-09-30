@@ -24,6 +24,8 @@ type Deps struct {
 	Contacts      *models.Contacts
 	ContactNotes  *models.ContactNotes
 	Companies     *models.Companies
+	CustomFilters *models.CustomFilters
+	Agents        *models.Agents
 	SessionTTL    time.Duration
 	CookieSecure  bool
 }
@@ -56,7 +58,18 @@ func New(d Deps) http.Handler {
 			r.Get("/", controllers.Accounts{Accounts: d.Accounts}.Show)
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
+			r.Get("/agents", controllers.Agents{Agents: d.Agents}.Index)
 			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
+
+			folders := controllers.CustomFilters{CustomFilters: d.CustomFilters}
+			r.Route("/custom_filters", func(r chi.Router) {
+				r.Get("/", folders.Index)
+				r.Post("/", folders.Create)
+				r.Get("/{id}", folders.Show)
+				r.Put("/{id}", folders.Update)
+				r.Patch("/{id}", folders.Update)
+				r.Delete("/{id}", folders.Destroy)
+			})
 
 			companies := controllers.Companies{Companies: d.Companies}
 			r.Route("/companies", func(r chi.Router) {
@@ -104,6 +117,7 @@ func New(d Deps) http.Handler {
 			r.Route("/conversations", func(r chi.Router) {
 				r.Get("/", convs.Index)
 				r.Get("/meta", convs.Meta)
+				r.Post("/filter", convs.Filter)
 				r.Route("/{conversation_id}", func(r chi.Router) {
 					r.Get("/", convs.Show)
 					r.Post("/toggle_status", convs.ToggleStatus)

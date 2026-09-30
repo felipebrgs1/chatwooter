@@ -1,11 +1,14 @@
 // Port de components/ChatListHeader.vue + ConversationBasicFilter.vue (status e ordenação) + SwitchLayout.vue.
-// Filtros avançados e pastas ficam para as próximas fatias.
+// O filtro de contato (contactFilter, vindo do painel do contato) entra com o painel.
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '../next/button'
 import { cx } from '../next/cx'
 import { DropdownContainer } from '../next/dropdown-container'
 import { SORTS, STATUSES, type ConversationsSearch } from './search'
+import { FILTER_TOGGLE_ID } from '../next/filter/conversation-filter'
+import { SAVE_FILTER_TOGGLE_ID } from '../next/filter/save-custom-view'
 import { SelectMenu } from '../next/select-menu'
 
 type Props = {
@@ -17,7 +20,24 @@ type Props = {
   /** isOnExpandedLayout: os menus abrem alinhados à direita. */
   expanded?: boolean
   onToggleLayout?: () => void
+  hasAppliedFilters?: boolean
+  hasActiveFolder?: boolean
+  /** Total do conjunto filtrado (meta.all_count), mostrado no lugar do status. */
+  allCount?: number
+  isListLoading?: boolean
+  onResetFilters?: () => void
+  onOpenFilters?: () => void
+  onAddFolder?: () => void
+  onDeleteFolder?: () => void
+  /** Modal de filtros (ou de editar pasta), aberto sob o botão que o chamou. */
+  filterPanel?: ReactNode
+  /** Formulário de salvar pasta, aberto sob o botão de salvar. */
+  savePanel?: ReactNode
 }
+
+// formatNumber do @chatwoot/utils: 1.2K, 3M...
+const formatCount = (n: number) =>
+  new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
 export function ChatListHeader({
   title,
@@ -27,8 +47,22 @@ export function ChatListHeader({
   onSortChange,
   expanded = false,
   onToggleLayout,
+  hasAppliedFilters = false,
+  hasActiveFolder = false,
+  allCount = 0,
+  isListLoading = false,
+  onResetFilters,
+  onOpenFilters,
+  onAddFolder,
+  onDeleteFolder,
+  filterPanel,
+  savePanel,
 }: Props) {
   const { t } = useTranslation()
+  const filteredView = hasAppliedFilters || hasActiveFolder
+  // com filtros (não pasta) o título ganha o botão de voltar
+  const showFilterScope = hasAppliedFilters && !hasActiveFolder
+  const panelSide = expanded ? 'right-0' : undefined
 
   const statusOptions = STATUSES.map((value) => ({
     value,
@@ -43,20 +77,105 @@ export function ChatListHeader({
   const subMenuPosition = expanded ? 'left' : 'right'
 
   return (
-    <div className="flex h-[3.25rem] items-center justify-between gap-2 px-3">
+    <div
+      className={cx(
+        'flex h-[3.25rem] items-center justify-between gap-2 px-3',
+        filteredView && 'border-b border-n-strong',
+      )}
+    >
       <div className="flex min-w-0 items-center justify-center">
+        {showFilterScope && (
+          <Button
+            icon="ph-caret-left"
+            color="slate"
+            variant="ghost"
+            size="sm"
+            title={t('FILTER.CLEAR_BUTTON_LABEL')}
+            aria-label={t('FILTER.CLEAR_BUTTON_LABEL')}
+            className="shrink-0 -ms-2 !h-6 !w-6 me-1"
+            onClick={onResetFilters}
+          />
+        )}
         <h1 className="truncate text-base font-medium text-n-slate-12" title={title}>
           {title}
         </h1>
-        <span
-          data-testid="chat-list-status"
-          className="mx-1 my-0.5 shrink-0 rounded-md bg-n-slate-3 px-2 py-1 text-xxs capitalize text-n-slate-12"
-        >
-          {statusOptions.find((o) => o.value === status)?.label}
-        </span>
+        {allCount > 0 && filteredView && !isListLoading && (
+          <span
+            className="mx-1 my-0.5 shrink-0 rounded-md bg-n-slate-3 px-2 py-1 text-xxs capitalize text-n-slate-12"
+            title={String(allCount)}
+          >
+            {formatCount(allCount)}
+          </span>
+        )}
+        {!filteredView && (
+          <span
+            data-testid="chat-list-status"
+            className="mx-1 my-0.5 shrink-0 rounded-md bg-n-slate-3 px-2 py-1 text-xxs capitalize text-n-slate-12"
+          >
+            {statusOptions.find((o) => o.value === status)?.label}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1">
-        {/* ponto de extensão: filtros avançados entram aqui */}
+        {hasAppliedFilters && !hasActiveFolder && (
+          <div className="relative">
+            <Button
+              id={SAVE_FILTER_TOGGLE_ID}
+              icon="ph-floppy-disk"
+              color="slate"
+              variant="faded"
+              size="xs"
+              title={t('FILTER.CUSTOM_VIEWS.ADD.SAVE_BUTTON')}
+              aria-label={t('FILTER.CUSTOM_VIEWS.ADD.SAVE_BUTTON')}
+              onClick={onAddFolder}
+            />
+            {savePanel && <div className={cx('absolute z-50 mt-2', panelSide)}>{savePanel}</div>}
+          </div>
+        )}
+        {hasActiveFolder ? (
+          <>
+            <div className="relative">
+              <Button
+                id={FILTER_TOGGLE_ID}
+                icon="ph-pencil-simple-line"
+                color="slate"
+                variant="faded"
+                size="xs"
+                title={t('FILTER.CUSTOM_VIEWS.EDIT.EDIT_BUTTON')}
+                aria-label={t('FILTER.CUSTOM_VIEWS.EDIT.EDIT_BUTTON')}
+                onClick={onOpenFilters}
+              />
+              {filterPanel && (
+                <div className={cx('absolute z-50 mt-2', panelSide)}>{filterPanel}</div>
+              )}
+            </div>
+            <Button
+              icon="ph-trash"
+              color="ruby"
+              variant="faded"
+              size="xs"
+              title={t('FILTER.CUSTOM_VIEWS.DELETE.DELETE_BUTTON')}
+              aria-label={t('FILTER.CUSTOM_VIEWS.DELETE.DELETE_BUTTON')}
+              onClick={onDeleteFolder}
+            />
+          </>
+        ) : (
+          <div className="relative">
+            <Button
+              id={FILTER_TOGGLE_ID}
+              icon="ph-funnel-simple"
+              color="slate"
+              variant="faded"
+              size="xs"
+              title={t('FILTER.TOOLTIP_LABEL')}
+              aria-label={t('FILTER.TOOLTIP_LABEL')}
+              onClick={onOpenFilters}
+            />
+            {filterPanel && (
+              <div className={cx('absolute z-50 mt-2', panelSide)}>{filterPanel}</div>
+            )}
+          </div>
+        )}
         <DropdownContainer
           id="chat-sort-menu"
           trigger={({ toggle, triggerProps }) => (
@@ -78,19 +197,22 @@ export function ChatListHeader({
               expanded ? 'right-0' : 'left-0',
             )}
           >
+            {/* show-status-filter: com filtros ou pasta, o status vem das condições */}
+            {!filteredView && (
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <span className="truncate text-sm text-n-slate-12">
+                  {t('CHAT_LIST.CHAT_SORT.STATUS')}
+                </span>
+                <SelectMenu
+                  label={t('CHAT_LIST.CHAT_SORT.STATUS')}
+                  value={status}
+                  options={statusOptions}
+                  onChange={onStatusChange}
+                  position={subMenuPosition}
+                />
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-sm text-n-slate-12">
-                {t('CHAT_LIST.CHAT_SORT.STATUS')}
-              </span>
-              <SelectMenu
-                label={t('CHAT_LIST.CHAT_SORT.STATUS')}
-                value={status}
-                options={statusOptions}
-                onChange={onStatusChange}
-                position={subMenuPosition}
-              />
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-2">
               <span className="truncate text-sm text-n-slate-12">
                 {t('CHAT_LIST.CHAT_SORT.ORDER_BY')}
               </span>

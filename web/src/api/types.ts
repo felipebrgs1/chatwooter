@@ -258,6 +258,32 @@ export interface ConversationList {
   data: { meta: ConversationCounts; payload: Conversation[] }
 }
 
+/** Condição de filtro avançado como a API recebe (filterQueryGenerator): valores já são ids. */
+export interface FilterCondition {
+  attribute_key: string
+  filter_operator: string
+  values: (string | number | boolean)[]
+  query_operator?: 'and' | 'or'
+  custom_attribute_type?: string
+  timezone?: string
+}
+
+/** POST /conversations/filter (filter.json.jbuilder): sem o envelope `data` e sem assigned_count. */
+export interface FilteredConversations {
+  meta: Pick<ConversationCounts, 'mine_count' | 'unassigned_count' | 'all_count'>
+  payload: Conversation[]
+}
+
+/** Pasta salva (_custom_filter.json.jbuilder). */
+export interface CustomFilter {
+  id: number
+  name: string
+  filter_type: 'conversation' | 'contact' | 'report'
+  query: { payload?: FilterCondition[] }
+  created_at: string
+  updated_at: string
+}
+
 export interface MessagesResponse {
   meta: {
     labels: string[]

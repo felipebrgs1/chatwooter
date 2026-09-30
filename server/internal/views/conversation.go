@@ -116,6 +116,18 @@ func ConversationsIndex(items []models.ConversationItem, c models.ConversationCo
 	return map[string]any{"data": map[string]any{"meta": counts(c), "payload": payload}}
 }
 
+// ConversationsFilter espelha accounts/conversations/filter.json.jbuilder: sem o envelope "data" e sem assigned_count.
+func ConversationsFilter(items []models.ConversationItem, c models.ConversationCounts) map[string]any {
+	payload := make([]ConversationJSON, 0, len(items))
+	for _, it := range items {
+		payload = append(payload, Conversation(it))
+	}
+	return map[string]any{
+		"meta":    map[string]int{"mine_count": c.Mine, "unassigned_count": c.Unassigned, "all_count": c.All},
+		"payload": payload,
+	}
+}
+
 // ConversationsMeta espelha accounts/conversations/meta.json.jbuilder.
 func ConversationsMeta(c models.ConversationCounts) map[string]any {
 	return map[string]any{"meta": counts(c)}

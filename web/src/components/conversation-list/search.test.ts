@@ -97,3 +97,18 @@ test('o nome da inbox vence o do time, que vence a etiqueta (pageTitle do ChatLi
 test('etiqueta numérica (o roteador a lê como número) continua valendo', () => {
   expect(parseUrlSearch({ label: 123 })).toEqual({ label: '123' })
 })
+
+test('pasta e filtros avançados vêm da URL e não viram parâmetros da lista', () => {
+  const condition = { attribute_key: 'status', filter_operator: 'equal_to', values: ['open'] }
+  const fromString = parseUrlSearch({ folder_id: '5', filters: JSON.stringify([condition]) })
+  expect(fromString).toEqual({ folder_id: 5, filters: [condition] })
+  // o roteador já entrega o JSON da URL como lista
+  expect(parseUrlSearch({ filters: [condition] }).filters).toEqual([condition])
+  expect(parseUrlSearch({ folder_id: 'x', filters: '[]' })).toEqual({})
+  expect(toFilters(parseSearch({ folder_id: 5, filters: [condition] }))).not.toHaveProperty(
+    'folder_id',
+  )
+  expect(toFilters(parseSearch({ folder_id: 5, filters: [condition] }))).not.toHaveProperty(
+    'filters',
+  )
+})

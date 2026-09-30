@@ -77,6 +77,10 @@ type Conversation struct {
 	LastActivityAt *time.Time
 	AgentLastSeen  *time.Time
 	CachedLabels   string
+	// CreatedAt padrão: agora.
+	CreatedAt       *time.Time
+	AdditionalAttrs map[string]any
+	CustomAttrs     map[string]any
 }
 
 type Team struct {
@@ -254,14 +258,25 @@ func (f *Factory) Conversation(account Account, inbox Inbox, contact Contact, op
 	}
 	var id, display int32
 	err := f.pool.QueryRow(context.Background(), `INSERT INTO conversations
-		(account_id, inbox_id, contact_id, status, priority, assignee_id, team_id, last_activity_at, agent_last_seen_at, cached_label_list, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, now() AT TIME ZONE 'utc'), $9, $10, now(), now()) RETURNING id, display_id`,
-		c.AccountID, c.InboxID, c.ContactID, c.Status, c.Priority, c.AssigneeID, c.TeamID, c.LastActivityAt, c.AgentLastSeen, c.CachedLabels).Scan(&id, &display)
+		(account_id, inbox_id, contact_id, status, priority, assignee_id, team_id, last_activity_at, agent_last_seen_at, cached_label_list,
+		 additional_attributes, custom_attributes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, now() AT TIME ZONE 'utc'), $9, $10,
+		 COALESCE($11, '{}'::jsonb), COALESCE($12, '{}'::jsonb), COALESCE($13, now()), now()) RETURNING id, display_id`,
+		c.AccountID, c.InboxID, c.ContactID, c.Status, c.Priority, c.AssigneeID, c.TeamID, c.LastActivityAt, c.AgentLastSeen, c.CachedLabels,
+		c.AdditionalAttrs, c.CustomAttrs, c.CreatedAt).Scan(&id, &display)
 	if err != nil {
 		f.t.Fatalf("factory: conversation: %v", err)
 	}
 	c.ID, c.DisplayID = id, display
 	return c
+}
+
+// CustomAttributeDefinition cria um atributo personalizado da conta. model: 0 conversa, 1 contato;
+// displayType segue o enum do Chatwoot (0 text, 1 number, 2 currency, 3 percent, 4 link, 5 date, 6 list, 7 checkbox).
+func (f *Factory) CustomAttributeDefinition(account Account, key string, model, displayType int32) {
+	f.t.Helper()
+	f.exec(`INSERT INTO custom_attribute_definitions (account_id, attribute_key, attribute_display_name, attribute_model, attribute_display_type, created_at, updated_at)
+		VALUES ($1, $2, $2, $3, $4, now(), now())`, account.ID, key, model, displayType)
 }
 
 func (f *Factory) Team(account Account, opts ...func(*Team)) Team {

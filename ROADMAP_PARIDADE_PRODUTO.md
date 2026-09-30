@@ -23,14 +23,14 @@ Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (
 | Área | Status | Observação |
 |---|---|---|
 | Fundação de UI | ✅ | tokens `n-*`, Inter, Phosphor, `components/next/*`, rota = arquivo |
-| Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade; Teams, Channels e Labels; faltam Folders e contadores |
+| Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade; Folders, Teams, Channels e Labels; faltam contadores |
 | Lista de conversas | ✅ | abas, status, ordenação, card, visões, layout expandido; faltam extras (Marco 1.1) |
 | Thread, cabeçalho, composer | 🟡 | 1:1 no básico; faltam painel do contato, rich text, canned, anexos, menções |
 | Lista e detalhe de contatos | 🟡 | lista, busca, ordenação, detalhe, bloquear, etiquetas, notas, histórico, excluir; faltam criar, filtros, merge, atributos, mídia, nova conversa |
 | Empresas | 🟡 | lista, busca, ordenação, paginação, criação, edição/exclusão, avatar, vínculos, histórico/notas e selector inline; faltam atributos personalizados e favicon automático |
 | Settings (general, inboxes, agents, profile) | ⬜ | — |
 | Telegram, WhatsApp Cloud | ⬜ | só schema |
-| API v1 | 🟡 | profile, contas, conversas, mensagens, labels, teams e inboxes (leitura); o resto ⬜ |
+| API v1 | 🟡 | profile, contas, conversas (+ filtro avançado), mensagens, labels, teams, inboxes e agentes (leitura), custom_filters; o resto ⬜ |
 | Webhooks, notificações, busca, relatórios | ⬜ | — |
 
 ---
@@ -41,6 +41,8 @@ Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (
 Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Rotas de visão: Mentions, Participating, Unattended, por Team, por Label (`routes/dashboard/conversation/conversation.routes.js`) + itens na sidebar — query params de `/app` (`conversation_type`, `team_id`, `label`), como o `inbox_id`
 - [ ] Filtros avançados + salvar/editar/excluir pasta + visão Folder e seção "Folders" na sidebar (`components-next/filter/ConversationFilter.vue`, `SaveCustomView.vue`, `customviews/DeleteCustomViews.vue`) — backend: `custom_filters`
+  - Pronto com testes (falta a conferência no browser para marcar): `POST /conversations/filter` (FilterService: atributos padrão, adicionais e personalizados, datas com fuso, erros 422), CRUD de `custom_filters`, `GET /agents`; modal de filtros, salvar/editar/excluir pasta, `/app?folder_id=` e seção Folders.
+  - Filtros aplicados ficam na URL (`?filters=`), não só em memória como no Chatwoot. Atributos personalizados no modal esperam o endpoint de definições (Marco 6.4); campanha aparece sem opções (sem endpoint).
 - [ ] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
 - [ ] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)

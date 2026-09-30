@@ -38,6 +38,8 @@ func newApp(t *testing.T) *app {
 		Contacts:      models.NewContacts(pool),
 		ContactNotes:  models.NewContactNotes(pool),
 		Companies:     models.NewCompanies(pool, t.TempDir()),
+		CustomFilters: models.NewCustomFilters(pool),
+		Agents:        models.NewAgents(pool),
 		SessionTTL:    time.Hour,
 	})}
 }

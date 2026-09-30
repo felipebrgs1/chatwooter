@@ -15,6 +15,7 @@ import {
   updateUiSettings,
 } from '../../api/auth'
 import { inboxesQuery } from '../../api/inboxes'
+import { customFiltersQuery } from '../../api/custom-filters'
 import { labelsQuery } from '../../api/labels'
 import { teamsQuery } from '../../api/teams'
 import type { Profile } from '../../api/types'
@@ -71,9 +72,10 @@ export function AppShell({ profile }: { profile: Profile }) {
   const { data: teams } = useQuery(teamsQuery(accountId))
   const { data: inboxes } = useQuery(inboxesQuery(accountId))
   const { data: labels } = useQuery(labelsQuery(accountId))
+  const { data: folders } = useQuery(customFiltersQuery(accountId))
   const menu = useMemo(
-    () => buildMenu((key) => t(key), { teams, inboxes, labels }),
-    [t, teams, inboxes, labels],
+    () => buildMenu((key) => t(key), { teams, inboxes, labels, folders }),
+    [t, teams, inboxes, labels, folders],
   )
   const replaceProfile = (next: Profile | null | undefined) => {
     if (next) queryClient.setQueryData(profileQuery.queryKey, next)

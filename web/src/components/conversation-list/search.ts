@@ -1,7 +1,8 @@
 // Filtros da lista vivem na URL (search params de /app): é assim que a sidebar filtra
 // (ex.: /app?team_id=2, /app?conversation_type=mention). Params inválidos são ignorados.
 import type { ConversationFilters } from '../../api/conversations'
-import type { ConversationStatus } from '../../api/types'
+import type { ConversationStatus, FilterCondition } from '../../api/types'
+import { parseRouteFilters } from '../next/filter/filter-query'
 
 export const STATUSES = ['open', 'resolved', 'pending', 'snoozed', 'all'] as const
 export const ASSIGNEE_TABS = ['me', 'unassigned', 'all'] as const
@@ -27,6 +28,13 @@ export interface ConversationsSearch {
   team_id?: number
   label?: string
   conversation_type?: (typeof CONVERSATION_TYPES)[number]
+  /** Pasta aberta (custom_view/:id no Chatwoot). */
+  folder_id?: number
+  /**
+   * Filtros avançados aplicados, no formato do `?filters=` do Chatwoot. Lá eles vivem no store e somem ao
+   * recarregar; aqui ficam na URL, como o resto dos filtros da lista.
+   */
+  filters?: FilterCondition[]
 }
 
 const oneOf = <T extends string>(list: readonly T[], value: unknown): T | undefined =>
@@ -57,6 +65,15 @@ export function parseUrlSearch(raw: Record<string, unknown>): Partial<Conversati
   if (typeof raw.label === 'number') search.label = String(raw.label)
   else if (typeof raw.label === 'string' && raw.label !== '') search.label = raw.label
   if (type) search.conversation_type = type
+  const folder = positiveInt(raw.folder_id)
+  if (folder) search.folder_id = folder
+  const filters =
+    typeof raw.filters === 'string'
+      ? parseRouteFilters(raw.filters)
+      : Array.isArray(raw.filters)
+        ? parseRouteFilters(JSON.stringify(raw.filters))
+        : null
+  if (filters) search.filters = filters
   return search
 }
 
@@ -67,7 +84,8 @@ export function withDefaults(search: Partial<ConversationsSearch>): Conversation
 export const parseSearch = (raw: Record<string, unknown>) => withDefaults(parseUrlSearch(raw))
 
 export function toFilters(search: ConversationsSearch): ConversationFilters {
-  const { label, status, ...rest } = search
+  // pasta e filtros avançados não são parâmetros da lista: vão pelo POST /conversations/filter
+  const { label, status, folder_id: _folder, filters: _filters, ...rest } = search
   return {
     ...rest,
     status: status as ConversationStatus | 'all',
@@ -77,13 +95,14 @@ export function toFilters(search: ConversationsSearch): ConversationFilters {
 
 /** Título da lista na precedência do pageTitle de ChatList.vue (inbox/time dependem de endpoints que ainda não existem). */
 /** Nomes da inbox e do time filtrados (vêm das listas da conta; sem elas, o título cai no próximo caso). */
-export type ViewNames = { inbox?: string; team?: string }
+export type ViewNames = { inbox?: string; team?: string; folder?: string }
 
-// pageTitle do ChatList.vue: inbox, time, etiqueta, visão e, por fim, o título padrão.
+// pageTitle do ChatList.vue: filtros aplicados, inbox, time, etiqueta, visão, pasta e, por fim, o título padrão.
 export function viewTitle(
   search: ConversationsSearch,
   names: ViewNames = {},
 ): { key: string } | { text: string } {
+  if (search.filters) return { key: 'CHAT_LIST.TAB_HEADING' }
   if (search.inbox_id && names.inbox) return { text: names.inbox }
   if (search.team_id && names.team) return { text: names.team }
   if (search.label) return { text: `#${search.label}` }
@@ -95,6 +114,7 @@ export function viewTitle(
     case 'participating':
       return { key: 'SIDEBAR.PARTICIPATING_CONVERSATIONS' }
     default:
+      if (search.folder_id && names.folder) return { text: names.folder }
       return { key: 'CHAT_LIST.TAB_HEADING' }
   }
 }

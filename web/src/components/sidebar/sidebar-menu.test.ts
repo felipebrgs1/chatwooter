@@ -83,6 +83,26 @@ describe('buildMenu com times e etiquetas', () => {
     ])
   })
 
+  test('Folders lista as pastas do usuário antes de Teams', () => {
+    const folder = (id: number, name: string) => ({
+      id,
+      name,
+      filter_type: 'conversation' as const,
+      query: { payload: [] },
+      created_at: '',
+      updated_at: '',
+    })
+    const withFolders = buildMenu(t, { folders: [folder(5, 'VIPs'), folder(2, 'Atrasadas')] })
+    const children = withFolders[0]!.children
+    expect(children.map((c) => c.name).slice(4, 6)).toEqual(['folders', 'teams'])
+    const folders = children.find((c) => c.name === 'folders')!
+    expect(folders.label).toBe('SIDEBAR.CUSTOM_VIEWS_FOLDER')
+    expect(leavesOf({ children: [folders] }).map((l) => [l.label, l.to])).toEqual([
+      ['VIPs', '/app?folder_id=5'],
+      ['Atrasadas', '/app?folder_id=2'],
+    ])
+  })
+
   test('Labels mostra as da sidebar, por título, com a cor', () => {
     const labels = child('labels')
     expect(labels && leavesOf({ children: [labels] }).map((l) => [l.label, l.to, l.color])).toEqual(

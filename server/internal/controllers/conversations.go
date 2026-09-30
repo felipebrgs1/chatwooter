@@ -59,6 +59,37 @@ func (c Conversations) Index(w http.ResponseWriter, r *http.Request) {
 	views.JSON(w, http.StatusOK, views.ConversationsIndex(items, counts))
 }
 
+// Filter é o POST /conversations/filter (filtros avançados e pastas). page e sort_by vêm na query string, como o dashboard manda.
+func (c Conversations) Filter(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Payload []models.FilterCondition `json:"payload"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	q := r.URL.Query()
+	query := models.ConversationFilterQuery{
+		UserID:  CurrentUser(r).ID,
+		Payload: in.Payload,
+		SortBy:  q.Get("sort_by"),
+		Page:    int(intParam(q.Get("page"))),
+	}
+	if !CurrentMembership(r).Administrator() {
+		query.OnlyInboxesOfUser = query.UserID
+	}
+	items, counts, err := c.Conversations.Filter(r.Context(), CurrentMembership(r).AccountID, query)
+	var invalid models.FilterError
+	switch {
+	case errors.As(err, &invalid):
+		views.JSON(w, http.StatusUnprocessableEntity, views.Error(invalid.Message))
+		return
+	case err != nil:
+		serverError(w, err)
+		return
+	}
+	views.JSON(w, http.StatusOK, views.ConversationsFilter(items, counts))
+}
+
 func (c Conversations) Meta(w http.ResponseWriter, r *http.Request) {
 	f := c.filter(r)
 	f.Page = 1
