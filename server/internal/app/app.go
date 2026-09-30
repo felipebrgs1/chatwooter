@@ -144,6 +144,8 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 				Labels:        models.NewLabels(pool),
 				Teams:         models.NewTeams(pool),
 				Inboxes:       models.NewInboxes(pool),
+				Contacts:      models.NewContacts(pool),
+				ContactNotes:  models.NewContactNotes(pool),
 				SessionTTL:    sessionTTL,
 				CookieSecure:  cfg.CookieSecure,
 			}),

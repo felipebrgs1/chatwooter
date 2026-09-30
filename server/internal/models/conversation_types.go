@@ -16,6 +16,8 @@ type Contact struct {
 	CustomAttributes     json.RawMessage
 	CreatedAt            time.Time
 	LastActivityAt       *time.Time
+	// ContactInboxes só vem quando pedido (include_contact_inboxes); nil = não carregado.
+	ContactInboxes *[]ContactInbox
 }
 
 // Agent é um usuário visto como membro de uma conta (api/v1/models/_agent.json.jbuilder).

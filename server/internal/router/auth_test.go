@@ -35,6 +35,8 @@ func newApp(t *testing.T) *app {
 		Labels:        models.NewLabels(pool),
 		Teams:         models.NewTeams(pool),
 		Inboxes:       models.NewInboxes(pool),
+		Contacts:      models.NewContacts(pool),
+		ContactNotes:  models.NewContactNotes(pool),
 		SessionTTL:    time.Hour,
 	})}
 }

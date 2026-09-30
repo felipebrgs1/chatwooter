@@ -72,6 +72,38 @@ export interface Contact {
   last_activity_at?: number
 }
 
+/** _contact_inbox.json.jbuilder (a inbox vem no formato _inbox_slim) */
+export interface ContactInbox {
+  source_id: string
+  inbox: {
+    id: number
+    avatar_url: string
+    channel_id: number
+    name: string
+    channel_type: string
+    provider: string | null
+  }
+}
+
+/** Contato das listas (/contacts, /contacts/search): _contact.json.jbuilder com contact_inboxes */
+export interface ContactListItem extends Contact {
+  contact_inboxes?: ContactInbox[]
+}
+
+/** _note.json.jbuilder (user no formato _agent) */
+export interface ContactNote {
+  id: number
+  content: string
+  user?: Agent
+  created_at: number
+  updated_at: number
+}
+
+export interface ContactsPage {
+  meta: { count: number; current_page: number | string; has_more?: boolean }
+  payload: ContactListItem[]
+}
+
 export interface Agent {
   id: number
   account_id: number

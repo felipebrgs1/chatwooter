@@ -9,9 +9,14 @@ type Props = {
   items: BreadcrumbItem[]
   ariaLabel: string
   id?: string
+  /** Como o @click do original: os itens anteriores viram botões e quem usa decide a navegação. */
+  onItemClick?: (item: BreadcrumbItem, index: number) => void
 }
 
-export function Breadcrumb({ items, ariaLabel, id }: Props) {
+const itemClass =
+  'inline-flex items-center justify-center min-w-0 gap-2 p-0 text-sm font-medium transition-all duration-200 ease-in-out border-0 rounded-lg text-n-slate-11 hover:text-n-slate-12 outline-transparent max-w-56'
+
+export function Breadcrumb({ items, ariaLabel, id, onItemClick }: Props) {
   return (
     <nav id={id} aria-label={ariaLabel} className="flex items-center h-8 min-w-0">
       <ol className="flex items-center mb-0 min-w-0">
@@ -32,11 +37,16 @@ export function Breadcrumb({ items, ariaLabel, id }: Props) {
                 >
                   <span className="truncate text-n-slate-12">{item.label}</span>
                 </span>
-              ) : (
-                <a
-                  href={item.href}
-                  className="inline-flex items-center justify-center min-w-0 gap-2 p-0 text-sm font-medium transition-all duration-200 ease-in-out border-0 rounded-lg text-n-slate-11 hover:text-n-slate-12 outline-transparent max-w-56"
+              ) : onItemClick ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onClick={() => onItemClick(item, index)}
                 >
+                  <span className="min-w-0 truncate">{item.label}</span>
+                </button>
+              ) : (
+                <a href={item.href} className={itemClass}>
                   <span className="min-w-0 truncate">{item.label}</span>
                 </a>
               )}

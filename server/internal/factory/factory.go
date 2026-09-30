@@ -53,7 +53,13 @@ type Contact struct {
 	ID        int32
 	AccountID int32
 	Name      string
-	Email     string
+	// Email vazio grava NULL (contato sem identificação: fora do resolved_contacts).
+	Email      string
+	Phone      string
+	Identifier string
+	// AdditionalAttributes é o JSON cru (ex.: `{"city": "Recife"}`); vazio = `{}`.
+	AdditionalAttributes string
+	LastActivityAt       *time.Time
 }
 
 type Conversation struct {
@@ -215,9 +221,28 @@ func (f *Factory) Contact(account Account, opts ...func(*Contact)) Contact {
 	for _, o := range opts {
 		o(&c)
 	}
-	c.ID = f.insert(`INSERT INTO contacts (account_id, name, email, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING id`,
-		account.ID, c.Name, c.Email)
+	attrs := c.AdditionalAttributes
+	if attrs == "" {
+		attrs = "{}"
+	}
+	c.ID = f.insert(`INSERT INTO contacts (account_id, name, email, phone_number, identifier, additional_attributes, last_activity_at, created_at, updated_at)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6::jsonb, $7, now(), now()) RETURNING id`,
+		account.ID, c.Name, c.Email, c.Phone, c.Identifier, attrs, c.LastActivityAt)
 	return c
+}
+
+// ContactInbox liga o contato à inbox com o source_id do canal (chat.id do Telegram, wa_id do WhatsApp).
+func (f *Factory) ContactInbox(contact Contact, inbox Inbox, sourceID string) {
+	f.t.Helper()
+	f.exec(`INSERT INTO contact_inboxes (contact_id, inbox_id, source_id, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
+		contact.ID, inbox.ID, sourceID)
+}
+
+// ContactLabel etiqueta o contato (acts_as_taggable_on, contexto labels).
+func (f *Factory) ContactLabel(contact Contact, title string) {
+	f.t.Helper()
+	tagID := f.insert(`INSERT INTO tags (name, taggings_count) VALUES ($1, 1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, title)
+	f.exec(`INSERT INTO taggings (tag_id, taggable_type, taggable_id, context, created_at) VALUES ($1, 'Contact', $2, 'labels', now())`, tagID, contact.ID)
 }
 
 // Conversation deixa o display_id para o trigger do banco, como no Chatwoot.
@@ -300,4 +325,12 @@ func (f *Factory) Message(conv Conversation, opts ...func(*Message)) Message {
 	m.ID = f.insert(`INSERT INTO messages (conversation_id, account_id, inbox_id, message_type, content, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING id`, m.ConversationID, m.AccountID, m.InboxID, messageType, m.Content)
 	return m
+}
+
+// Note cria uma nota do agente no contato (tabela notes); createdAt nil = agora.
+func (f *Factory) Note(contact Contact, user User, content string, createdAt *time.Time) int32 {
+	f.t.Helper()
+	return f.insert(`INSERT INTO notes (account_id, contact_id, user_id, content, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, COALESCE($5, now()), COALESCE($5, now())) RETURNING id`,
+		contact.AccountID, contact.ID, user.ID, content, createdAt)
 }

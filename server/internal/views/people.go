@@ -20,6 +20,25 @@ type ContactJSON struct {
 	CustomAttributes     json.RawMessage `json:"custom_attributes"`
 	LastActivityAt       *int64          `json:"last_activity_at,omitempty"`
 	CreatedAt            int64           `json:"created_at,omitempty"`
+	// company_id só sai com a feature `companies`, e as features da conta ainda não têm origem: omitido.
+	// contact_inboxes só nos endpoints de /contacts (with_contact_inboxes); nil = ausente.
+	ContactInboxes *[]ContactInboxJSON `json:"contact_inboxes,omitempty"`
+}
+
+// ContactInboxJSON espelha _contact_inbox.json.jbuilder.
+type ContactInboxJSON struct {
+	SourceID string        `json:"source_id"`
+	Inbox    InboxSlimJSON `json:"inbox"`
+}
+
+// InboxSlimJSON espelha _inbox_slim.json.jbuilder (sem avatar ainda: avatar_url vazio, como o Avatarable).
+type InboxSlimJSON struct {
+	ID          int32   `json:"id"`
+	AvatarURL   string  `json:"avatar_url"`
+	ChannelID   int32   `json:"channel_id"`
+	Name        string  `json:"name"`
+	ChannelType string  `json:"channel_type"`
+	Provider    *string `json:"provider"`
 }
 
 func Contact(c models.Contact) ContactJSON {
@@ -39,6 +58,16 @@ func Contact(c models.Contact) ContactJSON {
 	if c.LastActivityAt != nil {
 		v := c.LastActivityAt.Unix()
 		out.LastActivityAt = &v
+	}
+	if c.ContactInboxes != nil {
+		cis := make([]ContactInboxJSON, 0, len(*c.ContactInboxes))
+		for _, ci := range *c.ContactInboxes {
+			cis = append(cis, ContactInboxJSON{SourceID: ci.SourceID, Inbox: InboxSlimJSON{
+				ID: ci.Inbox.ID, ChannelID: ci.Inbox.ChannelID, Name: ci.Inbox.Name,
+				ChannelType: ci.Inbox.ChannelType, Provider: ci.Inbox.Provider,
+			}})
+		}
+		out.ContactInboxes = &cis
 	}
 	return out
 }

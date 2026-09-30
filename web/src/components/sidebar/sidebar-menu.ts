@@ -136,7 +136,7 @@ export function buildMenu(t: Translate, data: MenuData = {}): MenuGroup[] {
       name: 'contacts',
       label: t('SIDEBAR.CONTACTS'),
       icon: 'ph-address-book',
-      children: [{ name: 'all-contacts', label: t('SIDEBAR.ALL_CONTACTS') }],
+      children: [{ name: 'all-contacts', label: t('SIDEBAR.ALL_CONTACTS'), to: '/app/contacts' }],
     },
     {
       name: 'companies',

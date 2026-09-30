@@ -1,7 +1,7 @@
 // Port de components-next/selectmenu/SelectMenu.vue (sub-menu que abre à direita do botão).
-import { Button } from '../next/button'
-import { DropdownContainer } from '../next/dropdown-container'
-import { cx } from '../next/cx'
+import { Button } from './button'
+import { DropdownContainer } from './dropdown-container'
+import { cx } from './cx'
 
 export type SelectOption<T extends string> = { value: T; label: string }
 

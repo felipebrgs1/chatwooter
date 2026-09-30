@@ -10,7 +10,7 @@ import { Icon } from '../next/icon'
 import { CardLabels, type AccountLabel } from './card-labels'
 import { lastMessage, PRIORITIES } from './card-helpers'
 import { MessagePreview } from './message-preview'
-import { exactTimestamp, shortTimeAgo } from './time-ago'
+import { exactTimestamp, shortTimeAgo } from '../../shared/time-ago'
 
 export type CardLinkProps = { className: string; children: ReactNode; 'aria-current'?: 'page' }
 

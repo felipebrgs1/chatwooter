@@ -17,13 +17,14 @@ describe('buildMenu', () => {
     ])
   })
 
-  test('as visões de conversa têm rota; o resto ainda não tem tela', () => {
+  test('as visões de conversa e a lista de contatos têm rota; o resto ainda não tem tela', () => {
     const withRoute = menu.flatMap(leavesOf).filter((leaf) => leaf.to)
     expect(withRoute.map((l) => [l.name, l.to])).toEqual([
       ['all-conversations', '/app'],
       ['mentions', '/app?conversation_type=mention'],
       ['participating', '/app?conversation_type=participating'],
       ['unattended', '/app?conversation_type=unattended'],
+      ['all-contacts', '/app/contacts'],
     ])
   })
 

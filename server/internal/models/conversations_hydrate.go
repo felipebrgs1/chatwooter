@@ -125,11 +125,16 @@ func (c *Conversations) channelsByInbox(ctx context.Context, ids []int64) (map[i
 }
 
 func (c *Conversations) agentsByID(ctx context.Context, accountID int32, ids []int64) (map[int64]Agent, error) {
+	return agentsByID(ctx, c.db, accountID, ids)
+}
+
+// agentsByID carrega usuários no formato _agent.json.jbuilder, com o papel e a disponibilidade na conta.
+func agentsByID(ctx context.Context, db DB, accountID int32, ids []int64) (map[int64]Agent, error) {
 	out := map[int64]Agent{}
 	if len(ids) == 0 {
 		return out, nil
 	}
-	rows, err := c.db.Query(ctx, `SELECT u.id, COALESCE(u.email, ''), u.provider, u.name, COALESCE(u.display_name, ''),
+	rows, err := db.Query(ctx, `SELECT u.id, COALESCE(u.email, ''), u.provider, u.name, COALESCE(u.display_name, ''),
 		u.confirmed_at IS NOT NULL, COALESCE(au.role, 0), au.availability, au.auto_offline
 		FROM users u JOIN account_users au ON au.user_id = u.id AND au.account_id = $2 WHERE u.id = ANY($1)`, ids, accountID)
 	if err != nil {

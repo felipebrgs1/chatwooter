@@ -26,7 +26,8 @@ Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (
 | Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade; Teams, Channels e Labels; faltam Folders e contadores |
 | Lista de conversas | ✅ | abas, status, ordenação, card, visões, layout expandido; faltam extras (Marco 1.1) |
 | Thread, cabeçalho, composer | 🟡 | 1:1 no básico; faltam painel do contato, rich text, canned, anexos, menções |
-| Detalhe do contato, lista de contatos, empresas | ⬜ | — |
+| Lista e detalhe de contatos | 🟡 | lista, busca, ordenação, detalhe, bloquear, etiquetas, notas, histórico, excluir; faltam criar, filtros, merge, atributos, mídia, nova conversa |
+| Empresas | ⬜ | — |
 | Settings (general, inboxes, agents, profile) | ⬜ | — |
 | Telegram, WhatsApp Cloud | ⬜ | só schema |
 | API v1 | 🟡 | profile, contas, conversas, mensagens, labels, teams e inboxes (leitura); o resto ⬜ |
@@ -142,6 +143,7 @@ só pelas telas, que batem com o Chatwoot.
 
 Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboard/contacts|companies`
 - [ ] Lista de contatos com a paleta `n-*`: cards, busca, ordenação, filtros avançados
+  - Feitos: cards, busca (Load more), ordenação em `ui_settings`, paginação. Faltam filtros avançados, edição rápida no card e seleção em massa.
 - [ ] Rotas Active, Segments (filtro salvo) e "Tagged with" (etiqueta) + sidebar
 - [ ] Criar contato (`CreateNewContactDialog.vue`), import/export CSV (`ContactImportDialog.vue`, `ContactExportDialog.vue`)
 - [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)

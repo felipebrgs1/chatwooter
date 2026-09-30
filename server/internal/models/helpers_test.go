@@ -19,3 +19,10 @@ func migratedPool(t *testing.T) (*pgxpool.Pool, *factory.Factory) {
 	}
 	return pool, factory.New(t, pool)
 }
+
+func mustExec(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), sql, args...); err != nil {
+		t.Fatalf("%v\n%s", err, sql)
+	}
+}

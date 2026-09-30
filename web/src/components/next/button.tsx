@@ -3,6 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
 import { cx } from './cx'
 import { Icon } from './icon'
+import { Spinner } from './spinner'
 
 const colors = {
   blue: {
@@ -88,6 +89,8 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'color'> & {
   size?: ButtonSize
   justify?: keyof typeof justifyClasses
   noAnimation?: boolean
+  /** Troca o ícone por um spinner, como o Button.vue. */
+  isLoading?: boolean
   children?: ReactNode
 }
 
@@ -100,6 +103,7 @@ export function Button({
   size = 'md',
   justify = 'center',
   noAnimation = false,
+  isLoading = false,
   type = 'button',
   className,
   children,
@@ -125,7 +129,12 @@ export function Button({
       )}
       {...rest}
     >
-      {icon && <Icon name={icon} className="flex-shrink-0" />}
+      {icon && !isLoading && <Icon name={icon} className="flex-shrink-0" />}
+      {isLoading && (
+        <span className="inline-flex size-5 flex-shrink-0">
+          <Spinner size={20} />
+        </span>
+      )}
       {label && <span className="min-w-0 truncate">{label}</span>}
       {children}
     </button>

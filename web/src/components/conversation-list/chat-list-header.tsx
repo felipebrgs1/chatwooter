@@ -6,7 +6,7 @@ import { Button } from '../next/button'
 import { cx } from '../next/cx'
 import { DropdownContainer } from '../next/dropdown-container'
 import { SORTS, STATUSES, type ConversationsSearch } from './search'
-import { SelectMenu } from './select-menu'
+import { SelectMenu } from '../next/select-menu'
 
 type Props = {
   title: string

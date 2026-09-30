@@ -195,9 +195,13 @@ portar o visual antigo.
 - [ ] Painel do contato, editor rich text, canned, anexos, menções (Marcos 1.2–1.5)
 
 **Contatos e empresas**
-- [ ] Detalhe do contato + "Send message" (nova conversa)
-- [ ] Lista de contatos, empresas (lista e detalhe) — já no padrão `n-*`
-- [ ] Merge e exclusão de contato (`platform.ContactMerge`, `platform.RecordDeletion`)
+- [x] Lista de contatos (`/app/contacts`): cards, busca com "Load more", ordenação em `ui_settings`, paginação —
+      `GET /contacts`, `/contacts/search`
+- [x] Detalhe do contato (`/app/contacts/:id`): formulário 1:1, bloquear, etiquetas, excluir (admin, cascata síncrona),
+      abas History e Notes — `GET/PUT/DELETE /contacts/:id`, `/conversations`, `/labels`, `/notes`
+- [ ] Detalhe: "Send message" (nova conversa), abas Attributes (custom attributes), Media e Merge, avatar
+- [ ] Criar contato, edição rápida no card, filtros/segmentos, visão por etiqueta, import/export
+- [ ] Empresas (lista e detalhe)
 
 **Busca e composição**
 - [ ] Busca global `/app/search` (conversas, mensagens, contatos, buscas recentes)

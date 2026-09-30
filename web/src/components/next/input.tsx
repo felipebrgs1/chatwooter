@@ -1,17 +1,19 @@
 // Port de components-next/input/Input.vue.
-import { useId, type InputHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
 
 import { cx } from './cx'
 
 type MessageType = 'info' | 'error' | 'success'
 
-type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
+type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'prefix'> & {
   label?: string
   size?: 'sm' | 'md'
   message?: string
   messageType?: MessageType
   inputClassName?: string
   className?: string
+  /** Slot `prefix`: ícone posicionado sobre o campo (ex.: lupa da busca). */
+  prefix?: ReactNode
 }
 
 const messageColors: Record<MessageType, string> = {
@@ -29,6 +31,7 @@ export function Input({
   inputClassName,
   className,
   type = 'text',
+  prefix,
   ...rest
 }: Props) {
   const generated = useId()
@@ -43,10 +46,11 @@ export function Input({
           {label}
         </label>
       )}
+      {prefix}
       <input
         id={inputId}
         type={type}
-        aria-invalid={invalid && message ? true : undefined}
+        aria-invalid={invalid ? true : undefined}
         aria-describedby={message ? messageId : undefined}
         className={cx(
           'block w-full text-sm mb-0! outline outline-1 border-none border-0 outline-offset-[-1px] rounded-lg bg-n-alpha-black2 text-ellipsis placeholder:text-n-slate-10 disabled:cursor-not-allowed disabled:opacity-50 text-n-slate-12 transition-all duration-500 ease-in-out [appearance:textfield]',

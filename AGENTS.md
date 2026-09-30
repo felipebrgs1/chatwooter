@@ -13,6 +13,8 @@ Na raiz: `make precommit` (gate), `make test`, `make fmt`, `make sqlc`, `make mi
 `make schema-diff`, `make i18n-sync`. Testes do Go precisam de Postgres: `docker compose up -d db` (porta `5434`,
 `TEST_DATABASE_URL` já vem do Makefile). Stack de dev: `docker compose up` (API `:4100`, web `:5173`;
 login `john@acme.inc` / `Password123!`).
+O `node_modules` do `web-ui` é um volume do container: adicionou pacote no `web/package.json`? Rode
+`docker compose exec web-ui npm install` e `docker compose restart web-ui` (instalar só no host não chega lá).
 
 ## Backend (MVC)
 

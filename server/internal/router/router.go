@@ -21,6 +21,8 @@ type Deps struct {
 	Labels        *models.Labels
 	Teams         *models.Teams
 	Inboxes       *models.Inboxes
+	Contacts      *models.Contacts
+	ContactNotes  *models.ContactNotes
 	SessionTTL    time.Duration
 	CookieSecure  bool
 }
@@ -54,6 +56,28 @@ func New(d Deps) http.Handler {
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
 			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
+
+			contacts := controllers.Contacts{Contacts: d.Contacts}
+			r.Route("/contacts", func(r chi.Router) {
+				r.Get("/", contacts.Index)
+				r.Get("/search", contacts.Search)
+				r.Route("/{contact_id}", func(r chi.Router) {
+					r.Get("/", contacts.Show)
+					r.Put("/", contacts.Update)
+					r.Patch("/", contacts.Update)
+					r.Delete("/", contacts.Destroy)
+					r.Get("/conversations", controllers.ContactConversations{Conversations: d.Conversations}.Index)
+					r.Get("/labels", contacts.Labels)
+					r.Post("/labels", contacts.SetLabels)
+					notes := controllers.ContactNotes{Notes: d.ContactNotes}
+					r.Get("/notes", notes.Index)
+					r.Post("/notes", notes.Create)
+					r.Get("/notes/{note_id}", notes.Show)
+					r.Put("/notes/{note_id}", notes.Update)
+					r.Patch("/notes/{note_id}", notes.Update)
+					r.Delete("/notes/{note_id}", notes.Destroy)
+				})
+			})
 
 			convs := controllers.Conversations{Conversations: d.Conversations}
 			msgs := controllers.Messages{Conversations: convs}

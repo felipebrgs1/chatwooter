@@ -12,7 +12,7 @@ import { CardLabels, type AccountLabel } from './card-labels'
 import { lastMessage, PRIORITIES, STATUS_ICONS } from './card-helpers'
 import type { CardLinkProps } from './conversation-card'
 import { MessagePreview } from './message-preview'
-import { exactTimestamp, shortTimeAgo } from './time-ago'
+import { exactTimestamp, shortTimeAgo } from '../../shared/time-ago'
 
 type Props = {
   conversation: Conversation
