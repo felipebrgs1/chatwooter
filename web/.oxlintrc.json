@@ -3,7 +3,8 @@
   "plugins": [
     "react",
     "typescript",
-    "oxc"
+    "oxc",
+    "react-perf"
   ],
   "rules": {
     "react/rules-of-hooks": "error",
