@@ -1,0 +1,72 @@
+// Porta de components/widgets/conversation/ConversationHeader.vue (sem SLA, chamadas nem menu "mais ações").
+import { useTranslation } from 'react-i18next'
+
+import type { Conversation, ConversationStatus } from '../../api/types'
+import { Avatar } from '../next/avatar'
+import { ChannelIcon } from '../next/channel-icon'
+import { showAlert } from '../toast/alert'
+import { ResolveAction } from './resolve-action'
+
+type Props = {
+  conversation: Conversation
+  statusLoading?: boolean
+  onStatusChange: (status: ConversationStatus) => void
+}
+
+// Ainda não há endpoint de inbox: o nome exibido é o do canal (Telegram, Whatsapp...).
+const channelName = (channel: string | null) => channel?.replace(/^Channel::/, '') ?? ''
+
+export function ConversationHeader({ conversation, statusLoading, onStatusChange }: Props) {
+  const { t } = useTranslation()
+  const contact = conversation.meta.sender
+  const channel = conversation.meta.channel
+
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(String(conversation.id))
+      showAlert(t('CONVERSATION.HEADER.COPY_ID_SUCCESS'))
+    } catch {
+      // sem permissão de área de transferência: nada a fazer
+    }
+  }
+
+  return (
+    <div className="flex h-24 w-full min-w-0 flex-1 flex-col items-center justify-between gap-3 border-b border-b-n-weak px-3 pb-2 !pt-2 xl:h-12 xl:flex-row">
+      <div className="flex w-full min-w-0 max-w-full items-center justify-start xl:w-auto xl:flex-1">
+        <Avatar name={contact.name} size={32} />
+        <div className="ms-2 flex min-w-0 flex-col items-start overflow-hidden">
+          <div className="m-0 flex max-w-full flex-row items-center gap-1 p-0">
+            <span className="truncate text-sm font-medium leading-tight text-n-slate-12">
+              {contact.name}
+            </span>
+          </div>
+          <div className="conversation--header--actions flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-n-slate-11">
+            <button
+              type="button"
+              onClick={copyId}
+              className="truncate !p-0 text-label-small text-n-slate-11 hover:text-n-slate-12"
+            >
+              {`#${conversation.id}`}
+            </button>
+            {channel && (
+              <>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <ChannelIcon channel={channel} className="size-3.5" />
+                  {channelName(channel)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="header-actions-wrap flex w-full flex-shrink-0 flex-row items-center justify-start gap-2 xl:w-auto xl:justify-end">
+        <ResolveAction
+          status={conversation.status}
+          isLoading={statusLoading}
+          onChange={onStatusChange}
+        />
+      </div>
+    </div>
+  )
+}

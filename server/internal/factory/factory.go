@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -58,6 +59,21 @@ type Conversation struct {
 	InboxID   int32
 	ContactID int32
 	DisplayID int32
+	Status    int32 // 0 open, 1 resolved, 2 pending, 3 snoozed
+	Priority  *int32
+	// AssigneeID e TeamID ficam nulos por padrão (sem responsável).
+	AssigneeID *int32
+	TeamID     *int32
+	// LastActivityAt padrão: agora. Testes de ordenação definem valores distintos.
+	LastActivityAt *time.Time
+	AgentLastSeen  *time.Time
+	CachedLabels   string
+}
+
+type Team struct {
+	ID        int32
+	AccountID int32
+	Name      string
 }
 
 type Message struct {
@@ -79,6 +95,9 @@ func New(t testing.TB, pool *pgxpool.Pool) *Factory {
 	t.Helper()
 	return &Factory{t: t, pool: pool}
 }
+
+// Pool dá acesso ao banco para testes que precisam montar um caso específico.
+func (f *Factory) Pool() *pgxpool.Pool { return f.pool }
 
 func (f *Factory) next() int {
 	f.seq++
@@ -158,6 +177,12 @@ func (f *Factory) TelegramInbox(account Account, opts ...func(*Inbox)) Inbox {
 	return in
 }
 
+// InboxMember torna o usuário agente da inbox.
+func (f *Factory) InboxMember(inbox Inbox, user User) {
+	f.t.Helper()
+	f.exec(`INSERT INTO inbox_members (inbox_id, user_id, created_at, updated_at) VALUES ($1, $2, now(), now())`, inbox.ID, user.ID)
+}
+
 func (f *Factory) Contact(account Account, opts ...func(*Contact)) Contact {
 	f.t.Helper()
 	n := f.next()
@@ -178,13 +203,33 @@ func (f *Factory) Conversation(account Account, inbox Inbox, contact Contact, op
 		o(&c)
 	}
 	var id, display int32
-	err := f.pool.QueryRow(context.Background(), `INSERT INTO conversations (account_id, inbox_id, contact_id, created_at, updated_at)
-		VALUES ($1, $2, $3, now(), now()) RETURNING id, display_id`, c.AccountID, c.InboxID, c.ContactID).Scan(&id, &display)
+	err := f.pool.QueryRow(context.Background(), `INSERT INTO conversations
+		(account_id, inbox_id, contact_id, status, priority, assignee_id, team_id, last_activity_at, agent_last_seen_at, cached_label_list, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, now() AT TIME ZONE 'utc'), $9, $10, now(), now()) RETURNING id, display_id`,
+		c.AccountID, c.InboxID, c.ContactID, c.Status, c.Priority, c.AssigneeID, c.TeamID, c.LastActivityAt, c.AgentLastSeen, c.CachedLabels).Scan(&id, &display)
 	if err != nil {
 		f.t.Fatalf("factory: conversation: %v", err)
 	}
 	c.ID, c.DisplayID = id, display
 	return c
+}
+
+func (f *Factory) Team(account Account, opts ...func(*Team)) Team {
+	f.t.Helper()
+	tm := Team{AccountID: account.ID, Name: fmt.Sprintf("Time %d", f.next())}
+	for _, o := range opts {
+		o(&tm)
+	}
+	tm.ID = f.insert(`INSERT INTO teams (account_id, name, created_at, updated_at) VALUES ($1, $2, now(), now()) RETURNING id`, tm.AccountID, tm.Name)
+	return tm
+}
+
+// Label etiqueta a conversa como o Chatwoot (acts_as_taggable_on): tags + taggings + cached_label_list.
+func (f *Factory) Label(conv Conversation, title string) {
+	f.t.Helper()
+	tagID := f.insert(`INSERT INTO tags (name, taggings_count) VALUES ($1, 1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, title)
+	f.exec(`INSERT INTO taggings (tag_id, taggable_type, taggable_id, context, created_at) VALUES ($1, 'Conversation', $2, 'labels', now())`, tagID, conv.ID)
+	f.exec(`UPDATE conversations SET cached_label_list = concat_ws(', ', NULLIF(cached_label_list, ''), $2::text) WHERE id = $1`, conv.ID, title)
 }
 
 func (f *Factory) Message(conv Conversation, opts ...func(*Message)) Message {

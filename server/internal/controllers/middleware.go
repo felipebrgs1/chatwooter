@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -62,14 +64,19 @@ func isSafeMethod(m string) bool {
 	return m == http.MethodGet || m == http.MethodHead || m == http.MethodOptions
 }
 
-// sameOrigin aceita pedidos sem Origin (não são de navegador em contexto cross-site) e os do próprio host.
+// sameOrigin aceita pedidos sem Origin (não são de navegador em contexto cross-site) e os do próprio site:
+// o Origin tem de bater com o Host, ou com X-Forwarded-Host quando há proxy reverso na frente. Um site
+// malicioso não consegue forjar X-Forwarded-Host (cabeçalho fora da lista segura exige preflight CORS).
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return true
 	}
 	u, err := url.Parse(origin)
-	return err == nil && u.Host == r.Host
+	if err != nil {
+		return false
+	}
+	return u.Host == r.Host || (r.Header.Get("X-Forwarded-Host") != "" && u.Host == r.Header.Get("X-Forwarded-Host"))
 }
 
 // AccountScope restringe /accounts/{account_id}/... aos membros da conta (mesmas respostas do Chatwoot:
@@ -113,4 +120,30 @@ func notFoundJSON(w http.ResponseWriter) {
 func serverError(w http.ResponseWriter, err error) {
 	_ = err // o log entra com o middleware de logging (request id)
 	views.JSON(w, http.StatusInternalServerError, views.Error("Internal Server Error"))
+}
+
+func unauthorized(w http.ResponseWriter) {
+	views.JSON(w, http.StatusUnauthorized, views.Error("You are not authorized to do this action"))
+}
+
+// decode lê o corpo JSON (máx. 1 MB); 400 quando não é JSON válido.
+func decode(w http.ResponseWriter, r *http.Request, into any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+	if err := json.NewDecoder(r.Body).Decode(into); err != nil && !errors.Is(err, io.EOF) {
+		views.JSON(w, http.StatusBadRequest, views.Error("Invalid JSON body"))
+		return false
+	}
+	return true
+}
+
+// modelError traduz os erros de domínio em respostas HTTP.
+func modelError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, models.ErrNotFound):
+		notFoundJSON(w)
+	case errors.Is(err, models.ErrInvalid):
+		views.JSON(w, http.StatusUnprocessableEntity, views.Error("Unprocessable entity"))
+	default:
+		serverError(w, err)
+	}
 }

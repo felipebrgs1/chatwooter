@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppAuthenticatedRouteImport } from './routes/app/_authenticated'
 import { Route as AppLoginRouteImport } from './routes/app/login'
-import { Route as AppAuthenticatedIndexRouteImport } from './routes/app/_authenticated/index'
+import { Route as AppAuthenticatedConversationsRouteImport } from './routes/app/_authenticated/_conversations'
+import { Route as AppAuthenticatedConversationsIndexRouteImport } from './routes/app/_authenticated/_conversations/index'
+import { Route as AppAuthenticatedConversationsConversationsConversationIdRouteImport } from './routes/app/_authenticated/_conversations/conversations.$conversationId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,41 +31,60 @@ const AppLoginRoute = AppLoginRouteImport.update({
   path: '/app/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppAuthenticatedIndexRoute = AppAuthenticatedIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppAuthenticatedRoute,
-} as any)
+const AppAuthenticatedConversationsRoute =
+  AppAuthenticatedConversationsRouteImport.update({
+    id: '/_conversations',
+    getParentRoute: () => AppAuthenticatedRoute,
+  } as any)
+const AppAuthenticatedConversationsIndexRoute =
+  AppAuthenticatedConversationsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppAuthenticatedConversationsRoute,
+  } as any)
+const AppAuthenticatedConversationsConversationsConversationIdRoute =
+  AppAuthenticatedConversationsConversationsConversationIdRouteImport.update({
+    id: '/conversations/$conversationId',
+    path: '/conversations/$conversationId',
+    getParentRoute: () => AppAuthenticatedConversationsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/app': typeof AppAuthenticatedRouteWithChildren
+  '/app': typeof AppAuthenticatedConversationsRouteWithChildren
   '/app/login': typeof AppLoginRoute
-  '/app/': typeof AppAuthenticatedIndexRoute
+  '/app/': typeof AppAuthenticatedConversationsIndexRoute
+  '/app/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppAuthenticatedConversationsIndexRoute
   '/app/login': typeof AppLoginRoute
-  '/app': typeof AppAuthenticatedIndexRoute
+  '/app/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app/_authenticated': typeof AppAuthenticatedRouteWithChildren
   '/app/login': typeof AppLoginRoute
-  '/app/_authenticated/': typeof AppAuthenticatedIndexRoute
+  '/app/_authenticated/_conversations': typeof AppAuthenticatedConversationsRouteWithChildren
+  '/app/_authenticated/_conversations/': typeof AppAuthenticatedConversationsIndexRoute
+  '/app/_authenticated/_conversations/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/app/login' | '/app/'
+  fullPaths:
+    '/' | '/app' | '/app/login' | '/app/' | '/app/conversations/$conversationId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app/login' | '/app'
+  to: '/' | '/app' | '/app/login' | '/app/conversations/$conversationId'
   id:
     | '__root__'
     | '/'
     | '/app/_authenticated'
     | '/app/login'
-    | '/app/_authenticated/'
+    | '/app/_authenticated/_conversations'
+    | '/app/_authenticated/_conversations/'
+    | '/app/_authenticated/_conversations/conversations/$conversationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,22 +116,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/app/_authenticated/': {
-      id: '/app/_authenticated/'
+    '/app/_authenticated/_conversations': {
+      id: '/app/_authenticated/_conversations'
+      path: ''
+      fullPath: '/app'
+      preLoaderRoute: typeof AppAuthenticatedConversationsRouteImport
+      parentRoute: typeof AppAuthenticatedRoute
+    }
+    '/app/_authenticated/_conversations/': {
+      id: '/app/_authenticated/_conversations/'
       path: '/'
       fullPath: '/app/'
-      preLoaderRoute: typeof AppAuthenticatedIndexRouteImport
-      parentRoute: typeof AppAuthenticatedRoute
+      preLoaderRoute: typeof AppAuthenticatedConversationsIndexRouteImport
+      parentRoute: typeof AppAuthenticatedConversationsRoute
+    }
+    '/app/_authenticated/_conversations/conversations/$conversationId': {
+      id: '/app/_authenticated/_conversations/conversations/$conversationId'
+      path: '/conversations/$conversationId'
+      fullPath: '/app/conversations/$conversationId'
+      preLoaderRoute: typeof AppAuthenticatedConversationsConversationsConversationIdRouteImport
+      parentRoute: typeof AppAuthenticatedConversationsRoute
     }
   }
 }
 
+interface AppAuthenticatedConversationsRouteChildren {
+  AppAuthenticatedConversationsIndexRoute: typeof AppAuthenticatedConversationsIndexRoute
+  AppAuthenticatedConversationsConversationsConversationIdRoute: typeof AppAuthenticatedConversationsConversationsConversationIdRoute
+}
+
+const AppAuthenticatedConversationsRouteChildren: AppAuthenticatedConversationsRouteChildren =
+  {
+    AppAuthenticatedConversationsIndexRoute:
+      AppAuthenticatedConversationsIndexRoute,
+    AppAuthenticatedConversationsConversationsConversationIdRoute:
+      AppAuthenticatedConversationsConversationsConversationIdRoute,
+  }
+
+const AppAuthenticatedConversationsRouteWithChildren =
+  AppAuthenticatedConversationsRoute._addFileChildren(
+    AppAuthenticatedConversationsRouteChildren,
+  )
+
 interface AppAuthenticatedRouteChildren {
-  AppAuthenticatedIndexRoute: typeof AppAuthenticatedIndexRoute
+  AppAuthenticatedConversationsRoute: typeof AppAuthenticatedConversationsRouteWithChildren
 }
 
 const AppAuthenticatedRouteChildren: AppAuthenticatedRouteChildren = {
-  AppAuthenticatedIndexRoute: AppAuthenticatedIndexRoute,
+  AppAuthenticatedConversationsRoute:
+    AppAuthenticatedConversationsRouteWithChildren,
 }
 
 const AppAuthenticatedRouteWithChildren =

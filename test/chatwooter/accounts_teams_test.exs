@@ -6,9 +6,6 @@ defmodule Chatwooter.AccountsTeamsTest do
   alias Chatwooter.{Accounts, Inboxes}
   alias Chatwooter.Accounts.{Team, TeamMember}
   alias Chatwooter.Inboxes.InboxMember
-  alias Chatwooter.SchemaParity
-
-  @schema Path.expand("../../chatwoot/db/schema.rb", __DIR__)
 
   setup do
     owner = insert(:user)
@@ -95,29 +92,5 @@ defmodule Chatwooter.AccountsTeamsTest do
     assert [%InboxMember{user_id: id}] = Inboxes.list_members(account, inbox.id)
     assert id == agent.id
     assert_raise Ecto.NoResultsError, fn -> Inboxes.list_members(other, inbox.id) end
-  end
-
-  test "physical PostgreSQL catalog contains the new tables and upstream indexes" do
-    report = SchemaParity.compare(Repo, @schema)
-
-    for name <- ~w(teams team_members inbox_members) do
-      assert report.tables[name].status == :present
-      assert report.tables[name].missing_columns == []
-
-      assert Enum.all?(report.tables[name].indexes, fn {_name, diff} ->
-               diff.status != :missing
-             end)
-    end
-
-    for name <- ~w(teams team_members) do
-      assert report.tables[name].columns["created_at"].status == :equal
-      assert report.tables[name].columns["updated_at"].status == :equal
-    end
-
-    assert report.tables["inbox_members"].columns["created_at"].status == :equal
-    assert report.tables["inbox_members"].columns["updated_at"].status == :equal
-    assert report.tables["inbox_members"].primary_key.actual.type == "integer"
-    assert report.tables["teams"].columns["account_id"].actual.type == "bigint"
-    assert report.tables["inbox_members"].columns["user_id"].status == :equal
   end
 end

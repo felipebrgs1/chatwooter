@@ -1,0 +1,84 @@
+package views
+
+import (
+	"encoding/json"
+
+	"github.com/felipeborgaco/chatwooter/server/internal/models"
+)
+
+// ContactJSON espelha api/v1/models/_contact.json.jbuilder.
+type ContactJSON struct {
+	AdditionalAttributes json.RawMessage `json:"additional_attributes"`
+	AvailabilityStatus   string          `json:"availability_status"`
+	Email                *string         `json:"email"`
+	ID                   int32           `json:"id"`
+	Name                 string          `json:"name"`
+	PhoneNumber          *string         `json:"phone_number"`
+	Blocked              bool            `json:"blocked"`
+	Identifier           *string         `json:"identifier"`
+	Thumbnail            string          `json:"thumbnail"`
+	CustomAttributes     json.RawMessage `json:"custom_attributes"`
+	LastActivityAt       *int64          `json:"last_activity_at,omitempty"`
+	CreatedAt            int64           `json:"created_at,omitempty"`
+}
+
+func Contact(c models.Contact) ContactJSON {
+	out := ContactJSON{
+		AdditionalAttributes: c.AdditionalAttributes,
+		// Sem presença de contatos ainda: todo contato aparece offline.
+		AvailabilityStatus: "offline",
+		Email:              nilIfEmpty(c.Email),
+		ID:                 c.ID,
+		Name:               c.Name,
+		PhoneNumber:        nilIfEmpty(c.PhoneNumber),
+		Blocked:            c.Blocked,
+		Identifier:         nilIfEmpty(c.Identifier),
+		CustomAttributes:   c.CustomAttributes,
+		CreatedAt:          c.CreatedAt.Unix(),
+	}
+	if c.LastActivityAt != nil {
+		v := c.LastActivityAt.Unix()
+		out.LastActivityAt = &v
+	}
+	return out
+}
+
+// AgentJSON espelha api/v1/models/_agent.json.jbuilder.
+type AgentJSON struct {
+	ID                 int32  `json:"id"`
+	AccountID          int32  `json:"account_id"`
+	AvailabilityStatus string `json:"availability_status"`
+	AutoOffline        bool   `json:"auto_offline"`
+	Confirmed          bool   `json:"confirmed"`
+	Email              string `json:"email"`
+	Provider           string `json:"provider"`
+	AvailableName      string `json:"available_name"`
+	Name               string `json:"name"`
+	Role               string `json:"role"`
+	Thumbnail          string `json:"thumbnail"`
+}
+
+func Agent(a models.Agent) AgentJSON {
+	return AgentJSON{
+		ID: a.ID, AccountID: a.AccountID, AvailabilityStatus: a.AvailabilityStatus, AutoOffline: a.AutoOffline,
+		Confirmed: a.Confirmed, Email: a.Email, Provider: a.Provider, AvailableName: a.AvailableName,
+		Name: a.Name, Role: a.Role,
+	}
+}
+
+// TeamJSON espelha api/v1/models/_team.json.jbuilder.
+type TeamJSON struct {
+	ID              int32   `json:"id"`
+	Name            string  `json:"name"`
+	Description     *string `json:"description"`
+	AllowAutoAssign bool    `json:"allow_auto_assign"`
+	AccountID       int32   `json:"account_id"`
+	IsMember        bool    `json:"is_member"`
+}
+
+func Team(t models.Team) TeamJSON {
+	return TeamJSON{
+		ID: t.ID, Name: t.Name, Description: nilIfEmpty(t.Description), AllowAutoAssign: t.AllowAutoAssign,
+		AccountID: t.AccountID, IsMember: t.IsMember,
+	}
+}

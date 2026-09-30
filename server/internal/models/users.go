@@ -36,10 +36,11 @@ func (u User) AvailableName() string {
 }
 
 type Users struct {
-	q *sqlc.Queries
+	q  *sqlc.Queries
+	db sqlc.DBTX
 }
 
-func NewUsers(db sqlc.DBTX) *Users { return &Users{q: sqlc.New(db)} }
+func NewUsers(db sqlc.DBTX) *Users { return &Users{q: sqlc.New(db), db: db} }
 
 func userFrom(u sqlc.User) User {
 	return User{

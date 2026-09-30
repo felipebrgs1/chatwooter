@@ -3,18 +3,18 @@
 ## Referência
 
 - Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
-- Medição atual: [`schema_parity_progress.json`](./schema_parity_progress.json). `schema_parity_baseline.json` é o relatório inicial congelado (10 tabelas) e o `schema_diff` se recusa a sobrescrevê-lo.
+- Medição atual: [`schema_parity_progress.json`](./schema_parity_progress.json). `schema_parity_baseline.json` é o relatório inicial congelado (10 tabelas) e o `schemadiff` se recusa a sobrescrevê-lo.
 
 ```sh
-mix chatwooter.schema_diff
-mix chatwooter.schema_diff --json /tmp/chatwooter-schema-diff.json
+make schema-diff          # resumo contra o banco de dev
+cd server && DATABASE_URL=... go run ./cmd/schemadiff -json /tmp/relatorio.json
 ```
 
-O diff compara o catálogo físico de um banco **migrado** ao snapshot: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado, opclasses, ordem), FKs, checks, extensões e presença de triggers. `schema_parity_test.exs` exige igualdade em tudo isso e tem provas negativas de default, índice, opclass, ordenação, predicado e check.
+O diff compara o catálogo físico de um banco **migrado** ao snapshot: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado, opclasses, ordem), FKs, checks, extensões e presença de triggers. O gate `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) exige igualdade em tudo isso, e `compare_test.go` tem provas negativas de default, nulidade, índice, opclass, ordenação e check. O comparador em Elixir (`mix chatwooter.schema_diff`) foi removido: o de Go mede o mesmo e deu os mesmos números.
 
 ## Estado: paridade estrutural completa
 
-Banco limpo (`ecto.create` → `ecto.migrate` → `schema_diff`):
+Banco limpo (`make migrate` → `make schema-diff`):
 
 | Item | Resultado |
 |---|---|

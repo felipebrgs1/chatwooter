@@ -128,12 +128,13 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 		srv := &http.Server{
 			Addr: ":" + cfg.Port,
 			Handler: router.New(router.Deps{
-				System:       models.System{DB: pool},
-				Users:        models.NewUsers(pool),
-				Sessions:     sessions,
-				Accounts:     models.NewAccounts(pool),
-				SessionTTL:   sessionTTL,
-				CookieSecure: cfg.CookieSecure,
+				System:        models.System{DB: pool},
+				Users:         models.NewUsers(pool),
+				Sessions:      sessions,
+				Accounts:      models.NewAccounts(pool),
+				Conversations: models.NewConversations(pool),
+				SessionTTL:    sessionTTL,
+				CookieSecure:  cfg.CookieSecure,
 			}),
 			ReadHeaderTimeout: 10 * time.Second,
 		}

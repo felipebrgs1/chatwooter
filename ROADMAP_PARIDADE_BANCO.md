@@ -12,7 +12,7 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 
 | Marco | Entrega | Estado |
 |---|---|---|
-| 0 — Contrato e inventário | Snapshot congelado, `mix chatwooter.schema_diff`, gate `schema_parity_test.exs` | ✅ |
+| 0 — Contrato e inventário | Snapshot congelado, `make schema-diff` (Go, `server/internal/schemaparity`), gate `TestMigratedDatabaseMatchesUpstreamSnapshot` | ✅ |
 | 1 — Identidade | contas, usuários, membership, equipes, `(uid, provider)`, Devise vazio → `nil` | ✅ estrutural |
 | 2 — CRM e canais | contatos, empresas, inboxes, `channel_whatsapp`/`channel_telegram`, etiquetas, notas, atributos | ✅ estrutural |
 | 3 — Conversas e mídia | `display_id` por conta com triggers, mensagens, anexos, participantes | ✅ estrutural |
@@ -30,7 +30,7 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 
 ## Regras para mudanças no schema
 
-1. Teste primeiro; `schema_parity_test.exs` deve continuar exigindo igualdade total com o snapshot.
+1. Teste primeiro; `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) deve continuar exigindo igualdade total com o snapshot.
 2. Migrações novas via `mix ecto.gen.migration`; nunca reescrever migrações aplicadas.
 3. Transformações Rails ↔ Ecto (enums, timestamps, JSON/JSONB, polimorfismo, ActiveStorage) são testadas com dados restaurados, nunca presumidas.
 4. Antes de `NOT NULL`/unique em banco existente: detectar conflitos → backfill em lotes → constraint.

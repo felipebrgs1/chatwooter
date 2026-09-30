@@ -13,12 +13,13 @@ import (
 )
 
 type Deps struct {
-	System       models.System
-	Users        *models.Users
-	Sessions     *models.Sessions
-	Accounts     *models.Accounts
-	SessionTTL   time.Duration
-	CookieSecure bool
+	System        models.System
+	Users         *models.Users
+	Sessions      *models.Sessions
+	Accounts      *models.Accounts
+	Conversations *models.Conversations
+	SessionTTL    time.Duration
+	CookieSecure  bool
 }
 
 func New(d Deps) http.Handler {
@@ -36,11 +37,33 @@ func New(d Deps) http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(authn.Require)
-		r.Get("/profile", controllers.Profile{Users: d.Users}.Show)
+		profile := controllers.Profile{Users: d.Users}
+		r.Get("/profile", profile.Show)
+		r.Put("/profile", profile.Update)
+		r.Patch("/profile", profile.Update)
+		r.Post("/profile/availability", profile.Availability)
+		r.Post("/profile/auto_offline", profile.AutoOffline)
+		r.Put("/profile/set_active_account", profile.SetActiveAccount)
 
 		r.Route("/accounts/{account_id}", func(r chi.Router) {
 			r.Use(scope.Require)
 			r.Get("/", controllers.Accounts{Accounts: d.Accounts}.Show)
+
+			convs := controllers.Conversations{Conversations: d.Conversations}
+			msgs := controllers.Messages{Conversations: convs}
+			r.Route("/conversations", func(r chi.Router) {
+				r.Get("/", convs.Index)
+				r.Get("/meta", convs.Meta)
+				r.Route("/{conversation_id}", func(r chi.Router) {
+					r.Get("/", convs.Show)
+					r.Post("/toggle_status", convs.ToggleStatus)
+					r.Post("/assignments", convs.Assign)
+					r.Post("/update_last_seen", convs.UpdateLastSeen)
+					r.Post("/unread", convs.Unread)
+					r.Get("/messages", msgs.Index)
+					r.Post("/messages", msgs.Create)
+				})
+			})
 		})
 	})
 	return r

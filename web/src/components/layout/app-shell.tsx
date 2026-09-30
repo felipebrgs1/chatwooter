@@ -3,10 +3,23 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useState } from 'react'
 
-import { profileQuery, signOut } from '../../api/auth'
+import type { Availability } from '../../api/types'
+
+import {
+  profileQuery,
+  setActiveAccount,
+  setAutoOffline,
+  setAvailability,
+  signOut,
+  updateUiSettings,
+} from '../../api/auth'
 import type { Profile } from '../../api/types'
 import { Sidebar } from '../sidebar/sidebar'
-import { SIDEBAR_DEFAULT_WIDTH } from '../sidebar/use-sidebar-resize'
+import {
+  SIDEBAR_COLLAPSED_THRESHOLD,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+} from '../sidebar/use-sidebar-resize'
 import { useMediaQuery } from './use-media-query'
 import { usePersistedState } from './use-persisted-state'
 
@@ -18,8 +31,10 @@ export function AppShell({ profile }: { profile: Profile }) {
   const navigate = useNavigate()
   const isMobile = useMediaQuery(MOBILE_QUERY)
   const [mobileOpen, setMobileOpen] = useState(false)
-  // Sem PUT /profile ainda: a largura e as seções minimizadas ficam no navegador (no Chatwoot, em ui_settings).
-  const [width, setWidth] = usePersistedState('sidebar_width', SIDEBAR_DEFAULT_WIDTH)
+  // A largura vive em ui_settings (como no Chatwoot); as seções minimizadas ficam no localStorage, também como lá.
+  const savedWidth = profile.ui_settings.sidebar_width
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
+  const width = dragWidth ?? (typeof savedWidth === 'number' ? savedWidth : SIDEBAR_DEFAULT_WIDTH)
   const [minimized, setMinimized] = usePersistedState<Record<string, boolean>>(
     'sidebar_minimized',
     {},
@@ -28,22 +43,55 @@ export function AppShell({ profile }: { profile: Profile }) {
     select: (s) => s.location.pathname + (s.location.searchStr ?? ''),
   })
 
+  const switchAccount = useCallback(
+    async (id: number) => {
+      await setActiveAccount(id)
+      // os dados em cache são da conta anterior
+      queryClient.removeQueries({ queryKey: ['accounts'] })
+      await queryClient.invalidateQueries({ queryKey: profileQuery.queryKey })
+      await navigate({ to: '/app' })
+    },
+    [navigate, queryClient],
+  )
+
   const handleSignOut = useCallback(async () => {
     await signOut()
     queryClient.removeQueries({ queryKey: profileQuery.queryKey })
     await navigate({ to: '/app/login', search: { redirect: '/app' } })
   }, [navigate, queryClient])
 
+  const accountId = profile.account_id ?? profile.accounts[0]?.id ?? 0
+  const replaceProfile = (next: Profile | null | undefined) => {
+    if (next) queryClient.setQueryData(profileQuery.queryKey, next)
+  }
+
+  const commitWidth = useCallback(
+    async (next: number) => {
+      setDragWidth(next)
+      try {
+        replaceProfile(await updateUiSettings({ ...profile.ui_settings, sidebar_width: next }))
+      } finally {
+        setDragWidth(null)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile.ui_settings],
+  )
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-n-background text-n-slate-12">
       <Sidebar
         profile={profile}
-        currentAccountId={profile.account_id ?? profile.accounts[0]?.id ?? 0}
+        currentAccountId={accountId}
         activePath={activePath}
         width={width}
         isMobile={isMobile}
-        onWidthChange={(next, commit) => commit && setWidth(next)}
-        onToggleCollapse={() => setWidth((w) => (w < 160 ? SIDEBAR_DEFAULT_WIDTH : 56))}
+        onWidthChange={(next, commit) => (commit ? void commitWidth(next) : setDragWidth(next))}
+        onToggleCollapse={() =>
+          void commitWidth(
+            width < SIDEBAR_COLLAPSED_THRESHOLD ? SIDEBAR_DEFAULT_WIDTH : SIDEBAR_MIN_WIDTH,
+          )
+        }
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
         minimizedSections={minimized}
@@ -54,10 +102,13 @@ export function AppShell({ profile }: { profile: Profile }) {
           </Link>
         )}
         onSignOut={handleSignOut}
-        // Sem backend ainda (PUT /api/v1/profile/availability e troca de conta): o menu aparece, sem efeito.
-        onAvailabilityChange={() => {}}
-        onAutoOfflineChange={() => {}}
-        onSwitchAccount={() => {}}
+        onAvailabilityChange={(availability: Availability) =>
+          void setAvailability(accountId, availability).then(replaceProfile)
+        }
+        onAutoOfflineChange={(autoOffline) =>
+          void setAutoOffline(accountId, autoOffline).then(replaceProfile)
+        }
+        onSwitchAccount={(id) => void switchAccount(id)}
       />
       <main className="flex min-w-0 flex-1">
         <Outlet />

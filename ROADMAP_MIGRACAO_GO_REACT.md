@@ -79,7 +79,7 @@ Um websocket em `/cable` publica os **mesmos nomes de evento e payloads** de
 ```
 server/
   cmd/chatwooter/            # main: http + workers
-  cmd/schemadiff/            # porta do mix chatwooter.schema_diff
+  cmd/schemadiff/            # compara o banco ao schema.rb (substituiu o mix chatwooter.schema_diff)
   internal/
     router/                  # URLs -> controllers (toda rota declarada aqui)
     controllers/             # HTTP: lê request, chama models, escolhe a view
@@ -156,7 +156,8 @@ contra o banco atual.
       do Devise e usuário inexistente não autenticam (e custam o mesmo tempo). Testado com o usuário real do banco Elixir (`$2b$12$`)
 - [x] Sessão por cookie `HttpOnly; SameSite=Lax` (só o SHA-256 do token vai ao banco; tabela `chatwooter_sessions`, 30 dias, purge de hora em hora),
       `DELETE /auth/sign_out`, `GET /api/v1/profile`; escritas com cookie exigem `Origin` do próprio site
-- [ ] Troca de conta (a conta ativa vem do perfil; falta a tela) e `PUT /api/v1/profile/availability`
+- [x] `PUT /api/v1/profile` (nome, display_name, assinatura, `ui_settings` — a largura da sidebar vai em `sidebar_width`),
+      `POST /profile/availability`, `POST /profile/auto_offline` e `PUT /profile/set_active_account`, ligados à sidebar (troca de conta, disponibilidade)
 - [x] Middleware de escopo `/api/v1/accounts/{account_id}/...`: 404 conta inexistente, 401 quem não é membro (como o Chatwoot).
       Primeira rota escopada: `GET /api/v1/accounts/{id}`
 - [ ] Guard de papel (`administrator`) por rota e `account_id` obrigatório nas queries dos models (entra com a primeira rota de dados)
@@ -165,7 +166,6 @@ contra o banco atual.
       Guard das rotas `/app/*` com redirect seguro, toast (`useAlert`) portado
 - [x] Layout + sidebar (expandida, recolhida, mobile com flyout, menu do perfil, sair) — `AppShell` + `components/sidebar/`.
       Largura e seções minimizadas ficam no `localStorage` até existir `PUT /api/v1/profile` (no Chatwoot vão em `ui_settings`)
-- [ ] Disponibilidade e troca de conta: o menu existe na sidebar, mas sem efeito (faltam os endpoints)
 - [x] Componentes base `next/*` portados em `web/src/components/next/` (avatar, breadcrumb, button, channel-icon, checkbox,
       combobox, dialog, dropdown-container, dropdown-menu, input, searchable-list, switch, tab-bar + icon), com testes
 
@@ -178,13 +178,16 @@ especificação). Os itens 🟡 do app atual (estilo antigo) são refeitos diret
 portar o visual antigo.
 
 **Conversas** (`GET /api/v1/accounts/:id/conversations`, `/meta`, `/filter`, `/search`)
-- [ ] Lista: abas, status, ordenação, card, layout expandido (preferência em `ui_settings`)
-- [ ] Visões Mentions, Participating, Unattended, por Team, por Label + itens na sidebar
+- [x] Lista: abas Mine/Unassigned/All com contadores, status, ordenação, card, scroll infinito (25/página) — `GET /conversations`, `/conversations/meta`
+- [ ] Layout expandido (preferência em `ui_settings`)
+- [x] Filtros da API para Mentions, Participating, Unattended, Team, Label, Inbox (search params de `/app`)
+- [ ] Itens de Team/Label/Folders na sidebar (dependem de `/teams`, `/labels`, `/custom_filters`)
 - [ ] Filtros avançados, pastas (`custom_filters`) salvar/editar/excluir
 - [ ] Menu de contexto do card (lido/não lido, status, prioridade, etiquetas, agente, time, copiar link, excluir)
 - [ ] Ações em massa (etiquetas, status, agente, time)
 - [ ] Etiquetas no card
-- [ ] Thread, cabeçalho, composer e painel (funcionais; o 1:1 vem nos Marcos 1.2–1.5)
+- [x] Conversa aberta: cabeçalho (Resolve/Reopen, `#id` copiável), thread (texto, imagem, vídeo, áudio, arquivo, nota privada, atividade, falha, status de entrega), composer Reply/Private note com envio otimista e reenvio — `GET/POST /conversations/{id}/messages`, `toggle_status`, `assignments`, `update_last_seen`, `unread`
+- [ ] Painel do contato, editor rich text, canned, anexos, menções (Marcos 1.2–1.5)
 
 **Contatos e empresas**
 - [ ] Detalhe do contato + "Send message" (nova conversa)
@@ -222,6 +225,17 @@ portar o visual antigo.
 - [ ] Rodar Go + React no lugar do Phoenix em dev e em staging com o mesmo banco
 - [ ] Ensaio com dump anonimizado do Chatwoot (Marco 6 do roadmap do banco), agora com o Go
 - [ ] Marcar no `ROADMAP_PARIDADE_PRODUTO.md` os itens reimplementados
+
+## Limpeza do Elixir (em andamento)
+
+Removido por já ter equivalente em Go/React, com testes e sem nada no Elixir que dependa disso:
+- [x] `Chatwooter.SchemaParity`, `SchemaParity.Snapshot` e `mix chatwooter.schema_diff`, com os 19 testes `*_schema_parity_test.exs`
+      que só exercitavam o comparador (o gate agora é o `internal/schemaparity` em Go)
+
+Ainda **não** removível, porque o app Elixir segue sendo a única implementação da tela ou depende disso:
+- login, sessão, sidebar e componentes `next/*` (as telas de conversas, contatos, empresas, busca e settings do Elixir os usam)
+- importação de agentes e `mix chatwooter.storage.setup` (sem equivalente em Go ainda, Fase 3)
+- migrations Ecto e schemas de preservação (o Elixir ainda sobe o banco de dev dele)
 
 ## Fase 6 — Remover o Elixir
 

@@ -2,6 +2,9 @@ package models_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,5 +85,86 @@ func TestAccountByID(t *testing.T) {
 	got, err := models.NewAccounts(pool).ByID(context.Background(), account.ID)
 	if err != nil || got.Name != account.Name || got.Status != "active" {
 		t.Fatalf("ByID = %+v, %v", got, err)
+	}
+}
+
+func TestUpdateProfile(t *testing.T) {
+	pool, f := migratedPool(t)
+	ctx := context.Background()
+	agent := f.User(f.Account())
+	users := models.NewUsers(pool)
+
+	name, display, signature := "Ana Souza", "Ana", "Att, Ana"
+	err := users.UpdateProfile(ctx, agent.ID, models.ProfileUpdate{
+		Name: &name, DisplayName: &display, MessageSignature: &signature,
+		UISettings: json.RawMessage(`{"sidebar_width":240,"is_contact_sidebar_open":false}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := users.Profile(ctx, agent.ID)
+	if p.User.Name != "Ana Souza" || p.User.DisplayName != "Ana" || p.User.MessageSignature != "Att, Ana" || p.User.AvailableName() != "Ana" {
+		t.Errorf("user = %+v", p.User)
+	}
+	if string(p.User.UISettings) == "" || !strings.Contains(string(p.User.UISettings), `"sidebar_width"`) {
+		t.Errorf("ui_settings = %s", p.User.UISettings)
+	}
+
+	// campos ausentes não mudam o que já existe
+	if err := users.UpdateProfile(ctx, agent.ID, models.ProfileUpdate{DisplayName: ptr("")}); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = users.Profile(ctx, agent.ID)
+	if p.User.Name != "Ana Souza" || p.User.AvailableName() != "Ana Souza" || p.User.MessageSignature != "Att, Ana" {
+		t.Errorf("depois do parcial: %+v", p.User)
+	}
+	if err := users.UpdateProfile(ctx, agent.ID, models.ProfileUpdate{Name: ptr("  ")}); !errors.Is(err, models.ErrInvalid) {
+		t.Errorf("nome vazio: err = %v", err)
+	}
+	if err := users.UpdateProfile(ctx, agent.ID, models.ProfileUpdate{UISettings: json.RawMessage(`[1,2]`)}); !errors.Is(err, models.ErrInvalid) {
+		t.Errorf("ui_settings que não é objeto: err = %v", err)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestAvailabilityAutoOfflineAndActiveAccount(t *testing.T) {
+	pool, f := migratedPool(t)
+	ctx := context.Background()
+	one, two := f.Account(), f.Account()
+	agent := f.User(one)
+	f.Member(two, agent, 0)
+	users := models.NewUsers(pool)
+
+	if err := users.SetAvailability(ctx, agent.ID, one.ID, "busy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := users.SetAutoOffline(ctx, agent.ID, one.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := users.MembershipFor(ctx, agent.ID, one.ID)
+	if m.Availability != "busy" || m.AutoOffline {
+		t.Errorf("membership = %+v", m)
+	}
+	other, _ := users.MembershipFor(ctx, agent.ID, two.ID)
+	if other.Availability != "online" {
+		t.Error("a disponibilidade é por conta")
+	}
+	if err := users.SetAvailability(ctx, agent.ID, one.ID, "voando"); !errors.Is(err, models.ErrInvalid) {
+		t.Errorf("valor inválido: %v", err)
+	}
+	if err := users.SetAvailability(ctx, agent.ID, f.Account().ID, "online"); !errors.Is(err, models.ErrNotFound) {
+		t.Errorf("conta alheia: %v", err)
+	}
+
+	if err := users.SetActiveAccount(ctx, agent.ID, two.ID); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := users.Profile(ctx, agent.ID)
+	if p.ActiveAccountID == nil || *p.ActiveAccountID != two.ID {
+		t.Errorf("conta ativa = %v, want %d", p.ActiveAccountID, two.ID)
+	}
+	if err := users.SetActiveAccount(ctx, agent.ID, f.Account().ID); !errors.Is(err, models.ErrNotFound) {
+		t.Errorf("conta alheia: %v", err)
 	}
 }

@@ -1,0 +1,91 @@
+// Endpoints de conversas, no formato e nos caminhos da API do Chatwoot.
+import { queryOptions } from '@tanstack/react-query'
+
+import { api } from './client'
+import type {
+  AssigneeType,
+  Conversation,
+  ConversationList,
+  ConversationStatus,
+  MessagesResponse,
+  Message,
+} from './types'
+
+export interface ConversationFilters {
+  status?: ConversationStatus | 'all'
+  assignee_type?: AssigneeType
+  inbox_id?: number
+  team_id?: number
+  labels?: string[]
+  conversation_type?: 'mention' | 'participating' | 'unattended'
+  sort_by?: string
+  page?: number
+}
+
+const base = (accountId: number) => `/api/v1/accounts/${accountId}/conversations`
+
+function toQuery(filters: ConversationFilters) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === null || value === '') continue
+    if (Array.isArray(value)) value.forEach((v) => params.append(`${key}[]`, v))
+    else params.set(key, String(value))
+  }
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
+export const conversationKeys = {
+  all: (accountId: number) => ['accounts', accountId, 'conversations'] as const,
+  list: (accountId: number, filters: ConversationFilters) =>
+    [...conversationKeys.all(accountId), 'list', filters] as const,
+  detail: (accountId: number, id: number) =>
+    [...conversationKeys.all(accountId), 'detail', id] as const,
+  messages: (accountId: number, id: number) =>
+    [...conversationKeys.all(accountId), 'messages', id] as const,
+}
+
+export const fetchConversations = (accountId: number, filters: ConversationFilters = {}) =>
+  api.get<ConversationList>(`${base(accountId)}${toQuery(filters)}`)
+
+export const conversationQuery = (accountId: number, id: number) =>
+  queryOptions({
+    queryKey: conversationKeys.detail(accountId, id),
+    queryFn: () => api.get<Conversation>(`${base(accountId)}/${id}`),
+  })
+
+export const fetchMessages = (accountId: number, id: number, before?: number) =>
+  api.get<MessagesResponse>(`${base(accountId)}/${id}/messages${before ? `?before=${before}` : ''}`)
+
+export const sendMessage = (
+  accountId: number,
+  id: number,
+  body: { content: string; private?: boolean; echo_id?: string },
+) => api.post<Message>(`${base(accountId)}/${id}/messages`, body)
+
+export const toggleStatus = (
+  accountId: number,
+  id: number,
+  body: { status: ConversationStatus; snoozed_until?: number },
+) =>
+  api.post<{
+    meta: Record<string, never>
+    payload: {
+      success: boolean
+      conversation_id: number
+      current_status: ConversationStatus
+      snoozed_until: string | null
+    }
+  }>(`${base(accountId)}/${id}/toggle_status`, body)
+
+export const assignConversation = (
+  accountId: number,
+  id: number,
+  body: { assignee_id?: number | null; team_id?: number | null },
+) => api.post(`${base(accountId)}/${id}/assignments`, body)
+
+export const markSeen = (accountId: number, id: number) =>
+  api.post(`${base(accountId)}/${id}/update_last_seen`)
+
+export const markUnread = (accountId: number, id: number) =>
+  api.post(`${base(accountId)}/${id}/unread`)

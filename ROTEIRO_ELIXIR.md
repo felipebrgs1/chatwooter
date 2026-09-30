@@ -27,7 +27,7 @@
 ### 1.1. v1.0 — paridade migável (WA + Telegram)
 - Multi-conta, agentes (nome, papel, disponibilidade), times, inbox_members, inboxes WA/TG completos.
 - Contatos, empresas, contact_inboxes, labels, canned e notas (contrato de campos no roadmap do banco).
-- Conversas, mensagens, anexos e CSAT simples (desvios de schema medidos por `schema_diff`).
+- Conversas, mensagens, anexos e CSAT simples (desvios de schema medidos pelo `schemadiff` (Go)).
 - Canais WA + Telegram fim-a-fim (texto + mídia + receipts WA + templates/regra 24h).
 - Tempo real (PubSub + Presence), notificações sino, webhooks de saída + API v1 no formato Chatwoot.
 - Importador Chatwoot → Chatwooter + guia de cutover.
@@ -41,7 +41,7 @@
 
 ## 2. Paridade do banco (Chatwoot 4.18 → Chatwooter)
 
-Não manter uma segunda matriz manual de ✅/❌: existência não prova igualdade. O [inventário inicial congelado e o estado atual](./docs/SCHEMA_PARITY.md) distinguem tabelas presentes, desvios de campos/constraints, importação de agentes já testada e trabalho restante. Para medir outro banco migrado, usar `mix chatwooter.schema_diff`. A meta de 103 tabelas e os critérios de saída estão no [roadmap do banco](./ROADMAP_PARIDADE_BANCO.md).
+Não manter uma segunda matriz manual de ✅/❌: existência não prova igualdade. O [inventário inicial congelado e o estado atual](./docs/SCHEMA_PARITY.md) distinguem tabelas presentes, desvios de campos/constraints, importação de agentes já testada e trabalho restante. Para medir outro banco migrado, usar `make schema-diff`. A meta de 103 tabelas e os critérios de saída estão no [roadmap do banco](./ROADMAP_PARIDADE_BANCO.md).
 
 Canais não suportados ainda precisam ser preservados e relatados; isso **não** está implementado pela importação atual de agentes.
 
@@ -137,7 +137,7 @@ desliga. Rollback = voltar webhooks (dados novos ficam só aqui; documentar).
 - **DoD:** mesmo do Telegram + template fora da janela + receipts na UI.
 
 ### Fase A — Paridade de banco 🟡 (em andamento)
-- `schema_diff`, equipes/vínculos e importação limitada de agentes já existem; ver [estado medido](./docs/SCHEMA_PARITY.md).
+- `schemadiff` (Go), equipes/vínculos e importação limitada de agentes já existem; ver [estado medido](./docs/SCHEMA_PARITY.md).
 - **DoD:** marcos 0–6 do [roadmap de banco](./ROADMAP_PARIDADE_BANCO.md), com export reconciliado; um diff vazio isolado não comprova paridade.
 
 ### Fase B — CRM faltante ❌

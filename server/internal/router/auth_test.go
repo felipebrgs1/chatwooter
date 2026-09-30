@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,11 +27,12 @@ func newApp(t *testing.T) *app {
 	t.Helper()
 	pool, f := migratedPool(t)
 	return &app{t: t, f: f, handler: router.New(router.Deps{
-		System:     models.System{DB: pool},
-		Users:      models.NewUsers(pool),
-		Sessions:   models.NewSessions(pool, time.Hour),
-		Accounts:   models.NewAccounts(pool),
-		SessionTTL: time.Hour,
+		System:        models.System{DB: pool},
+		Users:         models.NewUsers(pool),
+		Sessions:      models.NewSessions(pool, time.Hour),
+		Accounts:      models.NewAccounts(pool),
+		Conversations: models.NewConversations(pool),
+		SessionTTL:    time.Hour,
 	})}
 }
 
@@ -256,5 +258,72 @@ func TestAccountScope(t *testing.T) {
 	viaToken := a.do(req{method: "GET", path: path(mine.ID), header: map[string]string{"api_access_token": agent.AccessToken}})
 	if viaToken.Code != http.StatusOK {
 		t.Errorf("api_access_token: status = %d", viaToken.Code)
+	}
+}
+
+func TestProfileUpdateEndpoints(t *testing.T) {
+	a := newApp(t)
+	one, two := a.f.Account(), a.f.Account()
+	agent := a.f.User(one)
+	a.f.Member(two, agent, 0)
+	cookie := sessionCookie(a.signIn(agent.Email, factory.DefaultPassword)).Value
+	do := func(method, path, body string) (int, map[string]any) {
+		rec := a.do(req{method: method, path: path, body: body, cookie: cookie})
+		var out map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		return rec.Code, out
+	}
+
+	code, p := do("PUT", "/api/v1/profile", `{"profile":{"name":"Ana Souza","display_name":"Ana","ui_settings":{"sidebar_width":260}}}`)
+	if code != http.StatusOK || p["name"] != "Ana Souza" || p["available_name"] != "Ana" || p["ui_settings"].(map[string]any)["sidebar_width"] != float64(260) {
+		t.Errorf("PUT profile = %d %v", code, p)
+	}
+	if code, _ := do("PUT", "/api/v1/profile", `{"profile":{"name":""}}`); code != http.StatusUnprocessableEntity {
+		t.Errorf("nome vazio: %d", code)
+	}
+
+	path := "/api/v1/profile/availability"
+	code, p = do("POST", path, fmt.Sprintf(`{"profile":{"account_id":%d,"availability":"busy"}}`, one.ID))
+	if code != http.StatusOK || p["accounts"].([]any)[0].(map[string]any)["availability"] != "busy" {
+		t.Errorf("availability = %d %v", code, p["accounts"])
+	}
+	if code, _ := do("POST", path, fmt.Sprintf(`{"profile":{"account_id":%d,"availability":"voando"}}`, one.ID)); code != http.StatusUnprocessableEntity {
+		t.Errorf("valor inválido: %d", code)
+	}
+	code, p = do("POST", "/api/v1/profile/auto_offline", fmt.Sprintf(`{"profile":{"account_id":%d,"auto_offline":false}}`, one.ID))
+	if code != http.StatusOK || p["accounts"].([]any)[0].(map[string]any)["auto_offline"] != false {
+		t.Errorf("auto_offline = %d", code)
+	}
+
+	if code, _ := do("PUT", "/api/v1/profile/set_active_account", fmt.Sprintf(`{"profile":{"account_id":%d}}`, two.ID)); code != http.StatusOK {
+		t.Fatalf("set_active_account = %d", code)
+	}
+	if _, p := do("GET", "/api/v1/profile", ""); p["account_id"] != float64(two.ID) {
+		t.Errorf("conta ativa = %v, want %d", p["account_id"], two.ID)
+	}
+	if code, _ := do("PUT", "/api/v1/profile/set_active_account", fmt.Sprintf(`{"profile":{"account_id":%d}}`, a.f.Account().ID)); code != http.StatusNotFound {
+		t.Errorf("conta alheia: %d", code)
+	}
+}
+
+// Atrás de um proxy reverso o Host chega reescrito; o site público vem em X-Forwarded-Host.
+func TestCookieWritesAcceptTheForwardedPublicHost(t *testing.T) {
+	a := newApp(t)
+	agent := a.f.User(a.f.Account())
+	cookie := sessionCookie(a.signIn(agent.Email, factory.DefaultPassword)).Value
+
+	rec := a.do(req{method: "DELETE", path: "/auth/sign_out", cookie: cookie, header: map[string]string{
+		"Origin": "https://chat.example.com", "X-Forwarded-Host": "chat.example.com",
+	}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Origin igual ao X-Forwarded-Host: status = %d, want 200", rec.Code)
+	}
+
+	cookie = sessionCookie(a.signIn(agent.Email, factory.DefaultPassword)).Value
+	rec = a.do(req{method: "DELETE", path: "/auth/sign_out", cookie: cookie, header: map[string]string{
+		"Origin": "https://evil.example", "X-Forwarded-Host": "chat.example.com",
+	}})
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("Origin de outro site continua bloqueado: status = %d, want 403", rec.Code)
 	}
 }
