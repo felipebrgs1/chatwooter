@@ -1,6 +1,6 @@
 # Roadmap de paridade de produto (UI + comportamento) com o Chatwoot
 
-> Complementa o [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md) (produto e decisões) e o
+> Complementa o [`ROTEIRO.md`](./ROTEIRO.md) (produto e decisões) e o
 > [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) (schema — paridade estrutural ✅ 103/103).
 > Este documento lista **cada tela e funcionalidade do Chatwoot** e o que falta para ficarmos 1:1.
 > Inventário feito a partir de `chatwoot/` (v4.18) em 2026-09-27.
@@ -9,7 +9,7 @@
 
 - **1:1 = mesma tela, mesmo texto (en), mesmo comportamento**, portado do `.vue` indicado. Paths de
   referência relativos a `chatwoot/app/javascript/dashboard/` (`FE/` quando precisar distinguir).
-- Cada item só vira ✅ com **teste primeiro** (ver `AGENTS.md` → TDD), `mix precommit` verde e
+- Cada item só vira ✅ com **teste primeiro** (ver `AGENTS.md` → TDD), `make precommit` verde e
   conferência no browser. Marque o checkbox no mesmo PR.
 - Canais: **só WhatsApp Cloud API e Telegram** (decisão travada). Telas de outros canais não entram.
 - Status: ✅ feito · 🟡 existe, mas não está 1:1 (estilo antigo ou incompleto) · ⬜ não iniciado.
@@ -17,18 +17,20 @@
 
 ## Estado atual (base)
 
+Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (removido; código na tag
+`elixir-final`) voltaram para ⬜ e servem de referência para o port.
+
 | Área | Status | Observação |
 |---|---|---|
 | Fundação de UI | ✅ | tokens `n-*`, Inter, Phosphor, `components/next/*`, rota = arquivo |
-| Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade |
-| Lista de conversas | ✅ | abas, status, ordenação, card; faltam extras (Marco 1.1) |
-| Thread, cabeçalho, composer, painel da conversa | 🟡 | funcionam, estilo antigo |
-| Detalhe do contato | ✅ | faltam avatar, ligação |
-| Lista de contatos, empresas | 🟡 | portados antes da paleta `n-*` |
-| Settings (general, inboxes, agents, profile) | 🟡 | estilo antigo, menu interno que o Chatwoot não tem |
-| Telegram | 🟡 | texto + parte da mídia |
-| WhatsApp Cloud | ⬜ | só schema |
-| API v1, webhooks, notificações, busca, relatórios | ⬜ | — |
+| Sidebar | ✅ | expandida/recolhida/mobile, perfil + disponibilidade; Teams, Channels e Labels; faltam Folders e contadores |
+| Lista de conversas | ✅ | abas, status, ordenação, card, visões, layout expandido; faltam extras (Marco 1.1) |
+| Thread, cabeçalho, composer | 🟡 | 1:1 no básico; faltam painel do contato, rich text, canned, anexos, menções |
+| Detalhe do contato, lista de contatos, empresas | ⬜ | — |
+| Settings (general, inboxes, agents, profile) | ⬜ | — |
+| Telegram, WhatsApp Cloud | ⬜ | só schema |
+| API v1 | 🟡 | profile, contas, conversas, mensagens, labels, teams e inboxes (leitura); o resto ⬜ |
+| Webhooks, notificações, busca, relatórios | ⬜ | — |
 
 ---
 
@@ -37,16 +39,14 @@
 ### 1.1 Lista de conversas — extras
 Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Rotas de visão: Mentions, Participating, Unattended, por Team, por Label (`routes/dashboard/conversation/conversation.routes.js`) + itens na sidebar — query params de `/app` (`conversation_type`, `team_id`, `label`), como o `inbox_id`
-- [x] Filtros avançados + salvar/editar/excluir pasta + visão Folder e seção "Folders" na sidebar (`components-next/filter/ConversationFilter.vue`, `SaveCustomView.vue`, `customviews/DeleteCustomViews.vue`) — backend: `custom_filters`
-- [x] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
-  - Snooze só visual (depende do backend do item "Snooze" em 1.2); atributos obrigatórios ao resolver ficam para o 1.2.
-- [x] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
-  - Snooze em massa só visual (depende do item "Snooze" em 1.2).
+- [ ] Filtros avançados + salvar/editar/excluir pasta + visão Folder e seção "Folders" na sidebar (`components-next/filter/ConversationFilter.vue`, `SaveCustomView.vue`, `customviews/DeleteCustomViews.vue`) — backend: `custom_filters`
+- [ ] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
+- [ ] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)
   - Etiquetas prontas. Falta o selo de SLA: depende de políticas de SLA, horário comercial e do job de eventos (recursos Enterprise, sem backend aqui).
 - [x] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`
-  - Fora: troca automática para expandido em tela pequena (`Dashboard.vue`) e card condensado abaixo de `lg` no modo expandido.
-- [ ] Paginação por scroll (25 por página) + "All conversations loaded"
+  - Fora: troca automática para expandido em tela pequena (`Dashboard.vue`), que grava `ui_settings` a cada resize; o mobile já alterna lista/conversa.
+- [x] Paginação por scroll (25 por página) + "All conversations loaded"
 - [ ] Atalhos: Alt+J/K (anterior/próxima), Alt+N (abas)
 - [ ] `TimeAgo` que se atualiza sozinho (hook)
 
@@ -104,7 +104,7 @@ atribuir, etiquetar, resolver/snooze) com a UI idêntica à do Chatwoot.
 - [ ] Criar inbox só com Bot Token (nome vem do bot) + página final com QR (`settings/inbox/channels/Telegram.vue`, `FinishSetup.vue`)
 
 ### 2.2 WhatsApp Cloud API
-- [ ] Adapter `Req` atrás do `Channels.Channel`: verify token, ingest assíncrono, mídia via storage, sender Oban
+- [ ] Adapter atrás do `channels.Channel`: verify token, ingest assíncrono, mídia via storage, sender no River
 - [ ] Recibos (sent/delivered/read/failed) refletidos na UI
 - [ ] Templates: sincronizar, listar, enviar com variáveis; regra das 24h
 - [ ] Criar inbox pelo formulário manual (`channels/CloudWhatsapp.vue`: nome, telefone, phone ID, WABA, API key) — embedded signup fica pós-v1
@@ -144,10 +144,10 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 - [ ] Lista de contatos com a paleta `n-*`: cards, busca, ordenação, filtros avançados
 - [ ] Rotas Active, Segments (filtro salvo) e "Tagged with" (etiqueta) + sidebar
 - [ ] Criar contato (`CreateNewContactDialog.vue`), import/export CSV (`ContactImportDialog.vue`, `ContactExportDialog.vue`)
-- [x] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
+- [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
 - [ ] Detalhe do contato: avatar (upload/excluir)
 - [ ] Empresas: lista e detalhe 1:1, `CompanySelector` com criação inline
-- [x] Nova conversa a partir da sidebar (botão de compose) — templates do WhatsApp, emoji e assinatura ainda só visuais
+- [ ] Nova conversa a partir da sidebar (botão de compose)
 
 ---
 
@@ -165,7 +165,7 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 - [ ] Web push (depende do PWA: manifest + service worker + VAPID)
 
 ### 5.3 Produtividade
-- [x] Busca global (`modules/search/`): conversas, mensagens, contatos; buscas recentes (`/app/search`, ILIKE como o `SearchService` CE)
+- [ ] Busca global (`modules/search/`): conversas, mensagens, contatos; buscas recentes (`/app/search`, ILIKE como o `SearchService` CE)
   - [ ] Filtros (remetente, inbox, período) — no Chatwoot só em Enterprise/Cloud com `advanced_search`
   - [ ] Chips de anexo/transcrição e "Read more" nos resultados de mensagem; abrir a conversa rolando até a mensagem (`messageId`)
   - [ ] Restringir resultados às inboxes do agente (`assigned_inboxes`) quando houver controle de acesso por inbox
@@ -186,7 +186,7 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 
 ## Marco 7 — Importador e cutover (fecha o v1)
 
-Ver `ROTEIRO_ELIXIR.md` §8 (importação preservando `display_id` e `source_id`, dry-run, relatório de
+Ver `ROTEIRO.md` §8 (importação preservando `display_id` e `source_id`, dry-run, relatório de
 canais não suportados, guia de cutover).
 **DoD v1:** conta real do Chatwoot (WA + TG) migrada abre, conversa e responde, com a UI 1:1 dos Marcos 1–6.
 
@@ -213,4 +213,4 @@ Ref.: `routes/dashboard/settings/reports/`
 ### Fora do plano
 Outros canais (web widget, e-mail, Facebook, Instagram, SMS, Line, TikTok, Twilio), chamadas de voz,
 billing do Chatwoot Cloud e embedded signup da Meta — o importador reporta, não implementa
-(decisão do `ROTEIRO_ELIXIR.md`).
+(decisão do `ROTEIRO.md`).

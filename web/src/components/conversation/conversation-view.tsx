@@ -10,6 +10,7 @@ import {
   markSeen,
   toggleStatus,
 } from '../../api/conversations'
+import { inboxesQuery } from '../../api/inboxes'
 import type { Conversation, ConversationStatus } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
 import { useConversationLayout } from '../conversation-list/use-conversation-layout'
@@ -24,6 +25,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const queryClient = useQueryClient()
   const { data: conversation, error } = useQuery(conversationQuery(accountId, conversationId))
   const { expanded } = useConversationLayout()
+  const { data: inboxes = [] } = useQuery(inboxesQuery(accountId))
 
   // Abrir a conversa zera o "não lida" do agente
   useEffect(() => {
@@ -59,6 +61,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       <ConversationHeader
         conversation={conversation}
         showBackButton={expanded}
+        inbox={inboxes.length > 1 ? inboxes.find((i) => i.id === conversation.inbox_id) : undefined}
         statusLoading={status.isPending}
         onStatusChange={(next) => status.mutate(next)}
       />

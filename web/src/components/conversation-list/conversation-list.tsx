@@ -5,7 +5,9 @@ import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { inboxesQuery } from '../../api/inboxes'
 import { labelsQuery } from '../../api/labels'
+import { teamsQuery } from '../../api/teams'
 import type { Conversation } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
 import { useMediaQuery } from '../layout/use-media-query'
@@ -47,7 +49,14 @@ export function ConversationList({
   const expandedCards = expanded && !belowLg
   const now = useNow()
   const query = useConversations(toFilters(search))
-  const { data: accountLabels } = useQuery(labelsQuery(useAccountId()))
+  const accountId = useAccountId()
+  const { data: accountLabels } = useQuery(labelsQuery(accountId))
+  const { data: inboxes = [] } = useQuery(inboxesQuery(accountId))
+  const { data: teams = [] } = useQuery(teamsQuery(accountId))
+  // ConversationItem.vue → showInboxName: fora da visão de uma inbox, e só se a conta tiver mais de uma
+  const showInboxName = !search.inbox_id && inboxes.length > 1
+  const inboxName = (id: number) =>
+    showInboxName ? inboxes.find((i) => i.id === id)?.name : undefined
   const sentinel = useRef<HTMLDivElement>(null)
 
   const conversations = useMemo(() => {
@@ -69,7 +78,10 @@ export function ConversationList({
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, conversations.length])
 
-  const heading = viewTitle(search)
+  const heading = viewTitle(search, {
+    inbox: inboxes.find((i) => i.id === search.inbox_id)?.name,
+    team: teams.find((tm) => tm.id === search.team_id)?.name,
+  })
   const title = 'key' in heading ? t(heading.key) : heading.text
   const counts = query.data?.pages[0]?.data.meta
 
@@ -117,6 +129,7 @@ export function ConversationList({
               href: `/app/conversations/${conversation.id}`,
               active: conversation.id === activeId,
               accountLabels,
+              inboxName: inboxName(conversation.inbox_id),
               now,
               renderLink:
                 renderCardLink && ((props: CardLinkProps) => renderCardLink(conversation, props)),

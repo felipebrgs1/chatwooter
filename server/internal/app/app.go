@@ -1,4 +1,4 @@
-// Package app liga config, banco, jobs e HTTP e expõe os comandos do binário: serve, migrate e
+// Package app liga config, banco, jobs e HTTP e expõe os comandos do binário: serve, migrate, seed e
 // encrypt-provider-configs. O main só repassa os argumentos.
 package app
 
@@ -44,10 +44,18 @@ func Run(ctx context.Context, args []string, getenv func(string) string, out io.
 			_, err := fmt.Fprintln(out, "migrations aplicadas")
 			return err
 		})
+	case "seed":
+		return withPool(ctx, cfg, func(pool *pgxpool.Pool) error {
+			if err := models.SeedDev(ctx, pool); err != nil {
+				return err
+			}
+			_, err := fmt.Fprintf(out, "seed ok: %s / %s (admin da conta Acme Inc)\n", models.DevSeedEmail, models.DevSeedPassword)
+			return err
+		})
 	case "encrypt-provider-configs":
 		return encryptProviderConfigs(ctx, cfg, out)
 	}
-	return fmt.Errorf("comando desconhecido %q (use serve, migrate ou encrypt-provider-configs)", cmd)
+	return fmt.Errorf("comando desconhecido %q (use serve, migrate, seed ou encrypt-provider-configs)", cmd)
 }
 
 func withPool(ctx context.Context, cfg config.Config, fn func(*pgxpool.Pool) error) error {
@@ -135,6 +143,7 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 				Conversations: models.NewConversations(pool),
 				Labels:        models.NewLabels(pool),
 				Teams:         models.NewTeams(pool),
+				Inboxes:       models.NewInboxes(pool),
 				SessionTTL:    sessionTTL,
 				CookieSecure:  cfg.CookieSecure,
 			}),

@@ -20,6 +20,7 @@ type Deps struct {
 	Conversations *models.Conversations
 	Labels        *models.Labels
 	Teams         *models.Teams
+	Inboxes       *models.Inboxes
 	SessionTTL    time.Duration
 	CookieSecure  bool
 }
@@ -52,6 +53,7 @@ func New(d Deps) http.Handler {
 			r.Get("/", controllers.Accounts{Accounts: d.Accounts}.Show)
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
+			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
 
 			convs := controllers.Conversations{Conversations: d.Conversations}
 			msgs := controllers.Messages{Conversations: convs}

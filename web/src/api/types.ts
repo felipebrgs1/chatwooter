@@ -97,6 +97,31 @@ export interface Team {
   is_member: boolean
 }
 
+/** api/v1/models/_inbox.json.jbuilder (canais do v1; os campos de widget/e-mail/Twilio não vêm) */
+export interface Inbox {
+  id: number
+  avatar_url: string
+  channel_id: number
+  name: string
+  channel_type: string
+  greeting_enabled: boolean
+  greeting_message: string | null
+  working_hours_enabled: boolean
+  enable_email_collect: boolean
+  csat_survey_enabled: boolean
+  enable_auto_assignment: boolean
+  out_of_office_message: string | null
+  timezone: string
+  allow_messages_after_resolved: boolean
+  lock_to_single_conversation: boolean
+  sender_name_type: 'friendly' | 'professional'
+  business_name: string | null
+  phone_number: string | null
+  provider: string | null
+  /** Só Telegram */
+  bot_name?: string | null
+}
+
 /** api/v1/accounts/labels/index.json.jbuilder */
 export interface Label {
   id: number

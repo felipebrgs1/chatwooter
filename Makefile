@@ -1,4 +1,4 @@
-.PHONY: precommit test server-test web-test lint fmt sqlc migrate schema-diff i18n-sync
+.PHONY: precommit test server-test web-test lint fmt sqlc migrate seed schema-diff i18n-sync
 
 # Banco de teste: o servidor do compose (precisa poder criar bancos).
 TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5434/postgres?sslmode=disable
@@ -32,6 +32,10 @@ sqlc:
 # Aplica as migrations no banco de desenvolvimento (adota o schema se ele já existir).
 migrate:
 	cd server && DATABASE_URL='postgres://postgres:postgres@localhost:5434/chatwooter_dev?sslmode=disable' go run ./cmd/chatwooter migrate
+
+# Usuário de desenvolvimento john@acme.inc / Password123! (idempotente; o compose já roda na subida).
+seed:
+	cd server && DATABASE_URL='postgres://postgres:postgres@localhost:5434/chatwooter_dev?sslmode=disable' go run ./cmd/chatwooter seed
 
 i18n-sync:
 	cd web && npm run i18n:sync

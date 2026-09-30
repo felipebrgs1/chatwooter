@@ -2,17 +2,18 @@
 
 > Decisão de 2026-09-30: trocar a stack para **Go (backend) + React (frontend)**. Motivo principal:
 > **adoção**. O público que lê, contribui e mantém Go/React é muito maior que o de Elixir.
-> O produto não muda. [`ROTEIRO_ELIXIR.md`](./ROTEIRO_ELIXIR.md) (decisões de produto),
+> O produto não muda. [`ROTEIRO.md`](./ROTEIRO.md) (decisões de produto),
 > [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) e
 > [`ROADMAP_PARIDADE_PRODUTO.md`](./ROADMAP_PARIDADE_PRODUTO.md) continuam valendo. Este documento
-> cobre só a troca de stack e a ordem para chegar ao ponto em que o app Elixir está hoje.
+> cobre só a troca de stack e a ordem para chegar ao ponto em que o app Elixir estava.
+>
+> **Atualização (2026-09-30):** o Elixir foi removido do repositório antes do fim da Fase 3 (Fase 6
+> antecipada). O código dele está na tag `elixir-final`: os itens ⬜ da Fase 3 são portados a partir dela.
 
 ## Regras
 
-- **O app Elixir congela.** Só correção de bug até a Fase 5. Nenhum item novo do roadmap de produto
-  é feito em Elixir.
-- Mesmo repositório: backend em `server/`, frontend em `web/`. O app Elixir continua na raiz até ser
-  removido (Fase 6).
+- **O app Elixir não existe mais na árvore** (tag `elixir-final`); serve só de consulta para o port.
+- Mesmo repositório: backend em `server/`, frontend em `web/`.
 - **O banco não muda.** O schema 1:1 com o Chatwoot (103/103 tabelas) é o maior ativo do projeto e
   passa para o Go do jeito que está.
 - TDD continua obrigatório (Red → Green → Refactor → `make precommit` verde).
@@ -110,8 +111,8 @@ Regras, verificadas pelo `depguard` no `make precommit`:
 
 ## Fase 0 — Decisão e congelamento
 
-- [ ] Tag `elixir-final` no último commit Elixir
-- [ ] Este roadmap aprovado; nota no topo do `ROTEIRO_ELIXIR.md` apontando para cá
+- [x] Tag `elixir-final` no último commit Elixir
+- [x] Este roadmap aprovado; nota no topo do `ROTEIRO.md` apontando para cá
 - [ ] Levantar tudo que o app Elixir faz hoje e virar checklist da Fase 3 (feito abaixo; conferir)
 
 ## Fase 1 — Fundação
@@ -130,7 +131,7 @@ Regras, verificadas pelo `depguard` no `make precommit`:
 - [x] Helper de teste: Postgres real, um banco descartável por teste (`internal/testdb`)
 - [x] Factories em Go (`internal/factory`: conta, usuário, inbox Telegram, contato, conversa, mensagem)
 - [x] Criptografia de `provider_config` (AES-256-GCM, `ENCRYPTION_KEY`): `models.InboxConfigs` + comando
-      `encrypt-provider-configs` (idempotente). **Não rodar no banco compartilhado com o Elixir**: o app Elixir lê o mapa em texto claro
+      `encrypt-provider-configs` (idempotente). Com o Elixir removido, pode rodar no banco de dev (linhas antigas em claro continuam legíveis até lá)
 
 **Frontend**
 - [x] `web/` com Vite + React + TS + TanStack Router + Tailwind v4 (Query entra com a primeira chamada de API)
@@ -141,7 +142,7 @@ Regras, verificadas pelo `depguard` no `make precommit`:
 - [x] Teste que garante rota = arquivo (`src/routes/routes.test.ts`)
 
 **Infra e processo**
-- [x] `docker-compose.yml` (perfil `go`): `server` (air, :4100) e `web-ui` (vite, :5173, proxy para `/api`, `/auth`, `/cable`). `docker compose --profile go up`
+- [x] `docker-compose.yml`: `server` (migrate + seed + air, :4100) e `web-ui` (vite, :5173, proxy para `/api`, `/auth`, `/cable`). `docker compose up`
 - [x] `Makefile` com `make precommit` e `make test`
 - [x] `make sqlc`, `make migrate`, `make schema-diff`, `make i18n-sync`
 - [ ] CI rodando `make precommit`
@@ -173,7 +174,7 @@ contra o banco atual.
 
 ## Fase 3 — Portar o que já existe em Elixir
 
-Cada item recebe testes novos em Go/React **escritos a partir dos testes Elixir** (eles são a
+Cada item recebe testes novos em Go/React **escritos a partir dos testes Elixir** (na tag `elixir-final`; eles são a
 especificação). Os itens 🟡 do app atual (estilo antigo) são refeitos direto no padrão 1:1, sem
 portar o visual antigo.
 
@@ -183,7 +184,9 @@ portar o visual antigo.
       `ConversationCardExpanded` a partir do `lg`, conversa aberta ocupa a área com "Back". Checkbox de seleção entra com as ações em massa
 - [x] Filtros da API para Mentions, Participating, Unattended, Team, Label, Inbox (search params de `/app`)
 - [x] `GET /labels` e `GET /teams` (index); sidebar com Mentions/Participating/Unattended, Teams (só os do usuário) e Labels (`show_on_sidebar`, com cor)
-- [ ] Itens de Folders e Channels na sidebar (dependem de `/custom_filters` e `/inboxes`); ordenação por seção e contadores de não lidas
+- [x] `GET /inboxes` (index, escopo do `InboxPolicy`, sem segredos do canal); Channels na sidebar, nome da inbox no card,
+      no título da lista (inbox/time) e no cabeçalho da conversa
+- [ ] Folders na sidebar (depende de `/custom_filters`); ordenação por seção e contadores de não lidas
 - [ ] Filtros avançados, pastas (`custom_filters`) salvar/editar/excluir
 - [ ] Menu de contexto do card (lido/não lido, status, prioridade, etiquetas, agente, time, copiar link, excluir)
 - [ ] Ações em massa (etiquetas, status, agente, time)
@@ -224,28 +227,24 @@ portar o visual antigo.
 
 ## Fase 5 — Cutover interno
 
-- [ ] Rodar Go + React no lugar do Phoenix em dev e em staging com o mesmo banco
+- [x] Rodar Go + React no lugar do Phoenix em dev
+- [ ] Idem em staging com o mesmo banco
 - [ ] Ensaio com dump anonimizado do Chatwoot (Marco 6 do roadmap do banco), agora com o Go
 - [ ] Marcar no `ROADMAP_PARIDADE_PRODUTO.md` os itens reimplementados
 
-## Limpeza do Elixir (em andamento)
+## Fase 6 — Remover o Elixir ✅ (antecipada, 2026-09-30)
 
-Removido por já ter equivalente em Go/React, com testes e sem nada no Elixir que dependa disso:
-- [x] `Chatwooter.SchemaParity`, `SchemaParity.Snapshot` e `mix chatwooter.schema_diff`, com os 19 testes `*_schema_parity_test.exs`
-      que só exercitavam o comparador (o gate agora é o `internal/schemaparity` em Go)
+- [x] Apagar `lib/`, `test/`, `mix.exs`, `mix.lock`, `config/`, `priv/`, `assets/`, `Dockerfile`, `Dockerfile.dev`,
+      `docker/`, `.formatter.exs`, `.dockerignore` e o serviço `web` (Phoenix) do compose
+- [x] Reaproveitado: `tokens.css` já estava em `web/src/styles`; `docs/schema_parity_*.json` ficam em `docs/`
+      (lidos pelo `cmd/schemadiff`); o seed de dev virou o comando `seed` do Go
+- [x] `ROTEIRO_ELIXIR.md` → `ROTEIRO.md`, com a seção de stack atualizada; README e `AGENTS.md` reescritos
+- [x] `ROADMAP_PARIDADE_PRODUTO.md` e `ROADMAP_PARIDADE_BANCO.md`: referências a `mix`, LiveView, Oban e Ecto
+      trocadas; status de produto remedido na stack Go (o que só existia no Elixir voltou para ⬜)
 
-Ainda **não** removível, porque o app Elixir segue sendo a única implementação da tela ou depende disso:
-- login, sessão, sidebar e componentes `next/*` (as telas de conversas, contatos, empresas, busca e settings do Elixir os usam)
-- importação de agentes e `mix chatwooter.storage.setup` (sem equivalente em Go ainda, Fase 3)
-- migrations Ecto e schemas de preservação (o Elixir ainda sobe o banco de dev dele)
-
-## Fase 6 — Remover o Elixir
-
-- [ ] Apagar `lib/`, `test/`, `mix.exs`, `mix.lock`, `config/`, `priv/`, `assets/`, `Dockerfile.dev`, `.formatter.exs`, `.credo.exs`
-- [ ] Mover o que for reaproveitado (`tokens.css`, `docs/schema_parity_*.json`) para `server/`/`web/` antes
-- [ ] `ROTEIRO_ELIXIR.md` → `ROTEIRO.md`, com a seção de stack atualizada
-- [ ] `ROADMAP_PARIDADE_PRODUTO.md` e `ROADMAP_PARIDADE_BANCO.md`: trocar referências a
-      `mix`, LiveView, Oban e Ecto pelos equivalentes Go/React
+Perdido até ser portado (Fase 3): Telegram (webhook, ingest, envio), contatos, empresas, busca, settings,
+filtros avançados/pastas, menu de contexto, ações em massa, nova conversa, importação de agentes e o setup do
+bucket de storage. Também não há imagem de produção: o `Dockerfile` era do release Elixir.
 
 **DoD:** o repositório não tem mais Elixir e `make precommit` é o único gate.
 
@@ -262,8 +261,8 @@ Nessa stack, dois itens ficam mais baratos:
 
 ## Riscos
 
-1. **Regredir no que já funciona.** Mitigação: os testes Elixir viram a especificação da Fase 3 e o
-   app Elixir fica de pé até a Fase 5 para comparação lado a lado.
+1. **Regredir no que já funciona.** Mitigação: os testes Elixir (tag `elixir-final`) são a especificação
+   da Fase 3; para comparar lado a lado, suba a tag num checkout separado.
 2. **Formato de JSON divergente do Chatwoot.** Mitigação: testes de contrato contra os jbuilder
    desde a Fase 2, não só no Marco 6.
 3. **Tempo real mais trabalhoso que no Phoenix.** Mitigação: escopo fechado aos eventos do

@@ -7,6 +7,7 @@ import type { Message } from '../../api/types'
 import {
   contactFixture,
   conversationFixture,
+  inboxFixture,
   messageFixture,
 } from '../../test/conversation-fixtures'
 import { server } from '../../test/server'
@@ -84,6 +85,34 @@ test('cabeçalho: contato, #id e canal; a thread lista as mensagens em ordem', a
   expect(screen.getByRole('button', { name: '#1' })).toBeInTheDocument()
   const texts = (await screen.findAllByText(/^mensagem \d$/)).map((n) => n.textContent)
   expect(texts).toEqual(['mensagem 1', 'mensagem 2', 'mensagem 3'])
+})
+
+test('com mais de uma inbox o cabeçalho mostra o nome da inbox da conversa', async () => {
+  api({ conversation: { inbox_id: 2 } })
+  server.use(
+    http.get('/api/v1/accounts/1/inboxes', () =>
+      HttpResponse.json({
+        payload: [
+          inboxFixture({ id: 1, name: 'Suporte Telegram' }),
+          inboxFixture({ id: 2, name: 'Vendas Zap', channel_type: 'Channel::Whatsapp' }),
+        ],
+      }),
+    ),
+  )
+  await renderConversation(<ConversationView conversationId={1} />)
+  expect(await screen.findByTitle('Vendas Zap')).toHaveTextContent('Vendas Zap')
+})
+
+test('com uma inbox só o cabeçalho não mostra inbox', async () => {
+  api()
+  server.use(
+    http.get('/api/v1/accounts/1/inboxes', () =>
+      HttpResponse.json({ payload: [inboxFixture({ id: 1, name: 'Suporte Telegram' })] }),
+    ),
+  )
+  await renderConversation(<ConversationView conversationId={1} />)
+  await screen.findByRole('button', { name: '#1' })
+  expect(screen.queryByText('Suporte Telegram')).not.toBeInTheDocument()
 })
 
 test('abrir a conversa marca como vista uma única vez', async () => {

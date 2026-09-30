@@ -4,8 +4,8 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 
 ## O que significa “1:1”
 
-- **Paridade estrutural:** as mesmas 103 tabelas do snapshot, com colunas, tipos, precisão, nulidade, defaults, índices, checks, FKs, extensões e triggers. Tabelas próprias Phoenix/Oban coexistem. ✅ **Concluída.**
-- **Paridade de dados:** `pg_dump` → `pg_restore` preservando IDs, relações e sequências; os contexts Ecto leem os formatos Rails diretamente, sem remapeamento. Leitura provada com dados sintéticos; falta o ensaio com dump real.
+- **Paridade estrutural:** as mesmas 103 tabelas do snapshot, com colunas, tipos, precisão, nulidade, defaults, índices, checks, FKs, extensões e triggers. Tabelas próprias (`chatwooter_*`, River, `goose`) coexistem. ✅ **Concluída.**
+- **Paridade de dados:** `pg_dump` → `pg_restore` preservando IDs, relações e sequências; os models Go leem os formatos Rails diretamente, sem remapeamento. Leitura provada com dados sintéticos (no app Elixir, tag `elixir-final`); falta o ensaio com dump real.
 - **Paridade operacional:** inboxes WhatsApp Cloud API e Telegram abrem, exibem e respondem às conversas restauradas. Não inclui reproduzir Rails/Devise/ActiveStorage nem ativar outros canais, campanhas ou Captain; esses dados ficam preservados e rastreáveis, sem aparecer como operacionais.
 
 ## Marcos
@@ -23,7 +23,7 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 ## Marco 6 — critérios de saída
 
 1. Duas restaurações de um export real anonimizado em destinos limpos preservam IDs, sequências, contagens e relações.
-2. Procedimento de bootstrap das tabelas locais (Phoenix/Oban/`chatwooter_*`) e reconciliação do ledger `schema_migrations` sobre o banco restaurado. Não rodar as migrações de criação sobre tabelas restauradas.
+2. Procedimento de bootstrap das tabelas locais (River/`goose`/`chatwooter_*`) e reconciliação do ledger de migrations sobre o banco restaurado. Não rodar as migrações de criação sobre tabelas restauradas.
 3. Usuários restaurados conseguem autenticar; segredos Meta/Telegram revisados e protegidos antes do uso, nunca em texto puro nem em logs.
 4. Conversa real aberta e respondida nos dois canais em sandbox, sem instalar webhooks externos durante o dry-run; relatório explícito dos canais não ativados.
 5. Guia de freeze/cutover WA+TG.
@@ -31,8 +31,8 @@ Referência congelada: `chatwoot/db/schema.rb` (versão `2026_09_24_000000`) e o
 ## Regras para mudanças no schema
 
 1. Teste primeiro; `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) deve continuar exigindo igualdade total com o snapshot.
-2. Migrações novas via `mix ecto.gen.migration`; nunca reescrever migrações aplicadas.
-3. Transformações Rails ↔ Ecto (enums, timestamps, JSON/JSONB, polimorfismo, ActiveStorage) são testadas com dados restaurados, nunca presumidas.
+2. Migrações novas como arquivo `goose` novo em `server/internal/db/migrations`; nunca reescrever migrações aplicadas nem o baseline.
+3. Transformações Rails ↔ Go (enums, timestamps, JSON/JSONB, polimorfismo, ActiveStorage) são testadas com dados restaurados, nunca presumidas.
 4. Antes de `NOT NULL`/unique em banco existente: detectar conflitos → backfill em lotes → constraint.
-5. Direção dos contexts (`Channels → Conversations → Contacts → Inboxes → Accounts`), sem `ChatwooterWeb → Repo`.
-6. `mix precommit` verde.
+5. Só os models acessam o banco (`router → controllers → models`, imposto pelo `depguard`).
+6. `make precommit` verde.

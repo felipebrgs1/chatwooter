@@ -56,6 +56,7 @@ import {
   CircleNotch,
   Hash,
   Moon,
+  Mailbox,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 
@@ -119,6 +120,7 @@ const icons: Record<string, PhosphorIcon> = {
   'circle-notch': CircleNotch,
   hash: Hash,
   moon: Moon,
+  mailbox: Mailbox,
 }
 
 const weights = ['thin', 'light', 'bold', 'fill', 'duotone'] as const

@@ -1,4 +1,4 @@
-import type { Contact, Conversation, Message } from '../api/types'
+import type { Contact, Conversation, Inbox, Message } from '../api/types'
 
 export function contactFixture(overrides: Partial<Contact> = {}): Contact {
   return {
@@ -62,6 +62,31 @@ export function conversationFixture(overrides: Partial<Conversation> = {}): Conv
     messages: [message],
     last_non_activity_message: message,
     meta: { sender: contactFixture(), channel: 'Channel::Telegram', hmac_verified: null },
+    ...overrides,
+  }
+}
+
+export function inboxFixture(overrides: Partial<Inbox> = {}): Inbox {
+  return {
+    id: 1,
+    avatar_url: '',
+    channel_id: 1,
+    name: 'Suporte Telegram',
+    channel_type: 'Channel::Telegram',
+    greeting_enabled: false,
+    greeting_message: null,
+    working_hours_enabled: false,
+    enable_email_collect: true,
+    csat_survey_enabled: false,
+    enable_auto_assignment: true,
+    out_of_office_message: null,
+    timezone: 'UTC',
+    allow_messages_after_resolved: true,
+    lock_to_single_conversation: false,
+    sender_name_type: 'friendly',
+    business_name: null,
+    phone_number: null,
+    provider: null,
     ...overrides,
   }
 }

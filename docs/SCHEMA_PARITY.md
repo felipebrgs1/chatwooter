@@ -10,7 +10,7 @@ make schema-diff          # resumo contra o banco de dev
 cd server && DATABASE_URL=... go run ./cmd/schemadiff -json /tmp/relatorio.json
 ```
 
-O diff compara o catálogo físico de um banco **migrado** ao snapshot: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado, opclasses, ordem), FKs, checks, extensões e presença de triggers. O gate `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) exige igualdade em tudo isso, e `compare_test.go` tem provas negativas de default, nulidade, índice, opclass, ordenação e check. O comparador em Elixir (`mix chatwooter.schema_diff`) foi removido: o de Go mede o mesmo e deu os mesmos números.
+O diff compara o catálogo físico de um banco **migrado** ao snapshot: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado, opclasses, ordem), FKs, checks, extensões e presença de triggers. O gate `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) exige igualdade em tudo isso, e `compare_test.go` tem provas negativas de default, nulidade, índice, opclass, ordenação e check. O comparador original, em Elixir, deu os mesmos números e saiu junto com o app Elixir (tag `elixir-final`).
 
 ## Estado: paridade estrutural completa
 
@@ -26,7 +26,7 @@ Banco limpo (`make migrate` → `make schema-diff`):
 
 `parity?` do relatório fica `false` só porque o catálogo não consegue verificar corpos de função (`body_unverified`).
 
-Tabelas locais que coexistem com as upstream: `users_tokens`, `oban_jobs`, `oban_peers`, `schema_migrations`, `chatwooter_inbox_configs`, `chatwooter_attachment_storage` e os helpers históricos `import_runs`, `import_errors`, `import_mappings`.
+Tabelas locais que coexistem com as upstream: `chatwooter_sessions`, `chatwooter_inbox_configs`, `chatwooter_attachment_storage`, as do River e do `goose` (`goose_db_version`) e os helpers históricos `import_runs`, `import_errors`, `import_mappings`.
 
 ### Triggers de `display_id`
 
@@ -43,24 +43,24 @@ Desvios deliberados: (1) funções com nomes próprios (o hairtrigger usa o nome
 
 ## Decisões de leitura dos dados Rails
 
-Permanentes e cobertas por testes de dados restaurados (`*_restored_data_test.exs`):
+Permanentes. Foram provadas com dados restaurados no app Elixir (testes `*_restored_data_test.exs`, tag `elixir-final`); na stack Go valem as mesmas regras, cobertas pelos testes dos models à medida que cada leitura é portada:
 
-- **Identidade:** `users.encrypted_password` vazio do Devise lê como `nil` (`Types.PasswordHash`); email é nullable/não-unique e a identidade é `(uid, provider)`; login nunca autentica um match arbitrário entre duplicatas restauradas. Rótulo de papel `administrator`, igual ao Rails.
-- **Inboxes:** config local fica em `chatwooter_inbox_configs`, fora da tabela upstream; `channel_type` preserva `Channel::Telegram/Whatsapp/...` (`Types.InboxChannel`) e `channel_id` aponta para `channel_telegram`/`channel_whatsapp`.
+- **Identidade:** `users.encrypted_password` vazio do Devise nunca autentica; email é nullable/não-unique e a identidade é `(uid, provider)`; login nunca autentica um match arbitrário entre duplicatas restauradas. Rótulo de papel `administrator`, igual ao Rails.
+- **Inboxes:** config local fica em `chatwooter_inbox_configs`, fora da tabela upstream; `channel_type` preserva `Channel::Telegram/Whatsapp/...` e `channel_id` aponta para `channel_telegram`/`channel_whatsapp`.
 - **Mensagens e anexos:** `messages.content_type` inteiro é lido como `upstream_content_type`; o tipo de mídia do dashboard vive em `content_attributes.chatwooter_media_type`. Metadados de storage local ficam em `chatwooter_attachment_storage`; anexo restaurado sem storage local usa `external_url`.
-- **Enums Rails** são lidos como inteiros (ou `Ecto.Enum` sobre os mesmos valores); nenhum valor é convertido.
-- **FKs:** tabelas sem FK SQL no upstream continuam sem FK; exclusões em cascata são coordenadas por `Platform.RecordDeletion`.
-- **Segredos:** tokens, certificados e configs são redigidos na inspeção dos structs. Isso não criptografa dump nem banco.
+- **Enums Rails** são lidos como inteiros (o `sqlc` gera `int32`; os nomes vivem nos models); nenhum valor é convertido.
+- **FKs:** tabelas sem FK SQL no upstream continuam sem FK; exclusões em cascata são coordenadas pelos models (como o `dependent: :destroy` do Rails).
+- **Segredos:** configs de canal ficam cifradas (AES-GCM) em `chatwooter_inbox_configs` e nunca saem na API; colunas upstream restauradas (ex.: `channel_telegram.bot_token`) continuam em claro no dump.
 
 ## Tabelas só de preservação
 
-Existem com o formato original e mappings Ecto de leitura, sem recurso ativo: canais fora do v1 (API, email, Facebook, Instagram, LINE, SMS, Twilio, TikTok, Twitter, widget), help center, campanhas, Captain/Copilot/embeddings, monitores de conversa, SLA, automações/macros/bots, SAML, capacidade/atribuição, relatórios, auditoria, `data_import*` e ActiveStorage (só metadados; binários não migram).
+Existem com o formato original, sem recurso ativo: canais fora do v1 (API, email, Facebook, Instagram, LINE, SMS, Twilio, TikTok, Twitter, widget), help center, campanhas, Captain/Copilot/embeddings, monitores de conversa, SLA, automações/macros/bots, SAML, capacidade/atribuição, relatórios, auditoria, `data_import*` e ActiveStorage (só metadados; binários não migram).
 
 ## Pendente para migrar um Chatwoot real
 
-Fluxo escolhido: `pg_dump` → `pg_restore`, preservando IDs, relações e sequências, sem remapeamento. Não rodar as migrações de criação sobre um schema restaurado (as tabelas já existem e o ledger Ecto não corresponde ao Rails).
+Fluxo escolhido: `pg_dump` → `pg_restore`, preservando IDs, relações e sequências, sem remapeamento. Não rodar as migrações de criação sobre um schema restaurado (as tabelas já existem e o ledger do `goose` não corresponde ao do Rails).
 
 1. Ensaio com dump integral real anonimizado em banco isolado: reconciliar contagens, relações e sequências. Até agora só houve dumps sintéticos.
-2. Bootstrap das tabelas locais (Phoenix/Oban/`chatwooter_*`) e reconciliação do ledger `schema_migrations` sobre o banco restaurado.
-3. Autenticação de usuários restaurados (Devise → Phoenix) e proteção dos segredos Meta/Telegram antes do uso.
+2. Bootstrap das tabelas locais (River/`goose`/`chatwooter_*`) e reconciliação do ledger de migrations sobre o banco restaurado (o `migrate` do Go já adota um schema existente).
+3. Proteção dos segredos Meta/Telegram restaurados antes do uso (o login com o bcrypt do Devise já funciona no Go).
 4. Operação sandbox WA/TG sobre conversas restauradas.

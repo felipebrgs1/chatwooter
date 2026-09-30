@@ -8,10 +8,16 @@ services:
     environment:
       POSTGRES_USER: ${PGUSER:-postgres}
       POSTGRES_PASSWORD: ${PGPASSWORD:-postgres}
+      # criado no primeiro boot do volume; os testes do Go criam os próprios bancos
+      POSTGRES_DB: ${PGDATABASE:-chatwooter_dev}
     volumes:
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 2s
+      retries: 30
 
-  # Object storage S3-compatível (anexos de mensagens).
+  # Object storage S3-compatível (anexos de mensagens; o Go passa a usar na fase de canais).
   rustfs:
     image: rustfs/rustfs:latest
     command: server /data --address :9000
@@ -25,41 +31,8 @@ services:
     volumes:
       - rustfsdata:/data
 
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    ports:
-      - "${PORT:-4000}:4000"
-    env_file:
-      - .env
-    environment:
-      MIX_ENV: dev
-      PGHOST: ${PGHOST:-db}
-      PGUSER: ${PGUSER:-postgres}
-      PGPASSWORD: ${PGPASSWORD:-postgres}
-      PGDATABASE: ${PGDATABASE:-chatwooter_dev}
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin123}
-      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://rustfs:9000}
-      STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL:-http://localhost:9000}
-      STORAGE_BUCKET: ${STORAGE_BUCKET:-chatwooter-dev}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      PORT: ${PORT:-4000}
-      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
-    volumes:
-      - .:/app
-      - app_deps:/app/deps
-      - app_build:/app/_build
-    depends_on:
-      - db
-      - rustfs
-    stdin_open: true
-    tty: true
-
-  # Stack Go + React (migração, ver ROADMAP_MIGRACAO_GO_REACT.md). Suba com: docker compose --profile go up
+  # API Go (:4100). Na subida aplica as migrations e o seed de dev (john@acme.inc), depois roda com hot reload.
   server:
-    profiles: ["go"]
     build:
       context: ./server
       dockerfile: Dockerfile.dev
@@ -70,14 +43,16 @@ services:
       # Só para desenvolvimento. Em produção: openssl rand -base64 32
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-Y2hhdHdvb3Rlci1kZXYtb25seS1rZXktMzJieXRlcyE=}
       DATABASE_URL: postgres://${PGUSER:-postgres}:${PGPASSWORD:-postgres}@db:5432/${PGDATABASE:-chatwooter_dev}?sslmode=disable
+    command: sh -c "go run ./cmd/chatwooter migrate && go run ./cmd/chatwooter seed && exec go tool air -c .air.toml"
     volumes:
       - ./server:/app/server
       - go_mod:/go/pkg/mod
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
+  # Dashboard React (:5173), com proxy de /api, /auth e /cable para o server.
   web-ui:
-    profiles: ["go"]
     build:
       context: ./web
       dockerfile: Dockerfile.dev
@@ -96,5 +71,3 @@ volumes:
   web_node_modules:
   pgdata:
   rustfsdata:
-  app_deps:
-  app_build:

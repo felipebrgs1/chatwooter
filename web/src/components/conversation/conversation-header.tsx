@@ -1,7 +1,8 @@
 // Porta de components/widgets/conversation/ConversationHeader.vue (sem SLA, chamadas nem menu "mais ações").
+// Snooze no cabeçalho entra com o menu de status.
 import { useTranslation } from 'react-i18next'
 
-import type { Conversation, ConversationStatus } from '../../api/types'
+import type { Conversation, ConversationStatus, Inbox } from '../../api/types'
 import { Avatar } from '../next/avatar'
 import { ChannelIcon } from '../next/channel-icon'
 import { showAlert } from '../toast/alert'
@@ -14,20 +15,19 @@ type Props = {
   onStatusChange: (status: ConversationStatus) => void
   /** Layout expandido: a lista está escondida e o cabeçalho leva de volta a ela. */
   showBackButton?: boolean
+  /** Inbox da conversa; só vem quando a conta tem mais de uma (hasMultipleInboxes). */
+  inbox?: Inbox
 }
-
-// Ainda não há endpoint de inbox: o nome exibido é o do canal (Telegram, Whatsapp...).
-const channelName = (channel: string | null) => channel?.replace(/^Channel::/, '') ?? ''
 
 export function ConversationHeader({
   conversation,
   statusLoading,
   onStatusChange,
   showBackButton = false,
+  inbox,
 }: Props) {
   const { t } = useTranslation()
   const contact = conversation.meta.sender
-  const channel = conversation.meta.channel
 
   async function copyId() {
     try {
@@ -57,13 +57,17 @@ export function ConversationHeader({
             >
               {`#${conversation.id}`}
             </button>
-            {channel && (
+            {inbox && (
               <>
                 <span>•</span>
-                <span className="flex items-center gap-1">
-                  <ChannelIcon channel={channel} className="size-3.5" />
-                  {channelName(channel)}
-                </span>
+                {/* InboxName.vue */}
+                <div title={inbox.name} className="!mx-0 flex min-w-0 items-center gap-0.5">
+                  <ChannelIcon
+                    channel={inbox.channel_type}
+                    className="size-4 flex-shrink-0 text-n-slate-11"
+                  />
+                  <span className="truncate text-label-small text-n-slate-11">{inbox.name}</span>
+                </div>
               </>
             )}
           </div>

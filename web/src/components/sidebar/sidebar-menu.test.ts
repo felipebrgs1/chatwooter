@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
+import { inboxFixture } from '../../test/conversation-fixtures'
 import { activeLeaf, buildMenu, leavesOf, visibleChildren, type MenuGroup } from './sidebar-menu'
 
 const t = (key: string) => key
@@ -61,6 +62,22 @@ describe('buildMenu com times e etiquetas', () => {
     const teams = child('teams')
     expect(teams && leavesOf({ children: [teams] }).map((l) => [l.label, l.to])).toEqual([
       ['Suporte', '/app?team_id=1'],
+    ])
+  })
+
+  test('Channels lista as inboxes com o ícone do canal, entre Teams e Labels', () => {
+    const withInboxes = buildMenu(t, {
+      inboxes: [
+        inboxFixture({ id: 3, name: 'Zap', channel_type: 'Channel::Whatsapp' }),
+        inboxFixture({ id: 4, name: 'Bot' }),
+      ],
+    })
+    const children = withInboxes[0]!.children
+    expect(children.map((c) => c.name).slice(-3)).toEqual(['teams', 'channels', 'labels'])
+    const channels = children.find((c) => c.name === 'channels')!
+    expect(leavesOf({ children: [channels] }).map((l) => [l.label, l.to, l.channel])).toEqual([
+      ['Zap', '/app?inbox_id=3', 'Channel::Whatsapp'],
+      ['Bot', '/app?inbox_id=4', 'Channel::Telegram'],
     ])
   })
 

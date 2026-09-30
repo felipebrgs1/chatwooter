@@ -76,7 +76,16 @@ export function toFilters(search: ConversationsSearch): ConversationFilters {
 }
 
 /** Título da lista na precedência do pageTitle de ChatList.vue (inbox/time dependem de endpoints que ainda não existem). */
-export function viewTitle(search: ConversationsSearch): { key: string } | { text: string } {
+/** Nomes da inbox e do time filtrados (vêm das listas da conta; sem elas, o título cai no próximo caso). */
+export type ViewNames = { inbox?: string; team?: string }
+
+// pageTitle do ChatList.vue: inbox, time, etiqueta, visão e, por fim, o título padrão.
+export function viewTitle(
+  search: ConversationsSearch,
+  names: ViewNames = {},
+): { key: string } | { text: string } {
+  if (search.inbox_id && names.inbox) return { text: names.inbox }
+  if (search.team_id && names.team) return { text: names.team }
   if (search.label) return { text: `#${search.label}` }
   switch (search.conversation_type) {
     case 'mention':

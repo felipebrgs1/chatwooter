@@ -34,6 +34,7 @@ func newApp(t *testing.T) *app {
 		Conversations: models.NewConversations(pool),
 		Labels:        models.NewLabels(pool),
 		Teams:         models.NewTeams(pool),
+		Inboxes:       models.NewInboxes(pool),
 		SessionTTL:    time.Hour,
 	})}
 }

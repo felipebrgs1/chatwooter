@@ -1,4 +1,2 @@
-elixir 1.20.2
-erlang 29.0
-nodejs 20.18
-postgres 16
+golang 1.27.1
+nodejs 24.21.0

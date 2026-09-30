@@ -87,6 +87,13 @@ describe('viewTitle', () => {
   })
 })
 
+test('o nome da inbox vence o do time, que vence a etiqueta (pageTitle do ChatList.vue)', () => {
+  const search = parseSearch({ inbox_id: 3, team_id: 2, label: 'vip' })
+  expect(viewTitle(search, { inbox: 'Suporte', team: 'Vendas' })).toEqual({ text: 'Suporte' })
+  expect(viewTitle(search, { team: 'Vendas' })).toEqual({ text: 'Vendas' })
+  expect(viewTitle(search, {})).toEqual({ text: '#vip' })
+})
+
 test('etiqueta numérica (o roteador a lê como número) continua valendo', () => {
   expect(parseUrlSearch({ label: 123 })).toEqual({ label: '123' })
 })

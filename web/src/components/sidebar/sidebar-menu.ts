@@ -1,5 +1,5 @@
-// Árvore de navegação: Sidebar.menu/1 do app Elixir (lib/chatwooter_web/sidebar.ex) sobre o menuItems do Chatwoot.
-import type { Label, Team } from '../../api/types'
+// Árvore de navegação: o menuItems de components-next/sidebar/Sidebar.vue do Chatwoot, só com as telas que existem.
+import type { Inbox, Label, Team } from '../../api/types'
 
 export type MenuLeaf = {
   name: string
@@ -41,13 +41,13 @@ export function isSubgroup(child: MenuChild): child is MenuSubgroup {
 export type Translate = (key: string) => string
 
 /** Dados da conta que viram itens do menu (Sidebar.vue: teams/getMyTeams, labels/getLabelsOnSidebar). */
-export type MenuData = { teams?: Team[]; labels?: Label[] }
+export type MenuData = { teams?: Team[]; inboxes?: Inbox[]; labels?: Label[] }
 
-// Folders (custom_filters) e Channels (inboxes) entram quando houver os endpoints. A ordenação por seção
-// e os contadores de não lidas do Chatwoot também ficam para depois: aqui vale a ordem do getter.
+// Folders (custom_filters) entra quando houver o endpoint. A ordenação por seção e os contadores de não
+// lidas do Chatwoot também ficam para depois: aqui vale a ordem do getter (inboxes já vêm por nome).
 function conversationSubgroups(
   t: Translate,
-  { teams = [], labels = [] }: MenuData,
+  { teams = [], inboxes = [], labels = [] }: MenuData,
 ): MenuSubgroup[] {
   return [
     {
@@ -64,6 +64,19 @@ function conversationSubgroups(
           label: team.name,
           to: `/app?team_id=${team.id}`,
         })),
+    },
+    {
+      name: 'channels',
+      label: t('SIDEBAR.CHANNELS'),
+      icon: 'ph-mailbox',
+      collapsible: true,
+      treeLine: true,
+      children: inboxes.map((inbox) => ({
+        name: `inbox-${inbox.id}`,
+        label: inbox.name,
+        channel: inbox.channel_type,
+        to: `/app?inbox_id=${inbox.id}`,
+      })),
     },
     {
       name: 'labels',

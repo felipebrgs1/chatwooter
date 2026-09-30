@@ -44,6 +44,9 @@ type Inbox struct {
 	AccountID int32
 	Name      string
 	BotToken  string
+	BotName   *string
+	// Phone é o número do canal WhatsApp.
+	Phone string
 }
 
 type Contact struct {
@@ -170,11 +173,33 @@ func (f *Factory) TelegramInbox(account Account, opts ...func(*Inbox)) Inbox {
 	for _, o := range opts {
 		o(&in)
 	}
-	channelID := f.insert(`INSERT INTO channel_telegram (account_id, bot_token, created_at, updated_at) VALUES ($1, $2, now(), now()) RETURNING id`,
-		account.ID, in.BotToken)
+	channelID := f.insert(`INSERT INTO channel_telegram (account_id, bot_token, bot_name, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING id`,
+		account.ID, in.BotToken, in.BotName)
 	in.ID = f.insert(`INSERT INTO inboxes (account_id, name, channel_id, channel_type, created_at, updated_at)
 		VALUES ($1, $2, $3, 'Channel::Telegram', now(), now()) RETURNING id`, account.ID, in.Name, channelID)
 	return in
+}
+
+// WhatsappInbox cria a inbox e o canal `channel_whatsapp` (provedor cloud).
+func (f *Factory) WhatsappInbox(account Account, opts ...func(*Inbox)) Inbox {
+	f.t.Helper()
+	n := f.next()
+	in := Inbox{AccountID: account.ID, Name: fmt.Sprintf("WhatsApp %d", n), Phone: fmt.Sprintf("+55119%08d", n)}
+	for _, o := range opts {
+		o(&in)
+	}
+	channelID := f.insert(`INSERT INTO channel_whatsapp (account_id, phone_number, provider, created_at, updated_at)
+		VALUES ($1, $2, 'whatsapp_cloud', now(), now()) RETURNING id`, account.ID, in.Phone)
+	in.ID = f.insert(`INSERT INTO inboxes (account_id, name, channel_id, channel_type, created_at, updated_at)
+		VALUES ($1, $2, $3, 'Channel::Whatsapp', now(), now()) RETURNING id`, account.ID, in.Name, channelID)
+	return in
+}
+
+// WorkingHour grava o expediente de um dia da inbox (working_hours).
+func (f *Factory) WorkingHour(inbox Inbox, day, openHour, closeHour int32) {
+	f.t.Helper()
+	f.exec(`INSERT INTO working_hours (inbox_id, account_id, day_of_week, open_hour, open_minutes, close_hour, close_minutes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 0, $5, 0, now(), now())`, inbox.ID, inbox.AccountID, day, openHour, closeHour)
 }
 
 // InboxMember torna o usuário agente da inbox.

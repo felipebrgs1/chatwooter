@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import type { Conversation } from '../../api/types'
-import { contactFixture, conversationFixture } from '../../test/conversation-fixtures'
+import { contactFixture, conversationFixture, inboxFixture } from '../../test/conversation-fixtures'
 import { server } from '../../test/server'
 import { ConversationList } from './conversation-list'
 import { parseSearch, type ConversationsSearch } from './search'
@@ -224,4 +224,58 @@ test('as etiquetas do card usam a cor e a descrição das etiquetas da conta', a
   )
   await list()
   expect(await screen.findByTitle('Clientes VIP')).toHaveTextContent('vip')
+})
+
+function inboxesApi() {
+  server.use(
+    http.get('/api/v1/accounts/1/inboxes', () =>
+      HttpResponse.json({
+        payload: [
+          inboxFixture({ id: 1, name: 'Suporte Telegram' }),
+          inboxFixture({ id: 2, name: 'Vendas Zap', channel_type: 'Channel::Whatsapp' }),
+        ],
+      }),
+    ),
+  )
+}
+
+test('com mais de uma inbox o card mostra o nome da inbox', async () => {
+  respondWith([[conversation(1, 'Ana Souza')]])
+  inboxesApi()
+  await list()
+  const card = await screen.findByRole('link', { name: /Ana Souza/ })
+  await waitFor(() => expect(within(card).getByText('Suporte Telegram')).toBeInTheDocument())
+})
+
+test('filtrando por inbox, o título é o nome dela e o card não repete a inbox', async () => {
+  respondWith([[conversation(1, 'Ana Souza')]])
+  inboxesApi()
+  await list({ search: search({ inbox_id: 1 }) })
+  expect(
+    await screen.findByRole('heading', { level: 1, name: 'Suporte Telegram' }),
+  ).toBeInTheDocument()
+  const card = screen.getByRole('link', { name: /Ana Souza/ })
+  expect(within(card).queryByText('Suporte Telegram')).not.toBeInTheDocument()
+})
+
+test('filtrando por time, o título é o nome do time', async () => {
+  respondWith([[conversation(1)]])
+  server.use(
+    http.get('/api/v1/accounts/1/teams', () =>
+      HttpResponse.json([
+        {
+          id: 2,
+          name: 'Vendas',
+          description: null,
+          allow_auto_assign: true,
+          icon: '',
+          icon_color: '',
+          account_id: 1,
+          is_member: true,
+        },
+      ]),
+    ),
+  )
+  await list({ search: search({ team_id: 2 }) })
+  expect(await screen.findByRole('heading', { level: 1, name: 'Vendas' })).toBeInTheDocument()
 })
