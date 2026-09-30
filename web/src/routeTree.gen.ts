@@ -14,6 +14,8 @@ import { Route as AppAuthenticatedRouteImport } from './routes/app/_authenticate
 import { Route as AppLoginRouteImport } from './routes/app/login'
 import { Route as AppAuthenticatedConversationsRouteImport } from './routes/app/_authenticated/_conversations'
 import { Route as AppAuthenticatedConversationsIndexRouteImport } from './routes/app/_authenticated/_conversations/index'
+import { Route as AppAuthenticatedCompaniesIndexRouteImport } from './routes/app/_authenticated/companies/index'
+import { Route as AppAuthenticatedCompaniesCompanyIdRouteImport } from './routes/app/_authenticated/companies/$companyId'
 import { Route as AppAuthenticatedContactsIndexRouteImport } from './routes/app/_authenticated/contacts/index'
 import { Route as AppAuthenticatedContactsContactIdRouteImport } from './routes/app/_authenticated/contacts/$contactId'
 import { Route as AppAuthenticatedConversationsConversationsConversationIdRouteImport } from './routes/app/_authenticated/_conversations/conversations.$conversationId'
@@ -44,6 +46,18 @@ const AppAuthenticatedConversationsIndexRoute =
     path: '/',
     getParentRoute: () => AppAuthenticatedConversationsRoute,
   } as any)
+const AppAuthenticatedCompaniesIndexRoute =
+  AppAuthenticatedCompaniesIndexRouteImport.update({
+    id: '/companies/',
+    path: '/companies/',
+    getParentRoute: () => AppAuthenticatedRoute,
+  } as any)
+const AppAuthenticatedCompaniesCompanyIdRoute =
+  AppAuthenticatedCompaniesCompanyIdRouteImport.update({
+    id: '/companies/$companyId',
+    path: '/companies/$companyId',
+    getParentRoute: () => AppAuthenticatedRoute,
+  } as any)
 const AppAuthenticatedContactsIndexRoute =
   AppAuthenticatedContactsIndexRouteImport.update({
     id: '/contacts/',
@@ -67,8 +81,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppAuthenticatedConversationsRouteWithChildren
   '/app/login': typeof AppLoginRoute
+  '/app/companies/$companyId': typeof AppAuthenticatedCompaniesCompanyIdRoute
   '/app/contacts/$contactId': typeof AppAuthenticatedContactsContactIdRoute
   '/app/': typeof AppAuthenticatedConversationsIndexRoute
+  '/app/companies/': typeof AppAuthenticatedCompaniesIndexRoute
   '/app/contacts/': typeof AppAuthenticatedContactsIndexRoute
   '/app/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
@@ -76,7 +92,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppAuthenticatedConversationsIndexRoute
   '/app/login': typeof AppLoginRoute
+  '/app/companies/$companyId': typeof AppAuthenticatedCompaniesCompanyIdRoute
   '/app/contacts/$contactId': typeof AppAuthenticatedContactsContactIdRoute
+  '/app/companies': typeof AppAuthenticatedCompaniesIndexRoute
   '/app/contacts': typeof AppAuthenticatedContactsIndexRoute
   '/app/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
@@ -86,8 +104,10 @@ export interface FileRoutesById {
   '/app/_authenticated': typeof AppAuthenticatedRouteWithChildren
   '/app/login': typeof AppLoginRoute
   '/app/_authenticated/_conversations': typeof AppAuthenticatedConversationsRouteWithChildren
+  '/app/_authenticated/companies/$companyId': typeof AppAuthenticatedCompaniesCompanyIdRoute
   '/app/_authenticated/contacts/$contactId': typeof AppAuthenticatedContactsContactIdRoute
   '/app/_authenticated/_conversations/': typeof AppAuthenticatedConversationsIndexRoute
+  '/app/_authenticated/companies/': typeof AppAuthenticatedCompaniesIndexRoute
   '/app/_authenticated/contacts/': typeof AppAuthenticatedContactsIndexRoute
   '/app/_authenticated/_conversations/conversations/$conversationId': typeof AppAuthenticatedConversationsConversationsConversationIdRoute
 }
@@ -97,8 +117,10 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/app/login'
+    | '/app/companies/$companyId'
     | '/app/contacts/$contactId'
     | '/app/'
+    | '/app/companies/'
     | '/app/contacts/'
     | '/app/conversations/$conversationId'
   fileRoutesByTo: FileRoutesByTo
@@ -106,7 +128,9 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/app/login'
+    | '/app/companies/$companyId'
     | '/app/contacts/$contactId'
+    | '/app/companies'
     | '/app/contacts'
     | '/app/conversations/$conversationId'
   id:
@@ -115,8 +139,10 @@ export interface FileRouteTypes {
     | '/app/_authenticated'
     | '/app/login'
     | '/app/_authenticated/_conversations'
+    | '/app/_authenticated/companies/$companyId'
     | '/app/_authenticated/contacts/$contactId'
     | '/app/_authenticated/_conversations/'
+    | '/app/_authenticated/companies/'
     | '/app/_authenticated/contacts/'
     | '/app/_authenticated/_conversations/conversations/$conversationId'
   fileRoutesById: FileRoutesById
@@ -164,6 +190,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthenticatedConversationsIndexRouteImport
       parentRoute: typeof AppAuthenticatedConversationsRoute
     }
+    '/app/_authenticated/companies/': {
+      id: '/app/_authenticated/companies/'
+      path: '/companies'
+      fullPath: '/app/companies/'
+      preLoaderRoute: typeof AppAuthenticatedCompaniesIndexRouteImport
+      parentRoute: typeof AppAuthenticatedRoute
+    }
+    '/app/_authenticated/companies/$companyId': {
+      id: '/app/_authenticated/companies/$companyId'
+      path: '/companies/$companyId'
+      fullPath: '/app/companies/$companyId'
+      preLoaderRoute: typeof AppAuthenticatedCompaniesCompanyIdRouteImport
+      parentRoute: typeof AppAuthenticatedRoute
+    }
     '/app/_authenticated/contacts/': {
       id: '/app/_authenticated/contacts/'
       path: '/contacts'
@@ -208,15 +248,20 @@ const AppAuthenticatedConversationsRouteWithChildren =
 
 interface AppAuthenticatedRouteChildren {
   AppAuthenticatedConversationsRoute: typeof AppAuthenticatedConversationsRouteWithChildren
+  AppAuthenticatedCompaniesCompanyIdRoute: typeof AppAuthenticatedCompaniesCompanyIdRoute
   AppAuthenticatedContactsContactIdRoute: typeof AppAuthenticatedContactsContactIdRoute
+  AppAuthenticatedCompaniesIndexRoute: typeof AppAuthenticatedCompaniesIndexRoute
   AppAuthenticatedContactsIndexRoute: typeof AppAuthenticatedContactsIndexRoute
 }
 
 const AppAuthenticatedRouteChildren: AppAuthenticatedRouteChildren = {
   AppAuthenticatedConversationsRoute:
     AppAuthenticatedConversationsRouteWithChildren,
+  AppAuthenticatedCompaniesCompanyIdRoute:
+    AppAuthenticatedCompaniesCompanyIdRoute,
   AppAuthenticatedContactsContactIdRoute:
     AppAuthenticatedContactsContactIdRoute,
+  AppAuthenticatedCompaniesIndexRoute: AppAuthenticatedCompaniesIndexRoute,
   AppAuthenticatedContactsIndexRoute: AppAuthenticatedContactsIndexRoute,
 }
 

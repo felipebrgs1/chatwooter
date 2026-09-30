@@ -27,7 +27,7 @@ Medido na stack Go + React em 2026-09-30. Itens que só existiam no app Elixir (
 | Lista de conversas | ✅ | abas, status, ordenação, card, visões, layout expandido; faltam extras (Marco 1.1) |
 | Thread, cabeçalho, composer | 🟡 | 1:1 no básico; faltam painel do contato, rich text, canned, anexos, menções |
 | Lista e detalhe de contatos | 🟡 | lista, busca, ordenação, detalhe, bloquear, etiquetas, notas, histórico, excluir; faltam criar, filtros, merge, atributos, mídia, nova conversa |
-| Empresas | ⬜ | — |
+| Empresas | 🟡 | lista, busca, ordenação, paginação, criação e detalhe básico; faltam edição, exclusão, avatar, vínculos, histórico/notas e selector inline |
 | Settings (general, inboxes, agents, profile) | ⬜ | — |
 | Telegram, WhatsApp Cloud | ⬜ | só schema |
 | API v1 | 🟡 | profile, contas, conversas, mensagens, labels, teams e inboxes (leitura); o resto ⬜ |
@@ -48,8 +48,10 @@ Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
 - [x] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`
   - Fora: troca automática para expandido em tela pequena (`Dashboard.vue`), que grava `ui_settings` a cada resize; o mobile já alterna lista/conversa.
 - [x] Paginação por scroll (25 por página) + "All conversations loaded"
-- [ ] Atalhos: Alt+J/K (anterior/próxima), Alt+N (abas)
-- [ ] `TimeAgo` que se atualiza sozinho (hook)
+- [x] Atalhos: Alt+J/K (anterior/próxima), Alt+N (abas)
+  - J/K clicam o card preservando os filtros, sem dar a volta nos extremos e mesmo com foco no composer; N alterna Mine/Unassigned/All fora de campos editáveis. Testes e browser nos layouts compacto/expandido.
+- [x] `TimeAgo` que se atualiza sozinho (hook)
+  - Intervalos de minuto/hora/dia conforme `components/ui/TimeAgo.vue`, reinício ao trocar conversa/atividade e limpeza ao desmontar; validado nos cards compacto e expandido.
 
 ### 1.2 Cabeçalho da conversa
 Ref.: `components/widgets/conversation/ConversationHeader.vue`
@@ -149,6 +151,9 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
 - [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
 - [ ] Detalhe do contato: avatar (upload/excluir)
 - [ ] Empresas: lista e detalhe 1:1, `CompanySelector` com criação inline
+  - [x] Lista com cards, busca por nome/domínio (debounce 300ms), paginação de 25, ordenação em `ui_settings`, criação e rotas na sidebar; API Go index/search/create/show escopada pela conta.
+  - Detalhe básico em leitura disponível; faltam editar/excluir, avatar, contatos vinculados, histórico/notas e `CompanySelector`. Botão de edição fica desabilitado até o backend correspondente.
+  - Desvio v1: empresas disponíveis em todas as contas; gate `feature_flags` da conta ainda não portado. Favicon automático aguarda jobs River de avatar.
 - [ ] Nova conversa a partir da sidebar (botão de compose)
 
 ---

@@ -17,6 +17,8 @@ type Props = {
   cancelLabel: string
   width?: string
   children?: ReactNode
+  footer?: ReactNode
+  closeOnConfirm?: boolean
 }
 
 const focusable =
@@ -33,6 +35,8 @@ export function Dialog({
   cancelLabel,
   width = 'max-w-lg',
   children,
+  footer,
+  closeOnConfirm = true,
 }: Props) {
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -76,7 +80,7 @@ export function Dialog({
   function submit(event: FormEvent) {
     event.preventDefault()
     onConfirm()
-    onClose()
+    if (closeOnConfirm) onClose()
   }
 
   return createPortal(
@@ -110,21 +114,23 @@ export function Dialog({
             </div>
           )}
           {children}
-          <div className="flex items-center justify-between w-full gap-3">
-            <Button
-              variant="faded"
-              color="slate"
-              label={cancelLabel}
-              className="w-full"
-              onClick={onClose}
-            />
-            <Button
-              type="submit"
-              color={type === 'edit' ? 'blue' : 'ruby'}
-              label={confirmLabel}
-              className="w-full"
-            />
-          </div>
+          {footer ?? (
+            <div className="flex items-center justify-between w-full gap-3">
+              <Button
+                variant="faded"
+                color="slate"
+                label={cancelLabel}
+                className="w-full"
+                onClick={onClose}
+              />
+              <Button
+                type="submit"
+                color={type === 'edit' ? 'blue' : 'ruby'}
+                label={confirmLabel}
+                className="w-full"
+              />
+            </div>
+          )}
         </form>
       </div>
     </div>,

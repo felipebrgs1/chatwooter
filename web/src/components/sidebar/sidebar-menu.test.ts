@@ -17,7 +17,7 @@ describe('buildMenu', () => {
     ])
   })
 
-  test('as visões de conversa e a lista de contatos têm rota; o resto ainda não tem tela', () => {
+  test('conversas, contatos e empresas têm rota; settings ainda não tem tela', () => {
     const withRoute = menu.flatMap(leavesOf).filter((leaf) => leaf.to)
     expect(withRoute.map((l) => [l.name, l.to])).toEqual([
       ['all-conversations', '/app'],
@@ -25,6 +25,7 @@ describe('buildMenu', () => {
       ['participating', '/app?conversation_type=participating'],
       ['unattended', '/app?conversation_type=unattended'],
       ['all-contacts', '/app/contacts'],
+      ['all-companies', '/app/companies'],
     ])
   })
 

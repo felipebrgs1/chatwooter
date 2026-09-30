@@ -23,6 +23,7 @@ type Deps struct {
 	Inboxes       *models.Inboxes
 	Contacts      *models.Contacts
 	ContactNotes  *models.ContactNotes
+	Companies     *models.Companies
 	SessionTTL    time.Duration
 	CookieSecure  bool
 }
@@ -56,6 +57,14 @@ func New(d Deps) http.Handler {
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
 			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
+
+			companies := controllers.Companies{Companies: d.Companies}
+			r.Route("/companies", func(r chi.Router) {
+				r.Get("/", companies.Index)
+				r.Get("/search", companies.Search)
+				r.Post("/", companies.Create)
+				r.Get("/{company_id}", companies.Show)
+			})
 
 			contacts := controllers.Contacts{Contacts: d.Contacts}
 			r.Route("/contacts", func(r chi.Router) {

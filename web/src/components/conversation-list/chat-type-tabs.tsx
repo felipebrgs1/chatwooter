@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationCounts } from '../../api/types'
+import { useAltShortcut } from '../../shared/use-alt-shortcut'
 import { cx } from '../next/cx'
 import type { ConversationsSearch } from './search'
 
@@ -21,6 +22,10 @@ type Props = {
 
 export function ChatTypeTabs({ active, counts, onChange }: Props) {
   const { t } = useTranslation()
+  useAltShortcut('KeyN', () => {
+    const index = TABS.findIndex((tab) => tab.key === active)
+    onChange(TABS[(index + 1) % TABS.length].key)
+  })
 
   return (
     <div className="-mt-1 flex h-10 w-full px-3 py-0">

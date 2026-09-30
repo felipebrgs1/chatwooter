@@ -202,6 +202,7 @@ portar o visual antigo.
 - [ ] Detalhe: "Send message" (nova conversa), abas Attributes (custom attributes), Media e Merge, avatar
 - [ ] Criar contato, edição rápida no card, filtros/segmentos, visão por etiqueta, import/export
 - [ ] Empresas (lista e detalhe)
+  - Lista, busca, paginação, ordenação e criação portadas; detalhe básico em leitura. Edição/exclusão, avatar e vínculos continuam pendentes (ver roadmap de produto).
 
 **Busca e composição**
 - [ ] Busca global `/app/search` (conversas, mensagens, contatos, buscas recentes)

@@ -44,8 +44,11 @@ describe('Sidebar expandida', () => {
 
   test('itens sem tela ainda não viram link', async () => {
     await renderWithI18n(<Sidebar {...props()} />)
-    expect(screen.queryByRole('link', { name: 'All Companies' })).not.toBeInTheDocument()
-    expect(screen.getByText('All Companies')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'All Companies' })).toHaveAttribute(
+      'href',
+      '/app/companies',
+    )
+    expect(screen.queryByRole('link', { name: 'Account Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Mentions' })).toHaveAttribute(
       'href',
       '/app?conversation_type=mention',
@@ -84,9 +87,9 @@ describe('Sidebar expandida', () => {
   test('grupo sem tela abre pelo cabeçalho para mostrar os filhos', async () => {
     const user = userEvent.setup()
     await renderWithI18n(<Sidebar {...props()} />)
-    const group = document.getElementById('sidebar-group-companies')!
+    const group = document.getElementById('sidebar-group-settings')!
     expect(group).toHaveAttribute('data-expanded', 'false')
-    await user.click(within(group).getByRole('button', { name: 'Companies' }))
+    await user.click(within(group).getByRole('button', { name: 'Settings' }))
     expect(group).toHaveAttribute('data-expanded', 'true')
   })
 })

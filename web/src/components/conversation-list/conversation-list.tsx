@@ -18,7 +18,7 @@ import { ChatTypeTabs } from './chat-type-tabs'
 import { ConversationCard, type CardLinkProps } from './conversation-card'
 import { ConversationCardExpanded } from './conversation-card-expanded'
 import { useConversations } from './use-conversations'
-import { useNow } from './use-now'
+import { useChatListKeyboardEvents } from './use-chat-list-keyboard-events'
 
 // wootConstants.LARGE_SCREEN_BREAKPOINT (lg do Tailwind)
 const BELOW_LG_QUERY = '(max-width: 1023px)'
@@ -47,7 +47,6 @@ export function ConversationList({
   // ConversationList.vue → showExpandedCards: as linhas só a partir do breakpoint lg
   const belowLg = useMediaQuery(BELOW_LG_QUERY)
   const expandedCards = expanded && !belowLg
-  const now = useNow()
   const query = useConversations(toFilters(search))
   const accountId = useAccountId()
   const { data: accountLabels } = useQuery(labelsQuery(accountId))
@@ -58,6 +57,8 @@ export function ConversationList({
   const inboxName = (id: number) =>
     showInboxName ? inboxes.find((i) => i.id === id)?.name : undefined
   const sentinel = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  useChatListKeyboardEvents(listRef)
 
   const conversations = useMemo(() => {
     const seen = new Set<number>()
@@ -107,7 +108,7 @@ export function ConversationList({
         onChange={(assignee_type) => onSearchChange({ assignee_type })}
       />
 
-      <div className="conversations-list min-h-0 flex-1 overflow-y-auto">
+      <div ref={listRef} className="conversations-list min-h-0 flex-1 overflow-y-auto">
         {query.isPending && (
           <p className="p-4 text-center text-n-slate-11">{t('CHAT_LIST.LOADING')}</p>
         )}
@@ -130,7 +131,6 @@ export function ConversationList({
               active: conversation.id === activeId,
               accountLabels,
               inboxName: inboxName(conversation.inbox_id),
-              now,
               renderLink:
                 renderCardLink && ((props: CardLinkProps) => renderCardLink(conversation, props)),
             }

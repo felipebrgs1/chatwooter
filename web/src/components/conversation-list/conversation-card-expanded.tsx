@@ -13,6 +13,7 @@ import { lastMessage, PRIORITIES, STATUS_ICONS } from './card-helpers'
 import type { CardLinkProps } from './conversation-card'
 import { MessagePreview } from './message-preview'
 import { exactTimestamp, shortTimeAgo } from '../../shared/time-ago'
+import { useTimeAgo } from './use-time-ago'
 
 type Props = {
   conversation: Conversation
@@ -31,10 +32,12 @@ export function ConversationCardExpanded({
   active = false,
   accountLabels,
   inboxName,
-  now,
+  now: referenceNow,
   renderLink,
 }: Props) {
   const { t } = useTranslation()
+  const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
+  const now = referenceNow ?? currentNow
   const contact = conversation.meta.sender
   const unread = conversation.unread_count
   // showAssigneeForExpandedCard é sempre verdadeiro no card expandido

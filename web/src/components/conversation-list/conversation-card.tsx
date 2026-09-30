@@ -11,6 +11,7 @@ import { CardLabels, type AccountLabel } from './card-labels'
 import { lastMessage, PRIORITIES } from './card-helpers'
 import { MessagePreview } from './message-preview'
 import { exactTimestamp, shortTimeAgo } from '../../shared/time-ago'
+import { useTimeAgo } from './use-time-ago'
 
 export type CardLinkProps = { className: string; children: ReactNode; 'aria-current'?: 'page' }
 
@@ -22,7 +23,7 @@ type Props = {
   /** Nome da inbox (o JSON da conversa só traz o id): sem ele o cabeçalho de inbox não aparece. */
   inboxName?: string
   showAssignee?: boolean
-  /** Instante de referência do "time ago" (a lista o atualiza sozinha). */
+  /** Instante de referência opcional para previews determinísticos. */
   now?: Date
   /** O pai injeta o <Link> do roteador. */
   renderLink?: (props: CardLinkProps) => ReactNode
@@ -35,10 +36,12 @@ export function ConversationCard({
   accountLabels,
   inboxName,
   showAssignee = false,
-  now,
+  now: referenceNow,
   renderLink,
 }: Props) {
   const { t } = useTranslation()
+  const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
+  const now = referenceNow ?? currentNow
   const contact = conversation.meta.sender
   const unread = conversation.unread_count
   const assigneeName = conversation.meta.assignee?.available_name

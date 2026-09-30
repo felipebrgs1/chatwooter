@@ -142,7 +142,9 @@ export function buildMenu(t: Translate, data: MenuData = {}): MenuGroup[] {
       name: 'companies',
       label: t('SIDEBAR.COMPANIES'),
       icon: 'ph-buildings',
-      children: [{ name: 'all-companies', label: t('SIDEBAR.ALL_COMPANIES') }],
+      children: [
+        { name: 'all-companies', label: t('SIDEBAR.ALL_COMPANIES'), to: '/app/companies' },
+      ],
     },
     {
       name: 'settings',
