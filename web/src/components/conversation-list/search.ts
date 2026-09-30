@@ -53,7 +53,9 @@ export function parseUrlSearch(raw: Record<string, unknown>): Partial<Conversati
   if (sort) search.sort_by = sort
   if (inbox) search.inbox_id = inbox
   if (team) search.team_id = team
-  if (typeof raw.label === 'string' && raw.label !== '') search.label = raw.label
+  // o roteador lê `label=123` como número
+  if (typeof raw.label === 'number') search.label = String(raw.label)
+  else if (typeof raw.label === 'string' && raw.label !== '') search.label = raw.label
   if (type) search.conversation_type = type
   return search
 }

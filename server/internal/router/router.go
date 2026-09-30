@@ -18,6 +18,8 @@ type Deps struct {
 	Sessions      *models.Sessions
 	Accounts      *models.Accounts
 	Conversations *models.Conversations
+	Labels        *models.Labels
+	Teams         *models.Teams
 	SessionTTL    time.Duration
 	CookieSecure  bool
 }
@@ -48,6 +50,8 @@ func New(d Deps) http.Handler {
 		r.Route("/accounts/{account_id}", func(r chi.Router) {
 			r.Use(scope.Require)
 			r.Get("/", controllers.Accounts{Accounts: d.Accounts}.Show)
+			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
+			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
 
 			convs := controllers.Conversations{Conversations: d.Conversations}
 			msgs := controllers.Messages{Conversations: convs}

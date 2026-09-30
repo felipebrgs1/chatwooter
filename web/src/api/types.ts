@@ -91,8 +91,19 @@ export interface Team {
   name: string
   description: string | null
   allow_auto_assign: boolean
+  icon: string
+  icon_color: string
   account_id: number
   is_member: boolean
+}
+
+/** api/v1/accounts/labels/index.json.jbuilder */
+export interface Label {
+  id: number
+  title: string
+  description: string | null
+  color: string
+  show_on_sidebar: boolean
 }
 
 /** 0 incoming, 1 outgoing, 2 activity, 3 template */

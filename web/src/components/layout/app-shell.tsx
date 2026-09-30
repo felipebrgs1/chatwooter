@@ -1,7 +1,8 @@
 // Casca do dashboard: sidebar + conteúdo (equivale a dashboard/components-next/sidebar + Dashboard.vue).
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { Availability } from '../../api/types'
 
@@ -13,8 +14,12 @@ import {
   signOut,
   updateUiSettings,
 } from '../../api/auth'
+import { labelsQuery } from '../../api/labels'
+import { teamsQuery } from '../../api/teams'
 import type { Profile } from '../../api/types'
+import type { SidebarLinkProps } from '../sidebar/link-context'
 import { Sidebar } from '../sidebar/sidebar'
+import { buildMenu } from '../sidebar/sidebar-menu'
 import {
   SIDEBAR_COLLAPSED_THRESHOLD,
   SIDEBAR_DEFAULT_WIDTH,
@@ -61,6 +66,10 @@ export function AppShell({ profile }: { profile: Profile }) {
   }, [navigate, queryClient])
 
   const accountId = profile.account_id ?? profile.accounts[0]?.id ?? 0
+  const { t } = useTranslation()
+  const { data: teams } = useQuery(teamsQuery(accountId))
+  const { data: labels } = useQuery(labelsQuery(accountId))
+  const menu = useMemo(() => buildMenu((key) => t(key), { teams, labels }), [t, teams, labels])
   const replaceProfile = (next: Profile | null | undefined) => {
     if (next) queryClient.setQueryData(profileQuery.queryKey, next)
   }
@@ -96,11 +105,8 @@ export function AppShell({ profile }: { profile: Profile }) {
         onMobileOpenChange={setMobileOpen}
         minimizedSections={minimized}
         onToggleSection={(key) => setMinimized((m) => ({ ...m, [key]: !m[key] }))}
-        renderLink={({ to, children, ...rest }) => (
-          <Link to={to} {...rest}>
-            {children}
-          </Link>
-        )}
+        menu={menu}
+        renderLink={routerLink}
         onSignOut={handleSignOut}
         onAvailabilityChange={(availability: Availability) =>
           void setAvailability(accountId, availability).then(replaceProfile)
@@ -114,5 +120,19 @@ export function AppShell({ profile }: { profile: Profile }) {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+// O <Link> do TanStack não aceita query no `to`: separa o caminho e passa os params como search.
+// Números viram number (team_id=2), senão o roteador os serializaria entre aspas.
+function routerLink({ to, children, ...rest }: SidebarLinkProps) {
+  const url = new URL(to, 'http://x')
+  const search = Object.fromEntries(
+    [...url.searchParams].map(([k, v]) => [k, /^\d+$/.test(v) ? Number(v) : v]),
+  )
+  return (
+    <Link to={url.pathname} search={search} {...rest}>
+      {children}
+    </Link>
   )
 }

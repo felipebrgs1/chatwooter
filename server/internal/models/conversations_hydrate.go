@@ -163,7 +163,7 @@ func (c *Conversations) teamsByID(ctx context.Context, ids []int64, userID int32
 		return out, nil
 	}
 	rows, err := c.db.Query(ctx, `SELECT t.id, t.account_id, t.name, COALESCE(t.description, ''), COALESCE(t.allow_auto_assign, true),
-		EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = t.id AND tm.user_id = $2)
+		COALESCE(t.icon, ''), COALESCE(t.icon_color, ''), EXISTS (SELECT 1 FROM team_members tm WHERE tm.team_id = t.id AND tm.user_id = $2)
 		FROM teams t WHERE t.id = ANY($1)`, ids, userID)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func (c *Conversations) teamsByID(ctx context.Context, ids []int64, userID int32
 	for rows.Next() {
 		var tm Team
 		var id, account int64
-		if err := rows.Scan(&id, &account, &tm.Name, &tm.Description, &tm.AllowAutoAssign, &tm.IsMember); err != nil {
+		if err := rows.Scan(&id, &account, &tm.Name, &tm.Description, &tm.AllowAutoAssign, &tm.Icon, &tm.IconColor, &tm.IsMember); err != nil {
 			return nil, err
 		}
 		tm.ID, tm.AccountID = int32(id), int32(account) //nolint:gosec // ids integer

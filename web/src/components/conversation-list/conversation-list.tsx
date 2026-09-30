@@ -1,16 +1,25 @@
 // Port de components/ChatList.vue (coluna da lista): cabeçalho, abas, cards e scroll infinito.
-// Layout expandido, filtros avançados, pastas, menu de contexto e ações em massa ficam para as próximas fatias.
+// Filtros avançados, pastas, menu de contexto e ações em massa ficam para as próximas fatias.
+import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { labelsQuery } from '../../api/labels'
 import type { Conversation } from '../../api/types'
+import { useAccountId } from '../../api/use-account-id'
+import { useMediaQuery } from '../layout/use-media-query'
+import { cx } from '../next/cx'
 import { toFilters, viewTitle, type ConversationsSearch } from './search'
 import { ChatListHeader } from './chat-list-header'
 import { ChatTypeTabs } from './chat-type-tabs'
 import { ConversationCard, type CardLinkProps } from './conversation-card'
+import { ConversationCardExpanded } from './conversation-card-expanded'
 import { useConversations } from './use-conversations'
 import { useNow } from './use-now'
+
+// wootConstants.LARGE_SCREEN_BREAKPOINT (lg do Tailwind)
+const BELOW_LG_QUERY = '(max-width: 1023px)'
 
 type Props = {
   search: ConversationsSearch
@@ -19,12 +28,26 @@ type Props = {
   onSearchChange: (patch: Partial<ConversationsSearch>) => void
   /** O pai injeta o <Link> do roteador, que leva à conversa mantendo os filtros. */
   renderCardLink?: (conversation: Conversation, props: CardLinkProps) => ReactNode
+  /** isOnExpandedLayout (ui_settings): a lista ocupa a página, em linhas. */
+  expanded?: boolean
+  onToggleLayout?: () => void
 }
 
-export function ConversationList({ search, activeId, onSearchChange, renderCardLink }: Props) {
+export function ConversationList({
+  search,
+  activeId,
+  onSearchChange,
+  renderCardLink,
+  expanded = false,
+  onToggleLayout,
+}: Props) {
   const { t } = useTranslation()
+  // ConversationList.vue → showExpandedCards: as linhas só a partir do breakpoint lg
+  const belowLg = useMediaQuery(BELOW_LG_QUERY)
+  const expandedCards = expanded && !belowLg
   const now = useNow()
   const query = useConversations(toFilters(search))
+  const { data: accountLabels } = useQuery(labelsQuery(useAccountId()))
   const sentinel = useRef<HTMLDivElement>(null)
 
   const conversations = useMemo(() => {
@@ -51,13 +74,20 @@ export function ConversationList({ search, activeId, onSearchChange, renderCardL
   const counts = query.data?.pages[0]?.data.meta
 
   return (
-    <section className="relative flex w-full flex-shrink-0 flex-col border-r border-n-weak bg-n-surface-1 sm:w-[340px] 2xl:w-[412px]">
+    <section
+      className={cx(
+        'relative flex w-full flex-shrink-0 flex-col bg-n-surface-1',
+        expanded ? 'basis-full' : 'border-r border-n-weak sm:w-[340px] 2xl:w-[412px]',
+      )}
+    >
       <ChatListHeader
         title={title}
         status={search.status}
         sortBy={search.sort_by}
         onStatusChange={(status) => onSearchChange({ status })}
         onSortChange={(sort_by) => onSearchChange({ sort_by })}
+        expanded={expanded}
+        onToggleLayout={onToggleLayout}
       />
       <ChatTypeTabs
         active={search.assignee_type}
@@ -81,17 +111,26 @@ export function ConversationList({ search, activeId, onSearchChange, renderCardL
         )}
 
         <div className="[&>a:has(+_a.active)]:!border-n-surface-1">
-          {conversations.map((conversation) => (
-            <ConversationCard
-              key={conversation.id}
-              conversation={conversation}
-              href={`/app/conversations/${conversation.id}`}
-              active={conversation.id === activeId}
-              showAssignee={search.assignee_type === 'all'}
-              now={now}
-              renderLink={renderCardLink && ((props) => renderCardLink(conversation, props))}
-            />
-          ))}
+          {conversations.map((conversation) => {
+            const common = {
+              conversation,
+              href: `/app/conversations/${conversation.id}`,
+              active: conversation.id === activeId,
+              accountLabels,
+              now,
+              renderLink:
+                renderCardLink && ((props: CardLinkProps) => renderCardLink(conversation, props)),
+            }
+            return expandedCards ? (
+              <ConversationCardExpanded key={conversation.id} {...common} />
+            ) : (
+              <ConversationCard
+                key={conversation.id}
+                {...common}
+                showAssignee={search.assignee_type === 'all'}
+              />
+            )
+          })}
         </div>
 
         {conversations.length > 0 && <div ref={sentinel} aria-hidden="true" className="h-px" />}

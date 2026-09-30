@@ -48,6 +48,14 @@ import {
   LockSimple,
   MapPin,
   VideoCamera,
+  ArrowLineLeft,
+  ArrowLineRight,
+  CellSignalNone,
+  CheckCircle,
+  CircleDashed,
+  CircleNotch,
+  Hash,
+  Moon,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 
@@ -103,6 +111,14 @@ const icons: Record<string, PhosphorIcon> = {
   'caret-left': CaretLeft,
   'arrows-down-up': ArrowsDownUp,
   'arrow-bend-up-left': ArrowBendUpLeft,
+  'arrow-line-left': ArrowLineLeft,
+  'arrow-line-right': ArrowLineRight,
+  'cell-signal-none': CellSignalNone,
+  'check-circle': CheckCircle,
+  'circle-dashed': CircleDashed,
+  'circle-notch': CircleNotch,
+  hash: Hash,
+  moon: Moon,
 }
 
 const weights = ['thin', 'light', 'bold', 'fill', 'duotone'] as const

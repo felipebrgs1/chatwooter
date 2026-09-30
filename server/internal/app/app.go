@@ -133,6 +133,8 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 				Sessions:      sessions,
 				Accounts:      models.NewAccounts(pool),
 				Conversations: models.NewConversations(pool),
+				Labels:        models.NewLabels(pool),
+				Teams:         models.NewTeams(pool),
 				SessionTTL:    sessionTTL,
 				CookieSecure:  cfg.CookieSecure,
 			}),

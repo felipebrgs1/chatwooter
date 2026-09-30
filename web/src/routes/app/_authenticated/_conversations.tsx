@@ -7,9 +7,11 @@ import {
   parseUrlSearch,
   type ConversationsSearch,
 } from '../../../components/conversation-list/search'
+import { useConversationLayout } from '../../../components/conversation-list/use-conversation-layout'
 import { cx } from '../../../components/next/cx'
 
-// Layout das conversas: a lista à esquerda (filtros na URL) e a conversa aberta, ou o vazio, à direita.
+// Layout das conversas (ConversationView.vue): a lista à esquerda (filtros na URL) e a conversa aberta,
+// ou o vazio, à direita. No layout expandido a lista ocupa a página e dá lugar à conversa quando há uma aberta.
 export const Route = createFileRoute('/app/_authenticated/_conversations')({
   validateSearch: parseUrlSearch,
   component: ConversationsLayout,
@@ -24,6 +26,9 @@ function ConversationsLayout() {
     shouldThrow: false,
   })
   const activeId = open ? Number(open.params.conversationId) : undefined
+  const layout = useConversationLayout()
+  const showConversationList = layout.expanded ? !activeId : true
+  const showMessageView = activeId ? true : !layout.expanded
 
   const onSearchChange = useCallback(
     (patch: Partial<ConversationsSearch>) =>
@@ -33,12 +38,22 @@ function ConversationsLayout() {
 
   return (
     <div className="flex h-full min-w-0 flex-1">
-      {/* no mobile a lista some enquanto há conversa aberta, como em ConversationView.vue */}
-      <div className={cx('min-h-0', activeId ? 'hidden lg:flex' : 'flex', 'w-full sm:w-auto')}>
+      {/* no mobile a lista some enquanto há conversa aberta; escondida, continua montada (mantém o scroll) */}
+      <div
+        hidden={!showConversationList}
+        className={cx(
+          'min-h-0',
+          layout.expanded
+            ? 'flex min-w-0 basis-full'
+            : cx('w-full sm:w-auto', activeId ? 'hidden lg:flex' : 'flex'),
+        )}
+      >
         <ConversationList
           search={search}
           activeId={activeId}
           onSearchChange={onSearchChange}
+          expanded={layout.expanded}
+          onToggleLayout={() => void layout.toggle()}
           renderCardLink={(conversation, { children, ...rest }) => (
             <Link
               to="/app/conversations/$conversationId"
@@ -51,9 +66,11 @@ function ConversationsLayout() {
           )}
         />
       </div>
-      <div className={cx('min-w-0 flex-1 flex-col', activeId ? 'flex' : 'hidden lg:flex')}>
-        <Outlet />
-      </div>
+      {showMessageView && (
+        <div className={cx('min-w-0 flex-1 flex-col', activeId ? 'flex' : 'hidden lg:flex')}>
+          <Outlet />
+        </div>
+      )}
     </div>
   )
 }

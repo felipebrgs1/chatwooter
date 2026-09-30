@@ -38,5 +38,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    // Os testes de rota montam o app inteiro; o primeiro de cada arquivo, a frio e com os testes Go
+    // rodando ao lado no `make precommit`, passava dos 5s padrão.
+    testTimeout: 15_000,
   },
 })

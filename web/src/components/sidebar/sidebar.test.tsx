@@ -44,9 +44,12 @@ describe('Sidebar expandida', () => {
 
   test('itens sem tela ainda não viram link', async () => {
     await renderWithI18n(<Sidebar {...props()} />)
-    expect(screen.queryByRole('link', { name: 'Mentions' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'All Contacts' })).not.toBeInTheDocument()
-    expect(screen.getByText('Mentions')).toBeInTheDocument()
+    expect(screen.getByText('All Contacts')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Mentions' })).toHaveAttribute(
+      'href',
+      '/app?conversation_type=mention',
+    )
   })
 
   test('usa o renderizador de link do pai (roteador)', async () => {

@@ -204,3 +204,24 @@ test('trocar o filtro busca de novo do começo', async () => {
   rerender(<ConversationList search={search({ status: 'resolved' })} onSearchChange={() => {}} />)
   await waitFor(() => expect(seen.map((p) => p.get('status'))).toEqual(['open', 'resolved']))
 })
+
+test('as etiquetas do card usam a cor e a descrição das etiquetas da conta', async () => {
+  respondWith([[conversationFixture({ id: 1, labels: ['vip'] })]])
+  server.use(
+    http.get('/api/v1/accounts/1/labels', () =>
+      HttpResponse.json({
+        payload: [
+          {
+            id: 5,
+            title: 'vip',
+            description: 'Clientes VIP',
+            color: '#00ff00',
+            show_on_sidebar: true,
+          },
+        ],
+      }),
+    ),
+  )
+  await list()
+  expect(await screen.findByTitle('Clientes VIP')).toHaveTextContent('vip')
+})

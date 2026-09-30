@@ -12,9 +12,15 @@ export interface AccountLabel {
   description?: string | null
 }
 
-type Props = { labels: string[]; accountLabels?: AccountLabel[]; className?: string }
+type Props = {
+  labels: string[]
+  accountLabels?: AccountLabel[]
+  /** CardLabelsV5 `disable-toggle`: o card expandido não mostra o chevron. */
+  disableToggle?: boolean
+  className?: string
+}
 
-export function CardLabels({ labels, accountLabels = [], className }: Props) {
+export function CardLabels({ labels, accountLabels = [], disableToggle, className }: Props) {
   const { t } = useTranslation()
   const row = useRef<HTMLDivElement>(null)
   const [showAll, setShowAll] = useState(false)
@@ -61,7 +67,7 @@ export function CardLabels({ labels, accountLabels = [], className }: Props) {
           )
         })}
       </div>
-      {overflowing && labels.length > 1 && (
+      {!disableToggle && overflowing && labels.length > 1 && (
         <button
           type="button"
           title={showAll ? t('CONVERSATION.CARD.HIDE_LABELS') : t('CONVERSATION.CARD.SHOW_LABELS')}

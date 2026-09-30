@@ -5,18 +5,26 @@ import type { Conversation, ConversationStatus } from '../../api/types'
 import { Avatar } from '../next/avatar'
 import { ChannelIcon } from '../next/channel-icon'
 import { showAlert } from '../toast/alert'
+import { BackButton } from './back-button'
 import { ResolveAction } from './resolve-action'
 
 type Props = {
   conversation: Conversation
   statusLoading?: boolean
   onStatusChange: (status: ConversationStatus) => void
+  /** Layout expandido: a lista está escondida e o cabeçalho leva de volta a ela. */
+  showBackButton?: boolean
 }
 
 // Ainda não há endpoint de inbox: o nome exibido é o do canal (Telegram, Whatsapp...).
 const channelName = (channel: string | null) => channel?.replace(/^Channel::/, '') ?? ''
 
-export function ConversationHeader({ conversation, statusLoading, onStatusChange }: Props) {
+export function ConversationHeader({
+  conversation,
+  statusLoading,
+  onStatusChange,
+  showBackButton = false,
+}: Props) {
   const { t } = useTranslation()
   const contact = conversation.meta.sender
   const channel = conversation.meta.channel
@@ -33,6 +41,7 @@ export function ConversationHeader({ conversation, statusLoading, onStatusChange
   return (
     <div className="flex h-24 w-full min-w-0 flex-1 flex-col items-center justify-between gap-3 border-b border-b-n-weak px-3 pb-2 !pt-2 xl:h-12 xl:flex-row">
       <div className="flex w-full min-w-0 max-w-full items-center justify-start xl:w-auto xl:flex-1">
+        {showBackButton && <BackButton className="me-2" />}
         <Avatar name={contact.name} size={32} />
         <div className="ms-2 flex min-w-0 flex-col items-start overflow-hidden">
           <div className="m-0 flex max-w-full flex-row items-center gap-1 p-0">

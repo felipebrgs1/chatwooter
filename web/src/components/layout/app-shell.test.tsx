@@ -108,3 +108,40 @@ test('a largura da sidebar é gravada em ui_settings', async () => {
     expect(saved).toHaveBeenLastCalledWith({ profile: { ui_settings: { sidebar_width: 56 } } }),
   )
 })
+
+test('a sidebar lista times e etiquetas e filtra a lista por eles', async () => {
+  statefulProfile()
+  server.use(
+    http.get('/api/v1/accounts/1/teams', () =>
+      HttpResponse.json([
+        {
+          id: 2,
+          name: 'Suporte',
+          description: null,
+          allow_auto_assign: true,
+          icon: '',
+          icon_color: '',
+          account_id: 1,
+          is_member: true,
+        },
+      ]),
+    ),
+    http.get('/api/v1/accounts/1/labels', () =>
+      HttpResponse.json({
+        payload: [
+          { id: 5, title: 'vip', description: null, color: '#00ff00', show_on_sidebar: true },
+        ],
+      }),
+    ),
+  )
+  const { router } = await renderRoute('/app')
+  const user = userEvent.setup()
+
+  await user.click(await screen.findByRole('link', { name: 'Suporte' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ team_id: 2 }))
+  expect(screen.getByRole('link', { name: 'Suporte' })).toHaveAttribute('aria-current', 'page')
+
+  await user.click(screen.getByRole('link', { name: 'vip' }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ label: 'vip' }))
+  expect(router.state.location.search).not.toHaveProperty('team_id')
+})

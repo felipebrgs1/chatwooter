@@ -179,13 +179,15 @@ portar o visual antigo.
 
 **Conversas** (`GET /api/v1/accounts/:id/conversations`, `/meta`, `/filter`, `/search`)
 - [x] Lista: abas Mine/Unassigned/All com contadores, status, ordenação, card, scroll infinito (25/página) — `GET /conversations`, `/conversations/meta`
-- [ ] Layout expandido (preferência em `ui_settings`)
+- [x] Layout expandido (preferência em `ui_settings`: `conversation_display_type` + `previously_used_…`); linhas de
+      `ConversationCardExpanded` a partir do `lg`, conversa aberta ocupa a área com "Back". Checkbox de seleção entra com as ações em massa
 - [x] Filtros da API para Mentions, Participating, Unattended, Team, Label, Inbox (search params de `/app`)
-- [ ] Itens de Team/Label/Folders na sidebar (dependem de `/teams`, `/labels`, `/custom_filters`)
+- [x] `GET /labels` e `GET /teams` (index); sidebar com Mentions/Participating/Unattended, Teams (só os do usuário) e Labels (`show_on_sidebar`, com cor)
+- [ ] Itens de Folders e Channels na sidebar (dependem de `/custom_filters` e `/inboxes`); ordenação por seção e contadores de não lidas
 - [ ] Filtros avançados, pastas (`custom_filters`) salvar/editar/excluir
 - [ ] Menu de contexto do card (lido/não lido, status, prioridade, etiquetas, agente, time, copiar link, excluir)
 - [ ] Ações em massa (etiquetas, status, agente, time)
-- [ ] Etiquetas no card
+- [x] Etiquetas no card (cor e descrição vindas de `/labels`)
 - [x] Conversa aberta: cabeçalho (Resolve/Reopen, `#id` copiável), thread (texto, imagem, vídeo, áudio, arquivo, nota privada, atividade, falha, status de entrega), composer Reply/Private note com envio otimista e reenvio — `GET/POST /conversations/{id}/messages`, `toggle_status`, `assignments`, `update_last_seen`, `unread`
 - [ ] Painel do contato, editor rich text, canned, anexos, menções (Marcos 1.2–1.5)
 

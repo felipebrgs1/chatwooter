@@ -1,9 +1,10 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test } from 'vitest'
 
 import { contactFixture, conversationFixture } from '../../../test/conversation-fixtures'
+import { profileFixture } from '../../../test/fixtures'
 import { renderRoute } from '../../../test/render'
 import { server } from '../../../test/server'
 import { asSignedIn } from '../../../test/session'
@@ -69,4 +70,80 @@ test('abrir uma conversa navega para ela e mantém os filtros', async () => {
     'aria-current',
     'page',
   )
+})
+
+describe('layout expandido', () => {
+  const expanded = () =>
+    asSignedIn(profileFixture({ ui_settings: { conversation_display_type: 'expanded' } }))
+
+  test('o botão troca o layout e grava a preferência em ui_settings', async () => {
+    const saved: unknown[] = []
+    server.use(
+      http.put('/api/v1/profile', async ({ request }) => {
+        const body = (await request.json()) as { profile: { ui_settings: Record<string, unknown> } }
+        saved.push(body.profile.ui_settings)
+        return HttpResponse.json(profileFixture({ ui_settings: body.profile.ui_settings }))
+      }),
+    )
+    await renderRoute('/app')
+    await screen.findByRole('link', { name: /Ana Souza/ })
+    // condensado: o vazio da conversa aparece ao lado da lista
+    expect(screen.getByText(/Please select a conversation/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Switch the layout' }))
+    await waitFor(() =>
+      expect(saved.at(-1)).toMatchObject({
+        conversation_display_type: 'expanded',
+        previously_used_conversation_display_type: 'expanded',
+      }),
+    )
+    // expandido sem conversa aberta: só a lista, em linhas
+    await waitFor(() =>
+      expect(screen.queryByText(/Please select a conversation/)).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('link', { name: /Ana Souza/ })).toHaveTextContent('12')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Switch the layout' }))
+    await waitFor(() =>
+      expect(saved.at(-1)).toMatchObject({ conversation_display_type: 'condensed' }),
+    )
+  })
+
+  test('com a conversa aberta a lista some e o voltar leva de volta a ela', async () => {
+    expanded()
+    server.use(
+      http.get('/api/v1/accounts/1/conversations/12', () =>
+        HttpResponse.json(
+          conversationFixture({
+            id: 12,
+            meta: { ...conversationFixture().meta, sender: contactFixture({ name: 'Ana Souza' }) },
+          }),
+        ),
+      ),
+      http.get('/api/v1/accounts/1/conversations/12/messages', () =>
+        HttpResponse.json({
+          meta: {
+            labels: [],
+            additional_attributes: {},
+            contact: { ...contactFixture(), type: 'contact' },
+            agent_last_seen_at: null,
+            assignee_last_seen_at: null,
+          },
+          payload: [],
+        }),
+      ),
+      http.post(
+        '/api/v1/accounts/1/conversations/12/update_last_seen',
+        () => new HttpResponse(null, { status: 200 }),
+      ),
+    )
+    const { router } = await renderRoute('/app/conversations/12?status=pending')
+    await screen.findByRole('button', { name: '#12' })
+    expect(screen.queryByRole('tab', { name: /Mine/ })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Back/ }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app'))
+    expect(router.state.location.search).toMatchObject({ status: 'pending' })
+    expect(await screen.findByRole('tab', { name: /Mine/ })).toBeInTheDocument()
+  })
 })

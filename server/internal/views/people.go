@@ -72,6 +72,8 @@ type TeamJSON struct {
 	Name            string  `json:"name"`
 	Description     *string `json:"description"`
 	AllowAutoAssign bool    `json:"allow_auto_assign"`
+	Icon            string  `json:"icon"`
+	IconColor       string  `json:"icon_color"`
 	AccountID       int32   `json:"account_id"`
 	IsMember        bool    `json:"is_member"`
 }
@@ -79,6 +81,6 @@ type TeamJSON struct {
 func Team(t models.Team) TeamJSON {
 	return TeamJSON{
 		ID: t.ID, Name: t.Name, Description: nilIfEmpty(t.Description), AllowAutoAssign: t.AllowAutoAssign,
-		AccountID: t.AccountID, IsMember: t.IsMember,
+		Icon: t.Icon, IconColor: t.IconColor, AccountID: t.AccountID, IsMember: t.IsMember,
 	}
 }

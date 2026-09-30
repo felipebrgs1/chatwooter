@@ -1,4 +1,5 @@
 // Árvore de navegação: Sidebar.menu/1 do app Elixir (lib/chatwooter_web/sidebar.ex) sobre o menuItems do Chatwoot.
+import type { Label, Team } from '../../api/types'
 
 export type MenuLeaf = {
   name: string
@@ -36,10 +37,54 @@ export function isSubgroup(child: MenuChild): child is MenuSubgroup {
   return 'children' in child
 }
 
-// Só "All Conversations" tem tela hoje; o resto mantém o desenho do Chatwoot sem link.
+// Só as visões de conversa têm tela hoje; o resto mantém o desenho do Chatwoot sem link.
 export type Translate = (key: string) => string
 
-export function buildMenu(t: Translate): MenuGroup[] {
+/** Dados da conta que viram itens do menu (Sidebar.vue: teams/getMyTeams, labels/getLabelsOnSidebar). */
+export type MenuData = { teams?: Team[]; labels?: Label[] }
+
+// Folders (custom_filters) e Channels (inboxes) entram quando houver os endpoints. A ordenação por seção
+// e os contadores de não lidas do Chatwoot também ficam para depois: aqui vale a ordem do getter.
+function conversationSubgroups(
+  t: Translate,
+  { teams = [], labels = [] }: MenuData,
+): MenuSubgroup[] {
+  return [
+    {
+      name: 'teams',
+      label: t('SIDEBAR.TEAMS'),
+      icon: 'ph-users',
+      collapsible: true,
+      treeLine: true,
+      // o emoji do time (team.icon) não é desenhado: a sidebar só tem ícones Phosphor
+      children: teams
+        .filter((team) => team.is_member)
+        .map((team) => ({
+          name: `team-${team.id}`,
+          label: team.name,
+          to: `/app?team_id=${team.id}`,
+        })),
+    },
+    {
+      name: 'labels',
+      label: t('SIDEBAR.LABELS'),
+      icon: 'ph-tag',
+      collapsible: true,
+      treeLine: true,
+      children: labels
+        .filter((label) => label.show_on_sidebar)
+        .sort((a, b) => a.title.localeCompare(b.title))
+        .map((label) => ({
+          name: `label-${label.id}`,
+          label: label.title,
+          color: label.color,
+          to: `/app?${new URLSearchParams({ label: label.title })}`,
+        })),
+    },
+  ]
+}
+
+export function buildMenu(t: Translate, data: MenuData = {}): MenuGroup[] {
   return [
     {
       name: 'conversation',
@@ -53,17 +98,25 @@ export function buildMenu(t: Translate): MenuGroup[] {
           to: '/app',
           exact: true,
         },
-        { name: 'mentions', label: t('SIDEBAR.MENTIONED_CONVERSATIONS'), icon: 'ph-at' },
+        {
+          name: 'mentions',
+          label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
+          icon: 'ph-at',
+          to: '/app?conversation_type=mention',
+        },
         {
           name: 'participating',
           label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
           icon: 'ph-user-circle',
+          to: '/app?conversation_type=participating',
         },
         {
           name: 'unattended',
           label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
           icon: 'ph-clock-countdown',
+          to: '/app?conversation_type=unattended',
         },
+        ...conversationSubgroups(t, data),
       ],
     },
     {

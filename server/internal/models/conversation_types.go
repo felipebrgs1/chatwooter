@@ -38,6 +38,8 @@ type Team struct {
 	Name            string
 	Description     string
 	AllowAutoAssign bool
+	Icon            string
+	IconColor       string
 	IsMember        bool
 }
 

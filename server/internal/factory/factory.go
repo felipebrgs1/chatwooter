@@ -224,6 +224,33 @@ func (f *Factory) Team(account Account, opts ...func(*Team)) Team {
 	return tm
 }
 
+// TeamMember coloca o usuário no time (team_members).
+func (f *Factory) TeamMember(team Team, user User) {
+	f.t.Helper()
+	f.exec(`INSERT INTO team_members (team_id, user_id, created_at, updated_at) VALUES ($1, $2, now(), now())`, team.ID, user.ID)
+}
+
+type AccountLabel struct {
+	ID            int32
+	AccountID     int32
+	Title         string
+	Color         string
+	Description   *string
+	ShowOnSidebar bool
+}
+
+// AccountLabel cria a etiqueta da conta (tabela labels), a que dá cor e aparece na sidebar.
+func (f *Factory) AccountLabel(account Account, opts ...func(*AccountLabel)) AccountLabel {
+	f.t.Helper()
+	l := AccountLabel{AccountID: account.ID, Title: fmt.Sprintf("etiqueta-%d", f.next()), Color: "#1f93ff", ShowOnSidebar: true}
+	for _, o := range opts {
+		o(&l)
+	}
+	l.ID = f.insert(`INSERT INTO labels (account_id, title, color, description, show_on_sidebar, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING id`, l.AccountID, l.Title, l.Color, l.Description, l.ShowOnSidebar)
+	return l
+}
+
 // Label etiqueta a conversa como o Chatwoot (acts_as_taggable_on): tags + taggings + cached_label_list.
 func (f *Factory) Label(conv Conversation, title string) {
 	f.t.Helper()

@@ -16,9 +16,62 @@ describe('buildMenu', () => {
     ])
   })
 
-  test('só "All Conversations" tem rota; o resto ainda não tem tela', () => {
+  test('as visões de conversa têm rota; o resto ainda não tem tela', () => {
     const withRoute = menu.flatMap(leavesOf).filter((leaf) => leaf.to)
-    expect(withRoute.map((l) => [l.name, l.to])).toEqual([['all-conversations', '/app']])
+    expect(withRoute.map((l) => [l.name, l.to])).toEqual([
+      ['all-conversations', '/app'],
+      ['mentions', '/app?conversation_type=mention'],
+      ['participating', '/app?conversation_type=participating'],
+      ['unattended', '/app?conversation_type=unattended'],
+    ])
+  })
+
+  test('sem times nem etiquetas os subgrupos somem', () => {
+    const conversations = menu[0]!
+    expect(visibleChildren(conversations).map((c) => c.name)).not.toContain('teams')
+    expect(visibleChildren(conversations).map((c) => c.name)).not.toContain('labels')
+  })
+})
+
+describe('buildMenu com times e etiquetas', () => {
+  const team = (id: number, name: string, is_member: boolean) => ({
+    id,
+    name,
+    is_member,
+    description: null,
+    allow_auto_assign: true,
+    icon: '',
+    icon_color: '',
+    account_id: 1,
+  })
+  const label = (id: number, title: string, show_on_sidebar: boolean) => ({
+    id,
+    title,
+    show_on_sidebar,
+    description: null,
+    color: `#00000${id}`,
+  })
+  const menu = buildMenu(t, {
+    teams: [team(1, 'Suporte', true), team(2, 'Vendas', false)],
+    labels: [label(1, 'vip', true), label(2, 'oculta', false), label(3, 'cobrança', true)],
+  })
+  const child = (name: string) => menu[0]!.children.find((c) => c.name === name)
+
+  test('Teams mostra só os times de que o usuário faz parte (getMyTeams)', () => {
+    const teams = child('teams')
+    expect(teams && leavesOf({ children: [teams] }).map((l) => [l.label, l.to])).toEqual([
+      ['Suporte', '/app?team_id=1'],
+    ])
+  })
+
+  test('Labels mostra as da sidebar, por título, com a cor', () => {
+    const labels = child('labels')
+    expect(labels && leavesOf({ children: [labels] }).map((l) => [l.label, l.to, l.color])).toEqual(
+      [
+        ['cobrança', '/app?label=cobran%C3%A7a', '#000003'],
+        ['vip', '/app?label=vip', '#000001'],
+      ],
+    )
   })
 })
 

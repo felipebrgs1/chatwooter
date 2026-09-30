@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { parseSearch, toFilters, viewTitle } from './search'
+import { parseSearch, parseUrlSearch, toFilters, viewTitle } from './search'
 
 describe('parseSearch', () => {
   test('sem parâmetros: abertas, minhas, mais recentes', () => {
@@ -85,4 +85,8 @@ describe('viewTitle', () => {
   ])('%j', (search, expected) => {
     expect(viewTitle(search)).toEqual(expected)
   })
+})
+
+test('etiqueta numérica (o roteador a lê como número) continua valendo', () => {
+  expect(parseUrlSearch({ label: 123 })).toEqual({ label: '123' })
 })

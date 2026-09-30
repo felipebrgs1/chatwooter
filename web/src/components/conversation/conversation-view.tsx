@@ -12,6 +12,8 @@ import {
 } from '../../api/conversations'
 import type { Conversation, ConversationStatus } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
+import { useConversationLayout } from '../conversation-list/use-conversation-layout'
+import { cx } from '../next/cx'
 import { showAlert } from '../toast/alert'
 import { ConversationHeader } from './conversation-header'
 import { MessagesView } from './messages-view'
@@ -21,6 +23,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const accountId = useAccountId()
   const queryClient = useQueryClient()
   const { data: conversation, error } = useQuery(conversationQuery(accountId, conversationId))
+  const { expanded } = useConversationLayout()
 
   // Abrir a conversa zera o "não lida" do agente
   useEffect(() => {
@@ -47,9 +50,15 @@ export function ConversationView({ conversationId }: { conversationId: number })
   if (!conversation) return <Message text={t('CONVERSATION.LOADING_CONVERSATIONS')} />
 
   return (
-    <div className="conversation-details-wrap relative flex h-full w-full min-w-0 flex-col border-l border-n-weak bg-n-surface-1">
+    <div
+      className={cx(
+        'conversation-details-wrap relative flex h-full w-full min-w-0 flex-col bg-n-surface-1',
+        !expanded && 'border-l border-n-weak',
+      )}
+    >
       <ConversationHeader
         conversation={conversation}
+        showBackButton={expanded}
         statusLoading={status.isPending}
         onStatusChange={(next) => status.mutate(next)}
       />

@@ -54,3 +54,10 @@ test('o opção selecionada fica marcada', async () => {
   expect(screen.getByRole('option', { name: 'Pending' })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'false')
 })
+
+test('o botão de layout avisa o pai', async () => {
+  const onToggleLayout = vi.fn()
+  await renderWithI18n(<ChatListHeader {...base} onToggleLayout={onToggleLayout} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Switch the layout' }))
+  expect(onToggleLayout).toHaveBeenCalledOnce()
+})
