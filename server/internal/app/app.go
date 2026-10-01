@@ -151,6 +151,7 @@ func serve(ctx context.Context, cfg config.Config, out io.Writer) error {
 				Agents:        models.NewAgents(pool),
 				SessionTTL:    sessionTTL,
 				CookieSecure:  cfg.CookieSecure,
+				WebDir:        cfg.WebDir,
 			}),
 			ReadHeaderTimeout: 10 * time.Second,
 		}

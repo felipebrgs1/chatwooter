@@ -1,7 +1,7 @@
 # Roadmap de paridade de produto (UI + comportamento) com o Chatwoot
 
 > Complementa o [`ROTEIRO.md`](./ROTEIRO.md) (produto e decisões) e o
-> [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) (schema — paridade estrutural ✅ 103/103).
+> [`docs/SCHEMA_PARITY.md`](./docs/SCHEMA_PARITY.md) (schema — paridade ✅ concluída).
 > Este documento lista **cada tela e funcionalidade do Chatwoot** e o que falta para ficarmos 1:1.
 > Inventário feito a partir de `chatwoot/` (v4.18) em 2026-09-27.
 

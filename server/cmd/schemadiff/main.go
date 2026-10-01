@@ -30,10 +30,6 @@ func run() error {
 	jsonPath := flag.String("json", "", "grava o relatório completo neste arquivo")
 	flag.Parse()
 
-	if *jsonPath != "" && filepath.Base(*jsonPath) == "schema_parity_baseline.json" {
-		return fmt.Errorf("baseline congelado: escolha outro caminho para o relatório atual")
-	}
-
 	raw, err := os.ReadFile(*snapshotPath) //nolint:gosec // caminho vem do operador
 	if err != nil {
 		return err

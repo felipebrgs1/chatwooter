@@ -12,6 +12,8 @@ type Config struct {
 	DatabaseURL string
 	// EncryptionKey é a chave AES-256 (base64) dos segredos em repouso; validada por quem a usa.
 	EncryptionKey string
+	// WebDir é o build do dashboard (web/dist) servido pelo Go em produção; vazio no dev.
+	WebDir string
 	// CookieSecure marca o cookie de sessão como Secure (obrigatório atrás de HTTPS, ou seja, em produção).
 	CookieSecure bool
 }
@@ -24,6 +26,7 @@ func Load(getenv func(string) string) (Config, error) {
 		DatabaseURL:   databaseURL(getenv),
 		EncryptionKey: getenv("ENCRYPTION_KEY"),
 		CookieSecure:  getenv("COOKIE_SECURE") == "true",
+		WebDir:        getenv("WEB_DIR"),
 	}, nil
 }
 

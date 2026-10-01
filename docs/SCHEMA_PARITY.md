@@ -1,66 +1,53 @@
-# Paridade do banco — estado
+# Paridade do banco — ✅ concluída
 
-## Referência
+O schema do Chatwooter é o do Chatwoot 4.18: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`
+(SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`). A cópia congelada usada nos testes
+fica em `server/internal/schemaparity/testdata/schema.rb`.
 
-- Origem somente leitura: `chatwoot/db/schema.rb`, versão `2026_09_24_000000`, commit upstream `845206aa6fd053998cfb153884afc2f464904e40` (SHA-256 `128ffd15948a3d9dac6ab68185f7742de3ddc40f61a20474de038faa4f3246cc`).
-- Medição atual: [`schema_parity_progress.json`](./schema_parity_progress.json). `schema_parity_baseline.json` é o relatório inicial congelado (10 tabelas) e o `schemadiff` se recusa a sobrescrevê-lo.
+## Como é garantida
 
-```sh
-make schema-diff          # resumo contra o banco de dev
-cd server && DATABASE_URL=... go run ./cmd/schemadiff -json /tmp/relatorio.json
-```
+O gate `TestMigratedDatabaseMatchesUpstreamSnapshot` (`server/internal/schemaparity`, roda no `make precommit`)
+migra um banco limpo e compara o catálogo físico ao `schema.rb`. Ele exige igualdade em:
 
-O diff compara o catálogo físico de um banco **migrado** ao snapshot: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado, opclasses, ordem), FKs, checks, extensões e presença de triggers. O gate `TestMigratedDatabaseMatchesUpstreamSnapshot` (Go) exige igualdade em tudo isso, e `compare_test.go` tem provas negativas de default, nulidade, índice, opclass, ordenação e check. O comparador original, em Elixir, deu os mesmos números e saiu junto com o app Elixir (tag `elixir-final`).
+- as 103 tabelas: colunas (tipo, precisão, nulidade, default), PKs, índices (chaves, unicidade, método, predicado,
+  opclasses, ordem), FKs com `on_delete` e checks. Coluna ou índice a mais numa tabela do Chatwoot também reprova;
+- extensões (`pg_stat_statements`, `pg_trgm`, `pgcrypto`, `plpgsql`, `vector`);
+- os 4 triggers de `display_id`: tabela, momento, evento, nome da função e corpo, conferidos contra o SQL que o
+  hairtrigger gera (função com o nome do trigger; o BEFORE sempre sobrescreve o `display_id`);
+- tabelas locais numa lista fechada: `chatwooter_attachment_storage`, `chatwooter_inbox_configs`,
+  `chatwooter_sessions`, `goose_db_version` e as do River;
+- nenhuma sequência solta (as `conv_dpid_seq_N`/`camp_dpid_seq_N` nascem com cada conta).
 
-## Estado: paridade estrutural completa
+`compare_test.go` tem as provas negativas. Para medir outro banco: `make schema-diff`
+(`go run ./cmd/schemadiff -json <arquivo>` grava o relatório completo).
 
-Banco limpo (`make migrate` → `make schema-diff`):
-
-| Item | Resultado |
-|---|---|
-| Tabelas | 103/103 presentes, 0 ausentes |
-| Colunas / PKs | 1129 / 103 iguais, nenhuma faltando ou sobrando |
-| Índices / FKs / checks | 334 / 17 / 1 iguais |
-| Extensões | `pg_stat_statements`, `pg_trgm`, `pgcrypto`, `plpgsql`, `vector` — idênticas ao snapshot |
-| Triggers | 4/4 presentes; corpo conferido manualmente (abaixo) |
-
-`parity?` do relatório fica `false` só porque o catálogo não consegue verificar corpos de função (`body_unverified`).
-
-Tabelas locais que coexistem com as upstream: `chatwooter_sessions`, `chatwooter_inbox_configs`, `chatwooter_attachment_storage`, as do River e do `goose` (`goose_db_version`) e os helpers históricos `import_runs`, `import_errors`, `import_mappings`.
-
-### Triggers de `display_id`
-
-Conferência de `chatwoot/db/schema.rb` (hairtrigger) contra `pg_get_triggerdef`/`pg_proc.prosrc`:
-
-| Trigger | Tabela / momento | Corpo upstream | Local |
-|---|---|---|---|
-| `accounts_after_insert_row_tr` | `accounts` AFTER INSERT, por linha | `CREATE SEQUENCE IF NOT EXISTS conv_dpid_seq_<id>` | igual, função `chatwooter_create_conv_dpid_seq()` |
-| `camp_dpid_before_insert` | `accounts` AFTER INSERT, por linha | `CREATE SEQUENCE IF NOT EXISTS camp_dpid_seq_<id>` | igual, função `chatwooter_create_camp_dpid_seq()` |
-| `conversations_before_insert_row_tr` | `conversations` BEFORE INSERT, por linha | sempre `nextval('conv_dpid_seq_' \|\| account_id)` | só quando `display_id IS NULL`, função `chatwooter_assign_conv_dpid()` |
-| `campaigns_before_insert_row_tr` | `campaigns` BEFORE INSERT, por linha | sempre `nextval('camp_dpid_seq_' \|\| account_id)` | só quando `display_id IS NULL`, função `chatwooter_assign_camp_dpid()` |
-
-Desvios deliberados: (1) funções com nomes próprios (o hairtrigger usa o nome da trigger); nada as chama diretamente; (2) as BEFORE preservam `display_id` explícito para não renumerar linhas restauradas. Em inserts normais o comportamento é o do Rails. A migração `20260927040317` é irreversível de propósito: as sequências definem a numeração das conversas.
+Fora do gate (não aparece no `schema.rb`): `on_update` e nomes das FKs, ordem das colunas e os enums do Rails.
+Os enums são lidos como inteiros e os nomes vivem nos models Go, com os mesmos valores dos models Rails.
 
 ## Decisões de leitura dos dados Rails
 
-Permanentes. Foram provadas com dados restaurados no app Elixir (testes `*_restored_data_test.exs`, tag `elixir-final`); na stack Go valem as mesmas regras, cobertas pelos testes dos models à medida que cada leitura é portada:
+- **Identidade:** `users.encrypted_password` vazio do Devise nunca autentica; email é nullable/não-unique e a
+  identidade é `(uid, provider)`; login nunca autentica um match arbitrário entre duplicatas restauradas.
+- **Inboxes:** config local fica em `chatwooter_inbox_configs` (cifrada, AES-GCM, nunca sai na API); `channel_type`
+  preserva `Channel::Telegram/Whatsapp/...`. Colunas upstream restauradas (ex.: `channel_telegram.bot_token`)
+  continuam em claro, como no dump.
+- **Anexos:** metadados de storage local ficam em `chatwooter_attachment_storage`; anexo restaurado sem storage
+  local usa `external_url`.
+- **FKs:** tabelas sem FK SQL no upstream continuam sem FK; exclusões em cascata são feitas pelos models (como o
+  `dependent: :destroy` do Rails).
+- **Tabelas só de preservação:** canais fora do v1, help center, campanhas, Captain, monitores, SLA, automações,
+  SAML, relatórios, auditoria, `data_import*` e ActiveStorage existem com o formato original, sem recurso ativo.
 
-- **Identidade:** `users.encrypted_password` vazio do Devise nunca autentica; email é nullable/não-unique e a identidade é `(uid, provider)`; login nunca autentica um match arbitrário entre duplicatas restauradas. Rótulo de papel `administrator`, igual ao Rails.
-- **Inboxes:** config local fica em `chatwooter_inbox_configs`, fora da tabela upstream; `channel_type` preserva `Channel::Telegram/Whatsapp/...` e `channel_id` aponta para `channel_telegram`/`channel_whatsapp`.
-- **Mensagens e anexos:** `messages.content_type` inteiro é lido como `upstream_content_type`; o tipo de mídia do dashboard vive em `content_attributes.chatwooter_media_type`. Metadados de storage local ficam em `chatwooter_attachment_storage`; anexo restaurado sem storage local usa `external_url`.
-- **Enums Rails** são lidos como inteiros (o `sqlc` gera `int32`; os nomes vivem nos models); nenhum valor é convertido.
-- **FKs:** tabelas sem FK SQL no upstream continuam sem FK; exclusões em cascata são coordenadas pelos models (como o `dependent: :destroy` do Rails).
-- **Segredos:** configs de canal ficam cifradas (AES-GCM) em `chatwooter_inbox_configs` e nunca saem na API; colunas upstream restauradas (ex.: `channel_telegram.bot_token`) continuam em claro no dump.
+## Regras para mudanças no schema
 
-## Tabelas só de preservação
+1. O gate continua exigindo igualdade total; schema novo do Chatwoot = atualizar `testdata/schema.rb` + migration.
+2. Migration `goose` nova em `server/internal/db/migrations`; nunca reescrever o baseline nem migration aplicada.
+3. Tabela própria só com prefixo `chatwooter_` e entrando na lista fechada do gate.
+4. Antes de `NOT NULL`/unique em banco existente: detectar conflitos → backfill em lotes → constraint.
 
-Existem com o formato original, sem recurso ativo: canais fora do v1 (API, email, Facebook, Instagram, LINE, SMS, Twilio, TikTok, Twitter, widget), help center, campanhas, Captain/Copilot/embeddings, monitores de conversa, SLA, automações/macros/bots, SAML, capacidade/atribuição, relatórios, auditoria, `data_import*` e ActiveStorage (só metadados; binários não migram).
+## Migrar um Chatwoot real (não feito)
 
-## Pendente para migrar um Chatwoot real
-
-Fluxo escolhido: `pg_dump` → `pg_restore`, preservando IDs, relações e sequências, sem remapeamento. Não rodar as migrações de criação sobre um schema restaurado (as tabelas já existem e o ledger do `goose` não corresponde ao do Rails).
-
-1. Ensaio com dump integral real anonimizado em banco isolado: reconciliar contagens, relações e sequências. Até agora só houve dumps sintéticos.
-2. Bootstrap das tabelas locais (River/`goose`/`chatwooter_*`) e reconciliação do ledger de migrations sobre o banco restaurado (o `migrate` do Go já adota um schema existente).
-3. Proteção dos segredos Meta/Telegram restaurados antes do uso (o login com o bcrypt do Devise já funciona no Go).
-4. Operação sandbox WA/TG sobre conversas restauradas.
+Fluxo previsto: `pg_dump` → `pg_restore` completo (os triggers são criados depois dos dados, então os
+`display_id` restaurados não mudam) e `make migrate`, que adota o schema existente sem recriá-lo
+(`db.adoptExistingSchema`). Ainda não houve ensaio com dump real, nem com a operação WhatsApp/Telegram
+sobre conversas restauradas.

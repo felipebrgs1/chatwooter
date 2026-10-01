@@ -32,8 +32,9 @@ func TestMigrateAppliesBaseline(t *testing.T) {
 	if river != 1 {
 		t.Error("tabela river_job ausente: migrations do River não rodaram")
 	}
-	if tables != 109 {
-		t.Errorf("tabelas = %d, want 109", tables)
+	// 103 do Chatwoot + chatwooter_attachment_storage, chatwooter_inbox_configs e chatwooter_sessions.
+	if tables != 106 {
+		t.Errorf("tabelas = %d, want 106", tables)
 	}
 }
 
@@ -44,8 +45,12 @@ func TestMigrateAdoptsDatabaseThatAlreadyHasTheSchema(t *testing.T) {
 	for _, ddl := range []string{
 		`CREATE TABLE accounts (id serial PRIMARY KEY, name text)`,
 		`CREATE TABLE conversations (id serial PRIMARY KEY)`,
+		`CREATE TABLE campaigns (id serial PRIMARY KEY)`,
 		`CREATE TABLE users (id serial PRIMARY KEY)`,
 		`INSERT INTO accounts (name) VALUES ('existente')`,
+		`CREATE SEQUENCE conv_dpid_seq_1`,
+		`SELECT setval('conv_dpid_seq_1', 41)`,
+		`CREATE SEQUENCE conv_dpid_seq_99`,
 	} {
 		if _, err := pool.Exec(ctx, ddl); err != nil {
 			t.Fatal(err)
@@ -67,5 +72,15 @@ func TestMigrateAdoptsDatabaseThatAlreadyHasTheSchema(t *testing.T) {
 	var river int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_tables WHERE tablename = 'river_job'`).Scan(&river); err != nil || river != 1 {
 		t.Errorf("migrations do River deveriam rodar mesmo assim (%d, %v)", river, err)
+	}
+
+	// A sequência de display_id de uma conta existente segue de onde estava; a de conta inexistente sai.
+	var next int64
+	if err := pool.QueryRow(ctx, `SELECT nextval('conv_dpid_seq_1')`).Scan(&next); err != nil || next != 42 {
+		t.Errorf("conv_dpid_seq_1 = %d, %v; want 42", next, err)
+	}
+	var orphan *string
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('conv_dpid_seq_99')::text`).Scan(&orphan); err != nil || orphan != nil {
+		t.Errorf("conv_dpid_seq_99 deveria ter sido removida (%v, %v)", orphan, err)
 	}
 }

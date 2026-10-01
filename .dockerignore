@@ -1,0 +1,10 @@
+.git
+.env
+chatwoot
+docs
+**/node_modules
+web/dist
+web/.tanstack
+server/storage
+server/tmp
+tmp

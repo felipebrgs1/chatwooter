@@ -3,7 +3,7 @@
 > Decisão de 2026-09-30: trocar a stack para **Go (backend) + React (frontend)**. Motivo principal:
 > **adoção**. O público que lê, contribui e mantém Go/React é muito maior que o de Elixir.
 > O produto não muda. [`ROTEIRO.md`](./ROTEIRO.md) (decisões de produto),
-> [`ROADMAP_PARIDADE_BANCO.md`](./ROADMAP_PARIDADE_BANCO.md) e
+> [`docs/SCHEMA_PARITY.md`](./docs/SCHEMA_PARITY.md) e
 > [`ROADMAP_PARIDADE_PRODUTO.md`](./ROADMAP_PARIDADE_PRODUTO.md) continuam valendo. Este documento
 > cobre só a troca de stack e a ordem para chegar ao ponto em que o app Elixir estava.
 >

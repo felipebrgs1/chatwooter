@@ -7,7 +7,7 @@
 > A primeira versão foi escrita em Elixir/Phoenix LiveView e substituída pela stack atual
 > (ver [`ROADMAP_MIGRACAO_GO_REACT.md`](./ROADMAP_MIGRACAO_GO_REACT.md)); o código antigo está na tag `elixir-final`.
 
-> **Status da paridade:** [produto/UI](./ROADMAP_PARIDADE_PRODUTO.md), [banco](./ROADMAP_PARIDADE_BANCO.md) e [estado medido](./docs/SCHEMA_PARITY.md). As fases abaixo descrevem o produto planejado, não uma declaração de conclusão.
+> **Status da paridade:** [produto/UI](./ROADMAP_PARIDADE_PRODUTO.md) e [banco ✅](./docs/SCHEMA_PARITY.md). As fases abaixo descrevem o produto planejado, não uma declaração de conclusão.
 
 ## Decisões travadas (revisão 2026-09-26)
 
@@ -44,7 +44,7 @@
 
 ## 2. Paridade do banco (Chatwoot 4.18 → Chatwooter)
 
-Não manter uma segunda matriz manual de ✅/❌: existência não prova igualdade. O [inventário inicial congelado e o estado atual](./docs/SCHEMA_PARITY.md) distinguem tabelas presentes, desvios de campos/constraints, importação de agentes já testada e trabalho restante. Para medir outro banco migrado, usar `make schema-diff`. A meta de 103 tabelas e os critérios de saída estão no [roadmap do banco](./ROADMAP_PARIDADE_BANCO.md).
+✅ Paridade estrutural concluída e travada pelo gate `TestMigratedDatabaseMatchesUpstreamSnapshot`; o que ele cobre, as decisões de leitura dos dados Rails e as regras para mudar o schema estão em [`docs/SCHEMA_PARITY.md`](./docs/SCHEMA_PARITY.md). Para medir outro banco migrado, usar `make schema-diff`.
 
 Canais não suportados ainda precisam ser preservados e relatados; isso **não** está implementado pela importação atual de agentes.
 
@@ -148,9 +148,8 @@ O andamento detalhado (fundação, autenticação, casca, conversas) está no
 - Adapter CloudApi + verify + ingest + mídia + receipts + templates + regra 24h + settings.
 - **DoD:** mesmo do Telegram + template fora da janela + receipts na UI.
 
-### Fase A — Paridade de banco 🟡 (em andamento)
-- `schemadiff` (Go), equipes/vínculos e importação limitada de agentes já existem; ver [estado medido](./docs/SCHEMA_PARITY.md).
-- **DoD:** marcos 0–6 do [roadmap de banco](./ROADMAP_PARIDADE_BANCO.md), com export reconciliado; um diff vazio isolado não comprova paridade.
+### Fase A — Paridade de banco ✅
+- Schema 1:1 com o Chatwoot 4.18 (103 tabelas, triggers, extensões), travado pelo gate; ver [`docs/SCHEMA_PARITY.md`](./docs/SCHEMA_PARITY.md).
 
 ### Fase B — CRM faltante ❌
 - Teams, labels, canned (`/` no composer), notas, sino de notificações + UI.

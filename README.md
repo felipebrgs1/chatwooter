@@ -5,8 +5,7 @@
 > **UI e API 1:1 com o Chatwoot** (mesmas rotas, JSON e schema de banco, para migrar contas sem mudar integrações).
 >
 > Produto planejado: [`ROTEIRO.md`](./ROTEIRO.md). Andamento: [migração Go + React](./ROADMAP_MIGRACAO_GO_REACT.md) ·
-> [paridade de produto/UI](./ROADMAP_PARIDADE_PRODUTO.md) · [paridade do banco](./ROADMAP_PARIDADE_BANCO.md) ·
-> [estado medido do schema](./docs/SCHEMA_PARITY.md). O plano descreve o produto, não o que já está pronto.
+> [paridade de produto/UI](./ROADMAP_PARIDADE_PRODUTO.md) · [paridade do banco ✅](./docs/SCHEMA_PARITY.md). O plano descreve o produto, não o que já está pronto.
 >
 > A primeira versão foi feita em Elixir/Phoenix LiveView; o código está na tag `elixir-final`.
 
@@ -56,6 +55,20 @@ make i18n-sync     # copia os textos en/pt_BR do Chatwoot para o web
 ```
 
 Os testes do Go precisam do Postgres: `docker compose up -d db`.
+
+## Deploy
+
+O `Dockerfile` da raiz gera uma imagem só: o Go serve a API e o dashboard no mesmo domínio (porta `4000`).
+A cada subida ele aplica as migrations e depois começa a servir. Precisa de um Postgres com a extensão `pgvector`
+(ex.: imagem `pgvector/pgvector:pg18`).
+
+| Variável | |
+|---|---|
+| `DATABASE_URL` | obrigatória, ex.: `postgres://user:pass@host:5432/chatwooter?sslmode=disable` |
+| `ENCRYPTION_KEY` | obrigatória, `openssl rand -base64 32`. Guarde-a: sem ela os tokens dos canais não decifram |
+| `COOKIE_SECURE` | `true` por padrão (exige HTTPS); `false` só para testar em HTTP |
+
+Monte um volume persistente em `/data/storage` (uploads). Healthcheck: `GET /health`.
 
 ---
 

@@ -32,7 +32,7 @@ type CatalogTable struct {
 type Catalog struct {
 	Tables     map[string]*CatalogTable
 	Extensions []string
-	Triggers   map[string]string
+	Triggers   map[string]Trigger
 }
 
 const columnsSQL = `
@@ -78,10 +78,19 @@ FROM pg_constraint con JOIN pg_class c ON c.oid = con.conrelid
 JOIN pg_namespace ns ON ns.oid = c.relnamespace
 WHERE ns.nspname = current_schema() AND con.contype = 'c'`
 
+// tgtype: 1 ROW, 2 BEFORE, 4 INSERT, 8 DELETE, 16 UPDATE, 32 TRUNCATE, 64 INSTEAD OF.
 const triggersSQL = `
-SELECT tg.tgname, c.relname
+SELECT tg.tgname, c.relname,
+       CASE WHEN tg.tgtype & 2 <> 0 THEN 'BEFORE' WHEN tg.tgtype & 64 <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
+       array_to_string(ARRAY[
+         CASE WHEN tg.tgtype & 8 <> 0 THEN 'DELETE' END, CASE WHEN tg.tgtype & 4 <> 0 THEN 'INSERT' END,
+         CASE WHEN tg.tgtype & 32 <> 0 THEN 'TRUNCATE' END, CASE WHEN tg.tgtype & 16 <> 0 THEN 'UPDATE' END
+       ], ' OR '),
+       CASE WHEN tg.tgtype & 1 <> 0 THEN 'ROW' ELSE 'STATEMENT' END,
+       p.proname, p.prosrc
 FROM pg_trigger tg JOIN pg_class c ON c.oid = tg.tgrelid
 JOIN pg_namespace ns ON ns.oid = c.relnamespace
+JOIN pg_proc p ON p.oid = tg.tgfoid
 WHERE ns.nspname = current_schema() AND NOT tg.tgisinternal`
 
 var deleteActions = map[string]string{
@@ -90,7 +99,7 @@ var deleteActions = map[string]string{
 
 // LoadCatalog lê o catálogo físico do schema corrente.
 func LoadCatalog(ctx context.Context, pool *pgxpool.Pool) (*Catalog, error) {
-	cat := &Catalog{Tables: map[string]*CatalogTable{}, Triggers: map[string]string{}}
+	cat := &Catalog{Tables: map[string]*CatalogTable{}, Triggers: map[string]Trigger{}}
 
 	if err := loadColumns(ctx, pool, cat); err != nil {
 		return nil, fmt.Errorf("columns: %w", err)
@@ -127,11 +136,12 @@ func LoadCatalog(ctx context.Context, pool *pgxpool.Pool) (*Catalog, error) {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var name, table string
-		if err := rows.Scan(&name, &table); err != nil {
+		var name string
+		var tr Trigger
+		if err := rows.Scan(&name, &tr.Table, &tr.Timing, &tr.Events, &tr.ForEach, &tr.Function, &tr.Body); err != nil {
 			return nil, err
 		}
-		cat.Triggers[name] = table
+		cat.Triggers[name] = tr
 	}
 	return cat, rows.Err()
 }

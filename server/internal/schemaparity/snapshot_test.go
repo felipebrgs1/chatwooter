@@ -29,6 +29,33 @@ func TestLoadUpstreamSnapshot(t *testing.T) {
 	}
 }
 
+// O hairtrigger cria uma função com o nome do trigger; o corpo é a ação + o RETURN que ele acrescenta.
+func TestLoadUpstreamTriggers(t *testing.T) {
+	s, err := schemaparity.LoadFile(upstream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]schemaparity.Trigger{
+		"accounts_after_insert_row_tr": {
+			Table: "accounts", Timing: "AFTER", Events: "INSERT", ForEach: "ROW", Function: "accounts_after_insert_row_tr",
+			Body: "BEGIN\n    execute format('create sequence IF NOT EXISTS conv_dpid_seq_%s', NEW.id);\n    RETURN NULL;\nEND;",
+		},
+		"conversations_before_insert_row_tr": {
+			Table: "conversations", Timing: "BEFORE", Events: "INSERT", ForEach: "ROW",
+			Function: "conversations_before_insert_row_tr",
+			Body:     "BEGIN\n    NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);\n    RETURN NEW;\nEND;",
+		},
+	}
+	for name, w := range want {
+		if got := s.Triggers[name]; got != w {
+			t.Errorf("%s =\n%+v\nwant\n%+v", name, got, w)
+		}
+	}
+	if got := s.Triggers["camp_dpid_before_insert"].Table; got != "accounts" {
+		t.Errorf("camp_dpid_before_insert on %q", got)
+	}
+}
+
 func TestParseColumnsAndIndexes(t *testing.T) {
 	src := `ActiveRecord::Schema[7.1].define(version: 2026_01_01_000000) do
   enable_extension "pg_trgm"

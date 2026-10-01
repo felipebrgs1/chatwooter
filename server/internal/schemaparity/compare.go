@@ -14,11 +14,10 @@ import (
 type Status string
 
 const (
-	Equal          Status = "equal"
-	Different      Status = "different"
-	Missing        Status = "missing"
-	LocalOnly      Status = "local_only"
-	BodyUnverified Status = "body_unverified"
+	Equal     Status = "equal"
+	Different Status = "different"
+	Missing   Status = "missing"
+	LocalOnly Status = "local_only"
 )
 
 type Diff struct {
@@ -116,23 +115,19 @@ func Compare(expected *Snapshot, actual *Catalog) Report {
 	}
 
 	extensions := compareNamed(toSet(expected.Extensions), toSet(actual.Extensions), func(bool, bool) bool { return true })
-	triggers := compareNamed(expected.Triggers, actual.Triggers, func(a, b string) bool { return a == b })
-	// A presença de um trigger não prova que o corpo da função bate com o do Rails.
-	for name, d := range triggers {
-		if d.Status == Equal {
-			d.Status = BodyUnverified
-			triggers[name] = d
-		}
-	}
+	triggers := compareNamed(expected.Triggers, actual.Triggers, func(want, got Trigger) bool {
+		body := normalizeSQL(want.Body) == normalizeSQL(got.Body)
+		want.Body, got.Body = "", ""
+		return body && want == got
+	})
 
-	parity := len(missing) == 0 && allEqual && allStatus(extensions, Equal) &&
-		allStatus(triggers, BodyUnverified)
+	parity := len(missing) == 0 && allEqual && allStatus(extensions, Equal) && allStatus(triggers, Equal)
 
 	return Report{
 		Version: expected.Version,
 		Limitations: []string{
 			"Enums Rails, transformações de importação e dados não constam do schema.rb",
-			"Corpos das funções de triggers não são verificados pelo catálogo: só a presença",
+			"Corpo dos triggers comparado ao SQL que o hairtrigger gera, sem diferenciar maiúsculas nem espaços",
 			"Índices comparados por nome, chaves, unicidade, método, predicado, opclasses declaradas e ordem por coluna",
 		},
 		Extensions:    extensions,

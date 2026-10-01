@@ -28,6 +28,8 @@ type Deps struct {
 	Agents        *models.Agents
 	SessionTTL    time.Duration
 	CookieSecure  bool
+	// WebDir é o build do dashboard; vazio quando o Vite serve o front (dev).
+	WebDir string
 }
 
 func New(d Deps) http.Handler {
@@ -133,5 +135,8 @@ func New(d Deps) http.Handler {
 			})
 		})
 	})
+	if d.WebDir != "" {
+		r.NotFound(controllers.Web{Dir: d.WebDir}.Serve)
+	}
 	return r
 }

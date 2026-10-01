@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -42,11 +43,21 @@ type SnapshotTable struct {
 	Checks      map[string]string
 }
 
+// Trigger descreve o que o hairtrigger cria: uma função plpgsql com o nome do trigger, ligada à tabela.
+type Trigger struct {
+	Table    string
+	Timing   string // BEFORE | AFTER
+	Events   string // INSERT, UPDATE... separados por " OR "
+	ForEach  string // ROW | STATEMENT
+	Function string
+	Body     string // corpo da função, sem as aspas $$
+}
+
 type Snapshot struct {
 	Version    string
 	Extensions []string
 	Tables     map[string]*SnapshotTable
-	Triggers   map[string]string // nome -> tabela
+	Triggers   map[string]Trigger
 }
 
 var columnTypes = map[string]bool{
@@ -58,6 +69,8 @@ var (
 	reVersion    = regexp.MustCompile(`^ActiveRecord::Schema\[.*\]\.define\(version: ([\d_]+)\) do$`)
 	reTrigger    = regexp.MustCompile(`^  create_trigger\("([^"]+)".*$`)
 	reTriggerOn  = regexp.MustCompile(`^      on\("([^"]+)"\)\.$`)
+	reTriggerArg = regexp.MustCompile(`^      (name|before|after|for_each)\(([^)]+)\)(?:\.| do)$`)
+	reTriggerSQL = regexp.MustCompile(`^    "(.+)"$`)
 	reExtension  = regexp.MustCompile(`^  enable_extension "([^"]+)"$`)
 	reTable      = regexp.MustCompile(`^  create_table "([^"]+)"(.*) do \|t\|$`)
 	reForeignKey = regexp.MustCompile(`^  add_foreign_key "([^"]+)", "([^"]+)"(.*)$`)
@@ -65,15 +78,16 @@ var (
 	reIndex      = regexp.MustCompile(`^    t.index (.+), name: "([^"]+)"(.*)$`)
 	reColumn     = regexp.MustCompile(`^    t\.(\w+) "([^"]+)"(.*)$`)
 
-	reQuoted       = regexp.MustCompile(`"([^"]+)"`)
-	reInlineOps    = regexp.MustCompile(` (\w+_ops)"$`)
-	reTrailingOps  = regexp.MustCompile(` \w+_ops$`)
-	reOrder        = regexp.MustCompile(`order: \{([^}]+)\}`)
-	reOrderEntry   = regexp.MustCompile(`(\w+): "([^"]+)"`)
-	reDefaultProc  = regexp.MustCompile(`default: -> \{ "([^"]+)" \}`)
-	reDefault      = regexp.MustCompile(`default: ("[^"]*"|\{[^}]*\}|\[[^\]]*\]|true|false|-?\d+(?:\.\d+)?)`)
-	reHashArrow    = regexp.MustCompile(`"\s*=>`)
-	reStringOption = `(?:^|, )%s: (?:"([^"]*)"|:([a-z_]+)|(-?\d+))`
+	reQuoted         = regexp.MustCompile(`"([^"]+)"`)
+	reInlineOps      = regexp.MustCompile(` (\w+_ops)"$`)
+	reTrailingOps    = regexp.MustCompile(` \w+_ops$`)
+	reOrder          = regexp.MustCompile(`order: \{([^}]+)\}`)
+	reOrderEntry     = regexp.MustCompile(`(\w+): "([^"]+)"`)
+	reDefaultProc    = regexp.MustCompile(`default: -> \{ "([^"]+)" \}`)
+	reDefault        = regexp.MustCompile(`default: ("[^"]*"|\{[^}]*\}|\[[^\]]*\]|true|false|-?\d+(?:\.\d+)?)`)
+	reHashArrow      = regexp.MustCompile(`"\s*=>`)
+	reExplicitReturn = regexp.MustCompile(`(?i)return [^;]+;\s*$`)
+	reStringOption   = `(?:^|, )%s: (?:"([^"]*)"|:([a-z_]+)|(-?\d+))`
 )
 
 func LoadFile(path string) (*Snapshot, error) {
@@ -87,7 +101,7 @@ func LoadFile(path string) (*Snapshot, error) {
 
 // Parse lê o schema.rb como dado, sem nunca avaliar Ruby. Instrução desconhecida falha.
 func Parse(r io.Reader) (*Snapshot, error) {
-	s := &Snapshot{Tables: map[string]*SnapshotTable{}, Triggers: map[string]string{}}
+	s := &Snapshot{Tables: map[string]*SnapshotTable{}, Triggers: map[string]Trigger{}}
 	var table, trigger string
 
 	sc := bufio.NewScanner(r)
@@ -122,16 +136,49 @@ func Parse(r io.Reader) (*Snapshot, error) {
 }
 
 func parseTriggerLine(s *Snapshot, name, line string, n int) (string, error) {
-	switch {
+	tr := s.Triggers[name]
+	switch m := reTriggerArg.FindStringSubmatch(line); {
 	case reTriggerOn.MatchString(line):
-		s.Triggers[name] = reTriggerOn.FindStringSubmatch(line)[1]
-		return name, nil
+		tr.Table = reTriggerOn.FindStringSubmatch(line)[1]
+	case m != nil && m[1] == "name":
+		tr.Function = strings.Trim(m[2], `"`)
+	case m != nil && m[1] == "for_each":
+		tr.ForEach = strings.ToUpper(strings.TrimPrefix(m[2], ":"))
+	case m != nil:
+		tr.Timing = strings.ToUpper(m[1])
+		var events []string
+		for _, e := range strings.Split(m[2], ",") {
+			events = append(events, strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(e), ":")))
+		}
+		sort.Strings(events) // mesma ordem que o catálogo
+		tr.Events = strings.Join(events, " OR ")
+	case reTriggerSQL.MatchString(line):
+		tr.Body = hairtriggerBody(tr, reTriggerSQL.FindStringSubmatch(line)[1])
 	case line == "  end":
+		s.Triggers[name] = tr
 		return "", nil
-	case strings.HasPrefix(line, "    "):
-		return name, nil
+	default:
+		return name, unsupported(n, line)
 	}
-	return name, unsupported(n, line)
+	s.Triggers[name] = tr
+	return name, nil
+}
+
+// hairtriggerBody reproduz o corpo gerado pelo hairtrigger (Builder#generate_trigger_postgresql):
+// a ação indentada e, sem RETURN explícito, RETURN NULL (AFTER/STATEMENT) ou RETURN NEW.
+func hairtriggerBody(tr Trigger, action string) string {
+	body := "BEGIN\n    " + action + "\n"
+	if !reExplicitReturn.MatchString(action) {
+		ret := "NEW"
+		switch {
+		case tr.Timing == "AFTER" || tr.ForEach == "STATEMENT":
+			ret = "NULL"
+		case strings.Contains(tr.Events, "DELETE"):
+			ret = "OLD"
+		}
+		body += "    RETURN " + ret + ";\n"
+	}
+	return body + "END;"
 }
 
 func parseTableLine(t *SnapshotTable, name, line string, n int) (string, error) {
@@ -170,6 +217,7 @@ func parseTopLine(s *Snapshot, line string, n int) (table, trigger string, err e
 		s.Version = reVersion.FindStringSubmatch(line)[1]
 	case reTrigger.MatchString(line):
 		trigger = reTrigger.FindStringSubmatch(line)[1]
+		s.Triggers[trigger] = Trigger{Function: trigger}
 	case reExtension.MatchString(line):
 		s.Extensions = append(s.Extensions, reExtension.FindStringSubmatch(line)[1])
 	case reTable.MatchString(line):

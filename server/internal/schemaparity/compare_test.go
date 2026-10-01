@@ -8,12 +8,19 @@ import (
 
 func sptr(s string) *string { return &s }
 
+func trigger() sp.Trigger {
+	return sp.Trigger{
+		Table: "things", Timing: "BEFORE", Events: "INSERT", ForEach: "ROW", Function: "t_tr",
+		Body: "BEGIN\n    NEW.kind := 1;\n    RETURN NEW;\nEND;",
+	}
+}
+
 func pair() (*sp.Snapshot, *sp.Catalog) {
 	bigint := "bigint"
 	exp := &sp.Snapshot{
 		Version:    "1",
 		Extensions: []string{"vector"},
-		Triggers:   map[string]string{"t_tr": "things"},
+		Triggers:   map[string]sp.Trigger{"t_tr": trigger()},
 		Tables: map[string]*sp.SnapshotTable{"things": {
 			PrimaryKey: &bigint,
 			Columns: map[string]sp.Column{
@@ -28,7 +35,7 @@ func pair() (*sp.Snapshot, *sp.Catalog) {
 	}
 	act := &sp.Catalog{
 		Extensions: []string{"vector"},
-		Triggers:   map[string]string{"t_tr": "things"},
+		Triggers:   map[string]sp.Trigger{"t_tr": trigger()},
 		Tables: map[string]*sp.CatalogTable{"things": {
 			PrimaryKey: &sp.PrimaryKey{Column: "id", Type: "bigint"},
 			Columns: map[string]sp.Column{
@@ -52,8 +59,8 @@ func TestCompareEqualNormalizesPostgresForms(t *testing.T) {
 	if !r.Summary.Parity {
 		t.Fatalf("esperava paridade: %+v", r.Tables["things"])
 	}
-	if r.Triggers["t_tr"].Status != sp.BodyUnverified {
-		t.Errorf("trigger = %v, want body_unverified", r.Triggers["t_tr"].Status)
+	if r.Triggers["t_tr"].Status != sp.Equal {
+		t.Errorf("trigger = %v, want equal", r.Triggers["t_tr"].Status)
 	}
 }
 
@@ -78,7 +85,22 @@ func TestCompareDetectsDifferences(t *testing.T) {
 		"extensão ausente": func(c *sp.Catalog) {
 			c.Extensions = nil
 		},
-		"trigger ausente": func(c *sp.Catalog) { c.Triggers = map[string]string{} },
+		"trigger ausente": func(c *sp.Catalog) { c.Triggers = map[string]sp.Trigger{} },
+		"corpo do trigger diferente": func(c *sp.Catalog) {
+			tr := trigger()
+			tr.Body = "BEGIN IF NEW.kind IS NULL THEN NEW.kind := 1; END IF; RETURN NEW; END;"
+			c.Triggers["t_tr"] = tr
+		},
+		"função do trigger com outro nome": func(c *sp.Catalog) {
+			tr := trigger()
+			tr.Function = "local_fn"
+			c.Triggers["t_tr"] = tr
+		},
+		"timing do trigger": func(c *sp.Catalog) {
+			tr := trigger()
+			tr.Timing = "AFTER"
+			c.Triggers["t_tr"] = tr
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
