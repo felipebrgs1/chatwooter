@@ -141,7 +141,9 @@ test('a sidebar lista times e etiquetas e filtra a lista por eles', async () => 
   await waitFor(() => expect(router.state.location.search).toMatchObject({ team_id: 2 }))
   expect(screen.getByRole('link', { name: 'Suporte' })).toHaveAttribute('aria-current', 'page')
 
-  await user.click(screen.getByRole('link', { name: 'vip' }))
+  // "vip" também está em Contacts → Tagged with: vale o link de conversas
+  const vip = screen.getAllByRole('link', { name: 'vip' })
+  await user.click(vip.find((link) => link.getAttribute('href')?.startsWith('/app?'))!)
   await waitFor(() => expect(router.state.location.search).toMatchObject({ label: 'vip' }))
   expect(router.state.location.search).not.toHaveProperty('team_id')
 })

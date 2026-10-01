@@ -6,6 +6,7 @@ import type {
   AssigneeType,
   Conversation,
   ConversationList,
+  ConversationPriority,
   ConversationStatus,
   FilterCondition,
   FilteredConversations,
@@ -98,6 +99,23 @@ export const assignConversation = (
   id: number,
   body: { assignee_id?: number | null; team_id?: number | null },
 ) => api.post(`${base(accountId)}/${id}/assignments`, body)
+
+/** conversations#toggle_priority: null limpa. */
+export const togglePriority = (accountId: number, id: number, priority: ConversationPriority) =>
+  api.post<void>(`${base(accountId)}/${id}/toggle_priority`, { priority })
+
+export const conversationLabelsQuery = (accountId: number, id: number) =>
+  queryOptions({
+    queryKey: [...conversationKeys.detail(accountId, id), 'labels'] as const,
+    queryFn: () =>
+      api.get<{ payload: string[] }>(`${base(accountId)}/${id}/labels`).then((r) => r.payload),
+  })
+
+/** conversations/labels#create substitui a lista inteira (update_labels). */
+export const updateConversationLabels = (accountId: number, id: number, labels: string[]) =>
+  api
+    .post<{ payload: string[] }>(`${base(accountId)}/${id}/labels`, { labels })
+    .then((r) => r.payload)
 
 export const markSeen = (accountId: number, id: number) =>
   api.post(`${base(accountId)}/${id}/update_last_seen`)

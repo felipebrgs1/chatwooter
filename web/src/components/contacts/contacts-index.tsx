@@ -1,5 +1,6 @@
 // Port de routes/dashboard/contacts/pages/ContactsIndex.vue: lista paginada ou busca, ordenação em ui_settings.
-// Fora desta fatia: segmentos, filtros avançados, visão por etiqueta, "active" e ações em massa.
+// Visão por etiqueta (contacts/labels/:label) vira `?label=`. Fora desta fatia: segmentos, filtros avançados,
+// "active" e ações em massa.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +34,8 @@ const DEBOUNCE_DELAY = 300
 type Props = {
   page: number
   search: string
+  /** Etiqueta do contato ("Tagged With" da sidebar). */
+  label?: string
   onNavigate: (next: { page: number; search: string }) => void
   onShowContact: (id: number) => void
 }
@@ -44,7 +47,7 @@ function parseSort(value: unknown): { sort: ContactSort; order: ContactOrdering 
   return CONTACT_SORTS.includes(sort) ? { sort, order } : parseSort(DEFAULT_SORT)
 }
 
-export function ContactsIndex({ page, search, onNavigate, onShowContact }: Props) {
+export function ContactsIndex({ page, search, label, onNavigate, onShowContact }: Props) {
   const { t } = useTranslation()
   const accountId = useAccountId()
   const queryClient = useQueryClient()
@@ -102,19 +105,23 @@ export function ContactsIndex({ page, search, onNavigate, onShowContact }: Props
     return () => clearTimeout(timer)
   }, [searchValue, search, onNavigate])
 
-  const list = useQuery({ ...contactsQuery(accountId, { page, sort: sortAttr }), enabled: !search })
+  const list = useQuery({
+    ...contactsQuery(accountId, { page, sort: sortAttr, label }),
+    enabled: !search,
+  })
   // a busca rola com "Load more" (has_more), acumulando as páginas
   const found = useInfiniteQuery({
-    queryKey: [...contactKeys.all(accountId), 'search', search, sortAttr],
-    queryFn: ({ pageParam }) =>
-      api.get<ContactsPage>(
-        `/api/v1/accounts/${accountId}/contacts/search?${new URLSearchParams({
-          include_contact_inboxes: 'false',
-          page: String(pageParam),
-          sort: sortAttr,
-          q: search,
-        })}`,
-      ),
+    queryKey: [...contactKeys.all(accountId), 'search', search, sortAttr, label],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        include_contact_inboxes: 'false',
+        page: String(pageParam),
+        sort: sortAttr,
+        q: search,
+      })
+      if (label) params.append('labels[]', label)
+      return api.get<ContactsPage>(`/api/v1/accounts/${accountId}/contacts/search?${params}`)
+    },
     initialPageParam: 1,
     getNextPageParam: (last, all) => (last.meta.has_more ? all.length + 1 : undefined),
     enabled: Boolean(search),
@@ -129,10 +136,13 @@ export function ContactsIndex({ page, search, onNavigate, onShowContact }: Props
   const totalItems = list.data?.meta.count ?? 0
   const currentPage = Number(list.data?.meta.current_page ?? page)
 
-  const showEmptyStateLayout = !isSearchView && !hasContacts && page === 1
+  // o estado vazio grande é só da lista geral; por etiqueta fica a mensagem simples
+  const showEmptyStateLayout = !isSearchView && !label && !hasContacts && page === 1
   const headerTitle = isSearchView
     ? t('CONTACTS_LAYOUT.HEADER.SEARCH_TITLE')
-    : t('CONTACTS_LAYOUT.HEADER.TITLE')
+    : label
+      ? `#${label}`
+      : t('CONTACTS_LAYOUT.HEADER.TITLE')
   const emptyMessage = isSearchView
     ? t('CONTACTS_LAYOUT.EMPTY_STATE.SEARCH_EMPTY_STATE_TITLE')
     : t('CONTACTS_LAYOUT.EMPTY_STATE.LIST_EMPTY_STATE_TITLE')

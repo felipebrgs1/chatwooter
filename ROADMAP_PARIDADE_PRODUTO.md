@@ -88,9 +88,12 @@ Ref.: `components/widgets/conversation/ReplyBox.vue`, `components/widgets/WootWr
 ### 1.5 Painel do contato (direita)
 Ref.: `routes/dashboard/conversation/ContactPanel.vue`, `components/widgets/conversation/ConversationSidebar.vue`
 - [ ] Abrir/fechar (Alt+O), estado em `ui_settings.is_contact_sidebar_open`
+  - Pronto com testes (falta conferir no browser): `SidepanelSwitch`, `ConversationSidebar`/`ContactPanel`, estado em `ui_settings`.
 - [ ] Info do contato: edição inline do nome, e-mail, telefone, empresa, localização, redes; ações (nova mensagem, ver conversas, editar, mesclar, excluir) (`contact/ContactInfo.vue`)
+  - Leitura pronta (dados, cópia, redes, link para o contato). Falta: edição inline e os modais de nova mensagem, editar, mesclar e excluir (hoje só visuais).
 - [ ] Acordeões reordenáveis e recolhíveis, ordem em `ui_settings.conversation_sidebar_items_order`:
   - [ ] Conversation actions: agente (+ "assign to me"), time, prioridade, etiquetas (`ConversationAction.vue`) — backend: atribuição, `team_id`, `priority`, labels da conversa (`cached_label_list`)
+    - Pronto com testes (falta conferir no browser): `POST toggle_priority`, `GET/POST conversations/:id/labels`, `team_id` 0 desatribui. Fora: sugestões do Captain, agent bots, "Create new label", mensagens de atividade.
   - [ ] Macros (depende do Marco 5.3)
   - [ ] Conversation info + atributos da conversa
   - [ ] Atributos do contato, notas do contato, arquivos compartilhados
@@ -150,6 +153,7 @@ Ref.: `components-next/Contacts/`, `components-next/Companies/`, `routes/dashboa
   - Feitos: cards, busca (Load more), ordenação em `ui_settings`, paginação. Faltam filtros avançados e seleção em massa.
   - [x] Seta do card expande a edição rápida (dados e redes sociais), atualização pela API e exclusão com confirmação para administradores.
 - [ ] Rotas Active, Segments (filtro salvo) e "Tagged with" (etiqueta) + sidebar
+  - "Tagged with" pronto com testes (falta conferir no browser): seção na sidebar e `/app/contacts?label=` (lista e busca filtradas, título `#etiqueta`). Faltam Active e Segments.
 - [ ] Criar contato (`CreateNewContactDialog.vue`), import/export CSV (`ContactImportDialog.vue`, `ContactExportDialog.vue`)
 - [ ] Detalhe do contato: "Send message" (nova conversa — `NewConversation/ComposeConversation.vue`)
 - [ ] Detalhe do contato: avatar (upload/excluir)

@@ -50,6 +50,10 @@ export type MenuData = {
 
 // A ordenação por seção e os contadores de não lidas do Chatwoot ficam para depois: aqui vale a ordem do
 // getter (pastas por criação, inboxes por nome).
+// labels/getLabelsOnSidebar: só as marcadas para a sidebar, por título
+const sidebarLabels = (labels: Label[]) =>
+  labels.filter((label) => label.show_on_sidebar).sort((a, b) => a.title.localeCompare(b.title))
+
 function conversationSubgroups(
   t: Translate,
   { teams = [], inboxes = [], labels = [], folders = [] }: MenuData,
@@ -101,15 +105,12 @@ function conversationSubgroups(
       icon: 'ph-tag',
       collapsible: true,
       treeLine: true,
-      children: labels
-        .filter((label) => label.show_on_sidebar)
-        .sort((a, b) => a.title.localeCompare(b.title))
-        .map((label) => ({
-          name: `label-${label.id}`,
-          label: label.title,
-          color: label.color,
-          to: `/app?${new URLSearchParams({ label: label.title })}`,
-        })),
+      children: sidebarLabels(labels).map((label) => ({
+        name: `label-${label.id}`,
+        label: label.title,
+        color: label.color,
+        to: `/app?${new URLSearchParams({ label: label.title })}`,
+      })),
     },
   ]
 }
@@ -153,7 +154,24 @@ export function buildMenu(t: Translate, data: MenuData = {}): MenuGroup[] {
       name: 'contacts',
       label: t('SIDEBAR.CONTACTS'),
       icon: 'ph-address-book',
-      children: [{ name: 'all-contacts', label: t('SIDEBAR.ALL_CONTACTS'), to: '/app/contacts' }],
+      // "Active" e "Segments" entram com os filtros de contato
+      children: [
+        { name: 'all-contacts', label: t('SIDEBAR.ALL_CONTACTS'), to: '/app/contacts' },
+        {
+          name: 'tagged-with',
+          label: t('SIDEBAR.TAGGED_WITH'),
+          icon: 'ph-tag',
+          collapsible: true,
+          treeLine: true,
+          // a etiqueta do contato (não a da conversa): contacts_dashboard_labels_index
+          children: sidebarLabels(data.labels ?? []).map((label) => ({
+            name: `contact-label-${label.id}`,
+            label: label.title,
+            color: label.color,
+            to: `/app/contacts?${new URLSearchParams({ label: label.title })}`,
+          })),
+        },
+      ],
     },
     {
       name: 'companies',

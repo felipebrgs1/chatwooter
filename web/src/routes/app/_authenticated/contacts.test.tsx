@@ -299,3 +299,28 @@ test('falha ao salvar mantém a edição e informa e-mail duplicado', async () =
   expect(email).toHaveValue('duplicate@acme.com')
   expect(screen.getByText('Contato 1')).toBeInTheDocument()
 })
+
+test('"Tagged With" na sidebar lista os contatos com a etiqueta (#etiqueta no título)', async () => {
+  respond([[contact(1, { name: 'Maria Billing' })]])
+  server.use(
+    http.get('/api/v1/accounts/1/labels', () =>
+      HttpResponse.json({
+        payload: [
+          { id: 1, title: 'billing', description: null, color: '#ff0000', show_on_sidebar: true },
+        ],
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  const { router } = await renderRoute('/app/contacts')
+  await screen.findByText('Maria Billing')
+
+  await user.click(await screen.findByRole('button', { name: 'Tagged with' }))
+  // "billing" também está em Labels (conversas): vale o link para os contatos
+  const links = await screen.findAllByRole('link', { name: 'billing' })
+  await user.click(links.find((link) => link.getAttribute('href')?.startsWith('/app/contacts'))!)
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ label: 'billing' }))
+  expect(await screen.findByRole('heading', { name: '#billing' })).toBeInTheDocument()
+  await waitFor(() => expect(requests.at(-1)!.searchParams.getAll('labels[]')).toEqual(['billing']))
+  expect(requests.at(-1)!.searchParams.get('page')).toBe('1')
+})

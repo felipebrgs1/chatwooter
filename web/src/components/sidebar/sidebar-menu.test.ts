@@ -103,6 +103,16 @@ describe('buildMenu com times e etiquetas', () => {
     ])
   })
 
+  test('Contacts tem "Tagged With" com as etiquetas da sidebar, levando aos contatos com a etiqueta', () => {
+    const contacts = menu.find((g) => g.name === 'contacts')!
+    const tagged = contacts.children.find((c) => c.name === 'tagged-with')!
+    expect(tagged.label).toBe('SIDEBAR.TAGGED_WITH')
+    expect(leavesOf({ children: [tagged] }).map((l) => [l.label, l.to, l.color])).toEqual([
+      ['cobrança', '/app/contacts?label=cobran%C3%A7a', '#000003'],
+      ['vip', '/app/contacts?label=vip', '#000001'],
+    ])
+  })
+
   test('Labels mostra as da sidebar, por título, com a cor', () => {
     const labels = child('labels')
     expect(labels && leavesOf({ children: [labels] }).map((l) => [l.label, l.to, l.color])).toEqual(

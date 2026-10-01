@@ -119,9 +119,13 @@ func (c *Conversations) AssignAgent(ctx context.Context, accountID, displayID in
 	return agent, err
 }
 
+// AssignTeam é o set_team: id que não é positivo (o "None" do painel manda 0) tira o time.
 func (c *Conversations) AssignTeam(ctx context.Context, accountID, displayID int32, teamID *int32) (*Team, error) {
 	if _, _, err := c.internalID(ctx, accountID, displayID); err != nil {
 		return nil, err
+	}
+	if teamID != nil && *teamID <= 0 {
+		teamID = nil
 	}
 	var team *Team
 	if teamID != nil {

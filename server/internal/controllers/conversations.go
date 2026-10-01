@@ -259,3 +259,55 @@ func optionalID(w http.ResponseWriter, raw json.RawMessage) (*int32, bool) {
 	}
 	return &id, true
 }
+
+// TogglePriority é o POST .../toggle_priority: corpo vazio (head :ok), como o Chatwoot.
+func (c Conversations) TogglePriority(w http.ResponseWriter, r *http.Request) {
+	item, ok := c.load(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Priority *string `json:"priority"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := c.Conversations.TogglePriority(r.Context(), item.AccountID, item.ID, in.Priority); err != nil {
+		modelError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// Labels e SetLabels são o Conversations::LabelsController (LabelConcern): {payload: [títulos]}.
+func (c Conversations) Labels(w http.ResponseWriter, r *http.Request) {
+	item, ok := c.load(w, r)
+	if !ok {
+		return
+	}
+	labels, err := c.Conversations.Labels(r.Context(), item.AccountID, item.ID)
+	if err != nil {
+		modelError(w, err)
+		return
+	}
+	views.JSON(w, http.StatusOK, views.LabelsPayload(labels))
+}
+
+func (c Conversations) SetLabels(w http.ResponseWriter, r *http.Request) {
+	item, ok := c.load(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Labels []string `json:"labels"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	labels, err := c.Conversations.SetLabels(r.Context(), item.AccountID, item.ID, in.Labels)
+	if err != nil {
+		modelError(w, err)
+		return
+	}
+	views.JSON(w, http.StatusOK, views.LabelsPayload(labels))
+}

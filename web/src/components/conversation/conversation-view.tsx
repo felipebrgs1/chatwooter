@@ -18,6 +18,9 @@ import { cx } from '../next/cx'
 import { showAlert } from '../toast/alert'
 import { ConversationHeader } from './conversation-header'
 import { MessagesView } from './messages-view'
+import { ContactPanel } from './panel/contact-panel'
+import { SidepanelSwitch } from './panel/sidepanel-switch'
+import { useUiSettings } from '../../api/use-ui-settings'
 
 export function ConversationView({ conversationId }: { conversationId: number }) {
   const { t } = useTranslation()
@@ -26,6 +29,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const { data: conversation, error } = useQuery(conversationQuery(accountId, conversationId))
   const { expanded } = useConversationLayout()
   const { data: inboxes = [] } = useQuery(inboxesQuery(accountId))
+  const { uiSettings } = useUiSettings()
 
   // Abrir a conversa zera o "não lida" do agente
   useEffect(() => {
@@ -51,23 +55,30 @@ export function ConversationView({ conversationId }: { conversationId: number })
   }
   if (!conversation) return <Message text={t('CONVERSATION.LOADING_CONVERSATIONS')} />
 
+  // ConversationView.vue: ConversationBox (com o SidepanelSwitch) e, ao lado, o ConversationSidebar
   return (
-    <div
-      className={cx(
-        'conversation-details-wrap relative flex h-full w-full min-w-0 flex-col bg-n-surface-1',
-        !expanded && 'border-l border-n-weak',
-      )}
-    >
-      <ConversationHeader
-        conversation={conversation}
-        showBackButton={expanded}
-        inbox={inboxes.length > 1 ? inboxes.find((i) => i.id === conversation.inbox_id) : undefined}
-        statusLoading={status.isPending}
-        onStatusChange={(next) => status.mutate(next)}
-      />
-      <div className="m-0 flex h-full min-h-0">
-        <MessagesView key={conversation.id} conversation={conversation} />
+    <div className="flex h-full w-full min-w-0">
+      <div
+        className={cx(
+          'conversation-details-wrap relative flex h-full w-full min-w-0 flex-col bg-n-surface-1',
+          !expanded && 'border-l border-n-weak',
+        )}
+      >
+        <SidepanelSwitch />
+        <ConversationHeader
+          conversation={conversation}
+          showBackButton={expanded}
+          inbox={
+            inboxes.length > 1 ? inboxes.find((i) => i.id === conversation.inbox_id) : undefined
+          }
+          statusLoading={status.isPending}
+          onStatusChange={(next) => status.mutate(next)}
+        />
+        <div className="m-0 flex h-full min-h-0">
+          <MessagesView key={conversation.id} conversation={conversation} />
+        </div>
       </div>
+      {!!uiSettings.is_contact_sidebar_open && <ContactPanel conversation={conversation} />}
     </div>
   )
 }
