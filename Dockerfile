@@ -1,19 +1,21 @@
+# syntax=docker/dockerfile:1
 # Imagem de produção: o Go serve a API e o build do dashboard no mesmo domínio (o cookie de sessão é same-site).
 # Na subida aplica as migrations e então serve. Dev continua no docker-compose.yml (Dockerfile.dev).
 
-FROM oven/bun:1 AS web
+FROM oven/bun:1.4.2 AS web
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./
 RUN bun run build
 
-FROM golang:1.27 AS server
+FROM golang:1.27-alpine AS server
 WORKDIR /app/server
-COPY server/go.mod server/go.sum ./
-RUN go mod download
 COPY server/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/chatwooter ./cmd/chatwooter
+# Sem `go mod download`: ele baixaria também as ferramentas de dev do bloco `tool` do go.mod (sqlc,
+# golangci-lint, air), ~600 módulos. O build busca só os do binário, e o cache mount não vira camada.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/chatwooter ./cmd/chatwooter
 
 FROM alpine:3
 RUN apk add --no-cache ca-certificates tzdata \
