@@ -131,7 +131,7 @@ describe('activeLeaf', () => {
       label: 'Conversations',
       icon: 'ph-chat-circle',
       children: [
-        { name: 'all', label: 'All', to: '/app', exact: true },
+        { name: 'all', label: 'All', to: '/app', exact: true, activeOn: ['/app/conversations'] },
         { name: 'mentions', label: 'Mentions', to: '/app?conversation_type=mention' },
         { name: 'inbox-1', label: 'Inbox 1', to: '/app?inbox_id=1' },
       ],
@@ -150,6 +150,10 @@ describe('activeLeaf', () => {
   test('folha não exata cobre sub-rotas', () =>
     expect(activeLeaf(menu, '/app/contacts/12')).toBe('all-contacts'))
   test('folha exata não cobre sub-rotas', () => expect(activeLeaf(menu, '/app/x')).toBeNull())
+  test('activeOn cobre a conversa aberta sem visão', () =>
+    expect(activeLeaf(menu, '/app/conversations/7')).toBe('all'))
+  test('na conversa aberta, a visão da query ainda vence', () =>
+    expect(activeLeaf(menu, '/app/conversations/7?inbox_id=1')).toBe('inbox-1'))
   test('sem caminho não há folha ativa', () => expect(activeLeaf(menu, null)).toBeNull())
   test('ignora folhas sem rota', () => {
     const visual: MenuGroup[] = [

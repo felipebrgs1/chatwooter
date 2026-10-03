@@ -115,3 +115,12 @@ func Team(t models.Team) TeamJSON {
 		Icon: t.Icon, IconColor: t.IconColor, AccountID: t.AccountID, IsMember: t.IsMember,
 	}
 }
+
+// AssignableAgents espelha api/v1/accounts/assignable_agents/index.json.jbuilder (só usuários).
+func AssignableAgents(list []models.Agent) map[string][]AgentJSON {
+	out := make([]AgentJSON, 0, len(list))
+	for _, a := range list {
+		out = append(out, Agent(a))
+	}
+	return map[string][]AgentJSON{"payload": out}
+}

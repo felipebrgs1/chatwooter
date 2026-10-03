@@ -61,6 +61,7 @@ func New(d Deps) http.Handler {
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
 			r.Get("/agents", controllers.Agents{Agents: d.Agents}.Index)
+			r.Get("/assignable_agents", controllers.AssignableAgents{Agents: d.Agents, Conversations: d.Conversations}.Index)
 			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
 
 			folders := controllers.CustomFilters{CustomFilters: d.CustomFilters}
@@ -122,6 +123,7 @@ func New(d Deps) http.Handler {
 				r.Post("/filter", convs.Filter)
 				r.Route("/{conversation_id}", func(r chi.Router) {
 					r.Get("/", convs.Show)
+					r.Delete("/", convs.Destroy)
 					r.Post("/toggle_status", convs.ToggleStatus)
 					r.Post("/assignments", convs.Assign)
 					r.Post("/toggle_priority", convs.TogglePriority)

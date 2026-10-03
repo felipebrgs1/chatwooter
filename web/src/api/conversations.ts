@@ -122,3 +122,7 @@ export const markSeen = (accountId: number, id: number) =>
 
 export const markUnread = (accountId: number, id: number) =>
   api.post(`${base(accountId)}/${id}/unread`)
+
+/** conversations#destroy (só administrador). */
+export const deleteConversation = (accountId: number, id: number) =>
+  api.delete<void>(`${base(accountId)}/${id}`)

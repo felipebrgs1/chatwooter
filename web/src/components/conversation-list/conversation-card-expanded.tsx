@@ -1,6 +1,6 @@
 // Port de components-next/Conversation/ConversationCard/ConversationCardExpanded.vue: uma linha por conversa
 // no layout expandido, com CardPriorityIcon, CardStatusIcon, CardAvatar, CardContent e CardLabelsV5 inline.
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Conversation } from '../../api/types'
@@ -24,6 +24,7 @@ type Props = {
   inboxName?: string
   now?: Date
   renderLink?: (props: CardLinkProps) => ReactNode
+  onContextMenu?: (event: MouseEvent) => void
 }
 
 export function ConversationCardExpanded({
@@ -34,6 +35,7 @@ export function ConversationCardExpanded({
   inboxName,
   now: referenceNow,
   renderLink,
+  onContextMenu,
 }: Props) {
   const { t } = useTranslation()
   const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
@@ -48,6 +50,7 @@ export function ConversationCardExpanded({
 
   const linkProps: CardLinkProps = {
     'aria-current': active ? 'page' : undefined,
+    onContextMenu,
     className: cx(
       'conversation group relative grid h-12 cursor-pointer items-center gap-4 border-b border-n-slate-3 px-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-n-surface-1 before:content-none hover:z-[1] hover:border-n-surface-1 hover:before:content-[""]',
       active

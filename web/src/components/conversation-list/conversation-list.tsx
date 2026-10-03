@@ -1,7 +1,7 @@
-// Port de components/ChatList.vue (coluna da lista): cabeçalho, abas, cards, scroll infinito, filtros avançados
-// e pastas. Menu de contexto e ações em massa ficam para as próximas fatias.
+// Port de components/ChatList.vue (coluna da lista): cabeçalho, abas, cards, scroll infinito, filtros avançados,
+// pastas e o menu de contexto do card (ConversationItem.vue). Ações em massa ficam para a próxima fatia.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,10 +11,20 @@ import {
   deleteCustomFilter,
   updateCustomFilter,
 } from '../../api/custom-filters'
+import {
+  assignConversation,
+  conversationKeys,
+  deleteConversation,
+  markSeen,
+  markUnread,
+  toggleStatus,
+  togglePriority,
+  updateConversationLabels,
+} from '../../api/conversations'
 import { inboxesQuery } from '../../api/inboxes'
 import { labelsQuery } from '../../api/labels'
 import { teamsQuery } from '../../api/teams'
-import type { Conversation } from '../../api/types'
+import type { Conversation, ConversationPriority, ConversationStatus } from '../../api/types'
 import { useAccountId } from '../../api/use-account-id'
 import { useMediaQuery } from '../layout/use-media-query'
 import { cx } from '../next/cx'
@@ -32,6 +42,8 @@ import { showAlert } from '../toast/alert'
 import { toFilters, viewTitle, type ConversationsSearch } from './search'
 import { ChatListHeader } from './chat-list-header'
 import { ChatTypeTabs } from './chat-type-tabs'
+import { ContextMenu } from './context-menu/context-menu'
+import { ConversationContextMenu } from './context-menu/conversation-context-menu'
 import { ConversationCard, type CardLinkProps } from './conversation-card'
 import { ConversationCardExpanded } from './conversation-card-expanded'
 import { useConversations, useFilteredConversations } from './use-conversations'
@@ -50,6 +62,10 @@ type Props = {
   /** isOnExpandedLayout (ui_settings): a lista ocupa a página, em linhas. */
   expanded?: boolean
   onToggleLayout?: () => void
+  /** Caminho da conversa na visão atual (conversationUrl): abrir em nova aba e copiar o link. */
+  conversationHref?: (conversation: Conversation) => string
+  /** redirectToConversationList: fecha a conversa aberta mantendo a visão. */
+  onCloseConversation?: () => void
 }
 
 export function ConversationList({
@@ -59,6 +75,8 @@ export function ConversationList({
   renderCardLink,
   expanded = false,
   onToggleLayout,
+  conversationHref = (conversation) => `/app/conversations/${conversation.id}`,
+  onCloseConversation,
 }: Props) {
   const { t } = useTranslation()
   // ConversationList.vue → showExpandedCards: as linhas só a partir do breakpoint lg
@@ -186,6 +204,123 @@ export function ConversationList({
     onError: () => showAlert(t('FILTER.CUSTOM_VIEWS.DELETE.API_FOLDERS.ERROR_MESSAGE')),
   })
 
+  // Menu de contexto do card (ConversationItem.vue + os handlers do ChatList.vue)
+  const [menu, setMenu] = useState<{ id: number; labels: string[]; x: number; y: number } | null>(
+    null,
+  )
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const menuConversation = menu && conversations.find((c) => c.id === menu.id)
+  const closeMenu = useCallback(() => setMenu(null), [])
+  // useScrollLock do ContextMenu.vue: a lista não rola com o menu aberto
+  const menuOpen = menu !== null
+  useEffect(() => {
+    const list = listRef.current
+    if (!menuOpen || !list) return
+    list.style.overflow = 'hidden'
+    return () => {
+      list.style.overflow = ''
+    }
+  }, [menuOpen])
+  const openMenu = (conversation: Conversation, event: MouseEvent) => {
+    event.preventDefault()
+    setMenu({
+      id: conversation.id,
+      labels: conversation.labels,
+      x: event.clientX,
+      y: event.clientY,
+    })
+  }
+  const refresh = () => queryClient.invalidateQueries({ queryKey: conversationKeys.all(accountId) })
+  const fullUrl = (conversation: Conversation) =>
+    `${window.location.origin}${conversationHref(conversation)}`
+
+  const updateStatus = async (id: number, status: ConversationStatus) => {
+    closeMenu()
+    await toggleStatus(accountId, id, { status })
+    showAlert(t('CONVERSATION.CHANGE_STATUS'))
+    void refresh()
+  }
+  const setPriority = async (id: number, priority: ConversationPriority) => {
+    closeMenu()
+    await togglePriority(accountId, id, priority)
+    // o ChatList.vue interpola a chave crua da prioridade
+    showAlert(
+      t('CONVERSATION.PRIORITY.CHANGE_PRIORITY.SUCCESSFUL', {
+        priority: priority ?? '',
+        conversationId: id,
+      }),
+    )
+    void refresh()
+  }
+  const assignAgent = async (id: number, agent: { id: number | null; name: string }) => {
+    closeMenu()
+    try {
+      await assignConversation(accountId, id, { assignee_id: agent.id })
+      showAlert(
+        t('CONVERSATION.CARD_CONTEXT_MENU.API.AGENT_ASSIGNMENT.SUCCESFUL', {
+          agentName: agent.name,
+          conversationId: id,
+        }),
+      )
+      void refresh()
+    } catch {
+      showAlert(t('CONVERSATION.CARD_CONTEXT_MENU.API.AGENT_ASSIGNMENT.FAILED'))
+    }
+  }
+  const assignTeam = async (id: number, team: { id: number; name: string }) => {
+    closeMenu()
+    try {
+      await assignConversation(accountId, id, { team_id: team.id })
+      showAlert(
+        t('CONVERSATION.CARD_CONTEXT_MENU.API.TEAM_ASSIGNMENT.SUCCESFUL', {
+          team: team.name,
+          conversationId: id,
+        }),
+      )
+      void refresh()
+    } catch {
+      showAlert(t('CONVERSATION.CARD_CONTEXT_MENU.API.TEAM_ASSIGNMENT.FAILED'))
+    }
+  }
+  // O Chatwoot usa o bulk_actions (add/remove); sem ele aqui, manda a lista inteira. O menu continua aberto.
+  const changeLabels = async (id: number, title: string, add: boolean) => {
+    const current = menu?.labels ?? []
+    const next = add ? [...current, title] : current.filter((l) => l !== title)
+    const scope = add ? 'LABEL_ASSIGNMENT' : 'LABEL_REMOVAL'
+    try {
+      const saved = await updateConversationLabels(accountId, id, next)
+      setMenu((m) => (m?.id === id ? { ...m, labels: saved } : m))
+      showAlert(
+        t(`CONVERSATION.CARD_CONTEXT_MENU.API.${scope}.SUCCESFUL`, {
+          labelName: title,
+          conversationId: id,
+        }),
+      )
+      void refresh()
+    } catch {
+      showAlert(t(`CONVERSATION.CARD_CONTEXT_MENU.API.${scope}.FAILED`))
+    }
+  }
+  const confirmDelete = async () => {
+    const id = deleteId
+    setDeleteId(null)
+    if (id === null) return
+    try {
+      await deleteConversation(accountId, id)
+      // a conversa aberta não pode ser rebuscada (404): sai do cache antes de atualizar as listas
+      queryClient.removeQueries({ queryKey: conversationKeys.detail(accountId, id) })
+      queryClient.removeQueries({ queryKey: conversationKeys.messages(accountId, id) })
+      onCloseConversation?.()
+      showAlert(t('CONVERSATION.SUCCESS_DELETE_CONVERSATION'))
+      void queryClient.invalidateQueries({ queryKey: [...conversationKeys.all(accountId), 'list'] })
+      void queryClient.invalidateQueries({
+        queryKey: [...conversationKeys.all(accountId), 'filtered'],
+      })
+    } catch {
+      showAlert(t('CONVERSATION.FAIL_DELETE_CONVERSATION'))
+    }
+  }
+
   return (
     <section
       className={cx(
@@ -286,6 +421,7 @@ export function ConversationList({
               inboxName: inboxName(conversation.inbox_id),
               renderLink:
                 renderCardLink && ((props: CardLinkProps) => renderCardLink(conversation, props)),
+              onContextMenu: (event: MouseEvent) => openMenu(conversation, event),
             }
             return expandedCards ? (
               <ConversationCardExpanded key={conversation.id} {...common} />
@@ -307,6 +443,66 @@ export function ConversationList({
           <p className="p-4 text-center text-n-slate-11">{t('CHAT_LIST.EOF')}</p>
         )}
       </div>
+
+      {menu && menuConversation && (
+        <ContextMenu x={menu.x} y={menu.y} onClose={closeMenu}>
+          <ConversationContextMenu
+            status={menuConversation.status}
+            hasUnreadMessages={menuConversation.unread_count > 0}
+            inboxId={menuConversation.inbox_id}
+            priority={menuConversation.priority}
+            conversationLabels={menu.labels}
+            onUpdateConversation={(status) => void updateStatus(menu.id, status)}
+            onMarkAsUnread={() => {
+              closeMenu()
+              void markUnread(accountId, menu.id)
+                .then(() => {
+                  onCloseConversation?.()
+                  return refresh()
+                })
+                .catch(() => {})
+            }}
+            onMarkAsRead={() => {
+              closeMenu()
+              void markSeen(accountId, menu.id)
+                .then(refresh)
+                .catch(() => {})
+            }}
+            onAssignPriority={(priority) => void setPriority(menu.id, priority)}
+            onAssignAgent={(agent) => void assignAgent(menu.id, agent)}
+            onAssignTeam={(team) => void assignTeam(menu.id, team)}
+            onAssignLabel={(label) => void changeLabels(menu.id, label.title, true)}
+            onRemoveLabel={(label) => void changeLabels(menu.id, label.title, false)}
+            onOpenInNewTab={() => {
+              window.open(fullUrl(menuConversation), '_blank', 'noopener,noreferrer')
+              closeMenu()
+            }}
+            onCopyLink={() => {
+              void navigator.clipboard
+                .writeText(fullUrl(menuConversation))
+                .then(() => {
+                  showAlert(t('CONVERSATION.CARD_CONTEXT_MENU.COPY_LINK_SUCCESS'))
+                  closeMenu()
+                })
+                .catch(() => {})
+            }}
+            onDeleteConversation={() => {
+              setDeleteId(menu.id)
+              closeMenu()
+            }}
+          />
+        </ContextMenu>
+      )}
+      <Dialog
+        open={deleteId !== null}
+        type="alert"
+        title={t('CONVERSATION.DELETE_CONVERSATION.TITLE', { conversationId: deleteId })}
+        description={t('CONVERSATION.DELETE_CONVERSATION.DESCRIPTION')}
+        confirmLabel={t('CONVERSATION.DELETE_CONVERSATION.CONFIRM')}
+        cancelLabel={t('DIALOG.BUTTONS.CANCEL')}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </section>
   )
 }

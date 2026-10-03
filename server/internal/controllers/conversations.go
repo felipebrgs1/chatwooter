@@ -311,3 +311,20 @@ func (c Conversations) SetLabels(w http.ResponseWriter, r *http.Request) {
 	}
 	views.JSON(w, http.StatusOK, views.LabelsPayload(labels))
 }
+
+// Destroy é o conversations#destroy: ConversationPolicy#destroy? só libera administradores.
+func (c Conversations) Destroy(w http.ResponseWriter, r *http.Request) {
+	item, ok := c.load(w, r)
+	if !ok {
+		return
+	}
+	if !CurrentMembership(r).Administrator() {
+		unauthorized(w)
+		return
+	}
+	if err := c.Conversations.Delete(r.Context(), item.AccountID, item.ID); err != nil {
+		modelError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}

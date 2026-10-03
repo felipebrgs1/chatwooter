@@ -106,6 +106,9 @@ import {
   Percent,
   CheckSquare,
   FloppyDisk,
+  UserPlus,
+  UsersThree,
+  Copy,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 
@@ -219,6 +222,9 @@ const icons: Record<string, PhosphorIcon> = {
   percent: Percent,
   'check-square': CheckSquare,
   'floppy-disk': FloppyDisk,
+  'user-plus': UserPlus,
+  'users-three': UsersThree,
+  copy: Copy,
 }
 
 const weights = ['thin', 'light', 'bold', 'fill', 'duotone'] as const

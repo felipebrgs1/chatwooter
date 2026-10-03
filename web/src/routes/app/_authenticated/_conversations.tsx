@@ -1,4 +1,11 @@
-import { createFileRoute, Link, Outlet, useMatch, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatch,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router'
 import { useCallback } from 'react'
 
 import { ConversationList } from '../../../components/conversation-list/conversation-list'
@@ -21,6 +28,7 @@ function ConversationsLayout() {
   // O TanStack junta aos validados os params brutos do pai: reparsear descarta o que não vale.
   const search = parseSearch(Route.useSearch())
   const navigate = useNavigate()
+  const router = useRouter()
   const open = useMatch({
     from: '/app/_authenticated/_conversations/conversations/$conversationId',
     shouldThrow: false,
@@ -33,6 +41,19 @@ function ConversationsLayout() {
   const onSearchChange = useCallback(
     (patch: Partial<ConversationsSearch>) =>
       void navigate({ to: '.', search: (prev) => parseUrlSearch({ ...prev, ...patch }) }),
+    [navigate],
+  )
+  const conversationHref = useCallback(
+    (conversation: { id: number }) =>
+      router.buildLocation({
+        to: '/app/conversations/$conversationId',
+        params: { conversationId: String(conversation.id) },
+        search,
+      }).href,
+    [router, search],
+  )
+  const onCloseConversation = useCallback(
+    () => void navigate({ to: '/app', search: true }),
     [navigate],
   )
 
@@ -54,6 +75,8 @@ function ConversationsLayout() {
           onSearchChange={onSearchChange}
           expanded={layout.expanded}
           onToggleLayout={() => void layout.toggle()}
+          conversationHref={conversationHref}
+          onCloseConversation={onCloseConversation}
           renderCardLink={(conversation, { children, ...rest }) => (
             <Link
               to="/app/conversations/$conversationId"

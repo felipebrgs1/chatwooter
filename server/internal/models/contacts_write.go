@@ -284,36 +284,25 @@ func (c *Contacts) Delete(ctx context.Context, accountID, id int32) error {
 	}
 	// Conversas do contato (direto ou pelos contact_inboxes) e mensagens delas ou enviadas pelo contato.
 	scope := []any{accountID, id}
-	steps := []struct {
-		sql  string
-		args []any
-	}{
+	if err := execSteps(ctx, tx, []step{
 		{`CREATE TEMP TABLE gone_conversations ON COMMIT DROP AS SELECT id FROM conversations
 			WHERE account_id = $1 AND (contact_id = $2 OR contact_inbox_id IN (SELECT id FROM contact_inboxes WHERE contact_id = $2))`, scope},
 		{`CREATE TEMP TABLE gone_messages ON COMMIT DROP AS SELECT id FROM messages
 			WHERE account_id = $1 AND (conversation_id IN (SELECT id FROM gone_conversations) OR (sender_type = 'Contact' AND sender_id = $2))`, scope},
-		{`DELETE FROM chatwooter_attachment_storage WHERE message_id IN (SELECT id FROM gone_messages)`, nil},
-		{`DELETE FROM attachments WHERE message_id IN (SELECT id FROM gone_messages)`, nil},
-		{`DELETE FROM notifications WHERE (primary_actor_type = 'Conversation' AND primary_actor_id IN (SELECT id FROM gone_conversations))
-			OR (primary_actor_type = 'Message' AND primary_actor_id IN (SELECT id FROM gone_messages))`, nil},
-		{`DELETE FROM csat_survey_responses WHERE contact_id = $1 OR conversation_id IN (SELECT id FROM gone_conversations)
-			OR message_id IN (SELECT id FROM gone_messages)`, []any{id}},
-		{`DELETE FROM mentions WHERE conversation_id IN (SELECT id FROM gone_conversations)`, nil},
-		{`DELETE FROM conversation_participants WHERE conversation_id IN (SELECT id FROM gone_conversations)`, nil},
-		{`DELETE FROM reporting_events WHERE conversation_id IN (SELECT id FROM gone_conversations)`, nil},
-		{`DELETE FROM automation_rule_pending_executions WHERE conversation_id IN (SELECT id FROM gone_conversations)`, nil},
-		{`DELETE FROM taggings WHERE taggable_type = 'Conversation' AND taggable_id IN (SELECT id FROM gone_conversations)`, nil},
-		{`DELETE FROM messages WHERE id IN (SELECT id FROM gone_messages)`, nil},
-		{`DELETE FROM conversations WHERE id IN (SELECT id FROM gone_conversations)`, nil},
+		{`DELETE FROM csat_survey_responses WHERE contact_id = $1`, []any{id}},
+	}); err != nil {
+		return fmt.Errorf("excluir contato: %w", err)
+	}
+	if err := purgeConversations(ctx, tx); err != nil {
+		return fmt.Errorf("excluir contato: %w", err)
+	}
+	if err := execSteps(ctx, tx, []step{
 		{`DELETE FROM contact_inboxes WHERE contact_id = $1`, []any{id}},
 		{`DELETE FROM notes WHERE contact_id = $1`, []any{id}},
 		{`DELETE FROM taggings WHERE taggable_type = 'Contact' AND taggable_id = $1`, []any{id}},
 		{`DELETE FROM contacts WHERE account_id = $1 AND id = $2`, scope},
-	}
-	for _, step := range steps {
-		if _, err := tx.Exec(ctx, step.sql, step.args...); err != nil {
-			return fmt.Errorf("excluir contato: %w", err)
-		}
+	}); err != nil {
+		return fmt.Errorf("excluir contato: %w", err)
 	}
 	return tx.Commit(ctx)
 }

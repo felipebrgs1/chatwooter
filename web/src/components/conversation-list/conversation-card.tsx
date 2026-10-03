@@ -1,5 +1,5 @@
 // Port de components/widgets/conversation/ConversationCard.vue (layout condensado).
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Conversation } from '../../api/types'
@@ -13,7 +13,12 @@ import { MessagePreview } from './message-preview'
 import { exactTimestamp, shortTimeAgo } from '../../shared/time-ago'
 import { useTimeAgo } from './use-time-ago'
 
-export type CardLinkProps = { className: string; children: ReactNode; 'aria-current'?: 'page' }
+export type CardLinkProps = {
+  className: string
+  children: ReactNode
+  'aria-current'?: 'page'
+  onContextMenu?: (event: MouseEvent) => void
+}
 
 type Props = {
   conversation: Conversation
@@ -27,6 +32,7 @@ type Props = {
   now?: Date
   /** O pai injeta o <Link> do roteador. */
   renderLink?: (props: CardLinkProps) => ReactNode
+  onContextMenu?: (event: MouseEvent) => void
 }
 
 export function ConversationCard({
@@ -38,6 +44,7 @@ export function ConversationCard({
   showAssignee = false,
   now: referenceNow,
   renderLink,
+  onContextMenu,
 }: Props) {
   const { t } = useTranslation()
   const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
@@ -52,6 +59,7 @@ export function ConversationCard({
 
   const linkProps: CardLinkProps = {
     'aria-current': active ? 'page' : undefined,
+    onContextMenu,
     className: cx(
       'conversation group relative flex w-auto max-w-full flex-shrink-0 flex-grow-0 cursor-pointer items-start border-b border-n-slate-3 px-3 py-0 before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-n-surface-1 before:content-none hover:z-[1] hover:border-n-surface-1 hover:bg-n-alpha-1 hover:before:content-[""] dark:hover:bg-n-alpha-3',
       active && 'active animate-card-select border-n-surface-1 bg-n-background',

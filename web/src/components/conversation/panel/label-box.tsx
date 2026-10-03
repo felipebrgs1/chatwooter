@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { Label } from '../../../api/types'
 import { Button } from '../../next/button'
+import { cx } from '../../next/cx'
 import { Icon } from '../../next/icon'
 import { useAltShortcut } from '../../../shared/use-alt-shortcut'
 
@@ -112,7 +113,11 @@ export function LabelBox({ savedLabels, accountLabels, onAdd, onRemove }: Props)
                             variant="ghost"
                             trailingIcon
                             icon={selected ? 'ph-check-circle' : undefined}
-                            className="w-full !px-2.5 justify-between"
+                            // justify-between! porque no Tailwind v4 o justify-center do Button venceria (no v3 do Chatwoot vence a ordem)
+                            className={cx(
+                              'w-full !px-2.5 justify-between!',
+                              !selected && '!flex-row',
+                            )}
                             onClick={() => (selected ? onRemove(label.title) : onAdd(label.title))}
                           >
                             <div className="flex items-center min-w-0 gap-2">

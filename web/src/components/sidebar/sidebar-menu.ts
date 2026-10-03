@@ -9,6 +9,8 @@ export type MenuLeaf = {
   to?: string
   /** Só fica ativo na rota exata; as demais também cobrem sub-rotas. */
   exact?: boolean
+  /** Outras rotas (e sub-rotas) que também ativam a folha, como o `activeOn` do Chatwoot. */
+  activeOn?: string[]
   /** Inbox: mostra o ícone do canal (`telegram`, `whatsapp`...). */
   channel?: string
   /** Etiqueta: cor vem do banco (labels.color), por isso o style inline. */
@@ -128,6 +130,8 @@ export function buildMenu(t: Translate, data: MenuData = {}): MenuGroup[] {
           icon: 'ph-tray',
           to: '/app',
           exact: true,
+          // conversa aberta sem visão na URL (inbox_conversation)
+          activeOn: ['/app/conversations'],
         },
         {
           name: 'mentions',
@@ -221,9 +225,10 @@ export function activeLeaf(menu: MenuGroup[], currentPath: string | null): strin
   for (const leaf of menu.flatMap(leavesOf)) {
     if (!leaf.to) continue
     const target = parse(leaf.to)
-    const pathMatches = leaf.exact
-      ? current.path === target.path
-      : current.path === target.path || current.path.startsWith(`${target.path}/`)
+    const under = (path: string) => current.path === path || current.path.startsWith(`${path}/`)
+    const pathMatches =
+      (leaf.exact ? current.path === target.path : under(target.path)) ||
+      !!leaf.activeOn?.some(under)
     const queryMatches = [...target.params].every(([k, v]) => current.params.get(k) === v)
     if (!pathMatches || !queryMatches) continue
     const score: [number, number] = [[...target.params].length, target.path.length]
