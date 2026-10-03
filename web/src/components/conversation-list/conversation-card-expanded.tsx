@@ -7,6 +7,7 @@ import type { Conversation } from '../../api/types'
 import { Avatar } from '../next/avatar'
 import { ChannelIcon } from '../next/channel-icon'
 import { cx } from '../next/cx'
+import { Checkbox } from '../next/checkbox'
 import { Icon } from '../next/icon'
 import { CardLabels, type AccountLabel } from './card-labels'
 import { lastMessage, PRIORITIES, STATUS_ICONS } from './card-helpers'
@@ -25,6 +26,9 @@ type Props = {
   now?: Date
   renderLink?: (props: CardLinkProps) => ReactNode
   onContextMenu?: (event: MouseEvent) => void
+  /** Seleção das ações em massa; sem o callback o checkbox não aparece. */
+  selected?: boolean
+  onSelectChange?: (selected: boolean) => void
 }
 
 export function ConversationCardExpanded({
@@ -36,6 +40,8 @@ export function ConversationCardExpanded({
   now: referenceNow,
   renderLink,
   onContextMenu,
+  selected = false,
+  onSelectChange,
 }: Props) {
   const { t } = useTranslation()
   const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
@@ -53,9 +59,9 @@ export function ConversationCardExpanded({
     onContextMenu,
     className: cx(
       'conversation group relative grid h-12 cursor-pointer items-center gap-4 border-b border-n-slate-3 px-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-n-surface-1 before:content-none hover:z-[1] hover:border-n-surface-1 hover:before:content-[""]',
-      active
-        ? 'active animate-card-select !border-n-surface-1 bg-n-alpha-1 dark:bg-n-alpha-3'
-        : 'hover:bg-n-alpha-1',
+      active && 'active animate-card-select !border-n-surface-1 bg-n-alpha-1 dark:bg-n-alpha-3',
+      selected && 'selected bg-n-slate-2 dark:bg-n-slate-3 !border-n-surface-1',
+      !active && !selected && 'hover:bg-n-alpha-1',
       hasLabels
         ? 'grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'
         : 'grid-cols-[minmax(0,2fr)_max-content]',
@@ -63,7 +69,18 @@ export function ConversationCardExpanded({
     children: (
       <>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {/* Checkbox de seleção: entra com as ações em massa */}
+          {onSelectChange && (
+            <span
+              className="flex flex-shrink-0 items-center justify-center"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onSelectChange(!selected)
+              }}
+            >
+              <Checkbox checked={selected} />
+            </span>
+          )}
           <div className="h-3 w-px flex-shrink-0 bg-n-slate-6" />
           <div className="flex w-4 flex-shrink-0 items-center justify-center">
             <span

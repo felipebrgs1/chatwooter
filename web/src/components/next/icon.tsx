@@ -109,6 +109,10 @@ import {
   UserPlus,
   UsersThree,
   Copy,
+  ArrowCircleUp,
+  TagSimple,
+  UserCheck,
+  Alarm,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 
@@ -225,6 +229,10 @@ const icons: Record<string, PhosphorIcon> = {
   'user-plus': UserPlus,
   'users-three': UsersThree,
   copy: Copy,
+  'arrow-circle-up': ArrowCircleUp,
+  'tag-simple': TagSimple,
+  'user-check': UserCheck,
+  alarm: Alarm,
 }
 
 const weights = ['thin', 'light', 'bold', 'fill', 'duotone'] as const

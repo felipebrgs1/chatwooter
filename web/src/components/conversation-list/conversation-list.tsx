@@ -1,5 +1,5 @@
 // Port de components/ChatList.vue (coluna da lista): cabeçalho, abas, cards, scroll infinito, filtros avançados,
-// pastas e o menu de contexto do card (ConversationItem.vue). Ações em massa ficam para a próxima fatia.
+// pastas, o menu de contexto do card (ConversationItem.vue) e as ações em massa (useBulkActions).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -13,13 +13,14 @@ import {
 } from '../../api/custom-filters'
 import {
   assignConversation,
+  bulkActions,
   conversationKeys,
   deleteConversation,
   markSeen,
   markUnread,
   toggleStatus,
   togglePriority,
-  updateConversationLabels,
+  type BulkActionPayload,
 } from '../../api/conversations'
 import { inboxesQuery } from '../../api/inboxes'
 import { labelsQuery } from '../../api/labels'
@@ -42,6 +43,7 @@ import { showAlert } from '../toast/alert'
 import { toFilters, viewTitle, type ConversationsSearch } from './search'
 import { ChatListHeader } from './chat-list-header'
 import { ChatTypeTabs } from './chat-type-tabs'
+import { ConversationBulkActions } from './bulk-actions/conversation-bulk-actions'
 import { ContextMenu } from './context-menu/context-menu'
 import { ConversationContextMenu } from './context-menu/conversation-context-menu'
 import { ConversationCard, type CardLinkProps } from './conversation-card'
@@ -123,6 +125,25 @@ export function ConversationList({
       : (listQuery.data?.pages ?? []).map((page) => page.data.payload)
     return pages.flat().filter((c) => !seen.has(c.id) && seen.add(c.id))
   }, [filteredView, filteredQuery.data, listQuery.data, query.isPlaceholderData])
+
+  // Seleção das ações em massa (bulkActions/selectedConversationIds); trocar de visão limpa (resetBulkActions)
+  const [selection, setSelection] = useState<number[]>([])
+  const viewKey = JSON.stringify(search)
+  const [selectionView, setSelectionView] = useState(viewKey)
+  if (selectionView !== viewKey) {
+    setSelectionView(viewKey)
+    setSelection([])
+  }
+  const selectedConversations = conversations.filter((c) => selection.includes(c.id))
+  const toggleSelection = (id: number, checked: boolean) =>
+    setSelection((current) =>
+      checked ? [...current, id] : current.filter((selected) => selected !== id),
+    )
+  const allConversationsSelected =
+    conversations.length === selection.length &&
+    conversations.every((c) => selection.includes(c.id))
+  const allSelectedStatus = (status: ConversationStatus) =>
+    selection.length > 0 && selectedConversations.every((c) => c.status === status)
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
   useEffect(() => {
@@ -252,10 +273,12 @@ export function ConversationList({
     )
     void refresh()
   }
+  // ConversationItem.vue usa as ações em massa com um id só
   const assignAgent = async (id: number, agent: { id: number | null; name: string }) => {
     closeMenu()
     try {
-      await assignConversation(accountId, id, { assignee_id: agent.id })
+      await bulkActions(accountId, { ids: [id], fields: { assignee_id: agent.id } })
+      setSelection([])
       showAlert(
         t('CONVERSATION.CARD_CONTEXT_MENU.API.AGENT_ASSIGNMENT.SUCCESFUL', {
           agentName: agent.name,
@@ -264,7 +287,7 @@ export function ConversationList({
       )
       void refresh()
     } catch {
-      showAlert(t('CONVERSATION.CARD_CONTEXT_MENU.API.AGENT_ASSIGNMENT.FAILED'))
+      showAlert(t('BULK_ACTION.ASSIGN_FAILED'))
     }
   }
   const assignTeam = async (id: number, team: { id: number; name: string }) => {
@@ -282,25 +305,56 @@ export function ConversationList({
       showAlert(t('CONVERSATION.CARD_CONTEXT_MENU.API.TEAM_ASSIGNMENT.FAILED'))
     }
   }
-  // O Chatwoot usa o bulk_actions (add/remove); sem ele aqui, manda a lista inteira. O menu continua aberto.
+  // O menu continua aberto: a lista de etiquetas dele acompanha a mudança.
   const changeLabels = async (id: number, title: string, add: boolean) => {
-    const current = menu?.labels ?? []
-    const next = add ? [...current, title] : current.filter((l) => l !== title)
-    const scope = add ? 'LABEL_ASSIGNMENT' : 'LABEL_REMOVAL'
     try {
-      const saved = await updateConversationLabels(accountId, id, next)
-      setMenu((m) => (m?.id === id ? { ...m, labels: saved } : m))
+      await bulkActions(accountId, {
+        ids: [id],
+        labels: add ? { add: [title] } : { remove: [title] },
+      })
+      setMenu((m) =>
+        m?.id === id
+          ? { ...m, labels: add ? [...m.labels, title] : m.labels.filter((l) => l !== title) }
+          : m,
+      )
+      // adicionar limpa a seleção em massa; remover não mexe nela (onRemoveLabels)
+      if (add) setSelection([])
       showAlert(
-        t(`CONVERSATION.CARD_CONTEXT_MENU.API.${scope}.SUCCESFUL`, {
-          labelName: title,
-          conversationId: id,
-        }),
+        t(
+          add
+            ? 'CONVERSATION.CARD_CONTEXT_MENU.API.LABEL_ASSIGNMENT.SUCCESFUL'
+            : 'CONVERSATION.CARD_CONTEXT_MENU.API.LABEL_REMOVAL.SUCCESFUL',
+          { labelName: title, conversationId: id },
+        ),
       )
       void refresh()
     } catch {
-      showAlert(t(`CONVERSATION.CARD_CONTEXT_MENU.API.${scope}.FAILED`))
+      showAlert(
+        t(
+          add
+            ? 'BULK_ACTION.LABELS.ASSIGN_FAILED'
+            : 'CONVERSATION.CARD_CONTEXT_MENU.API.LABEL_REMOVAL.FAILED',
+        ),
+      )
     }
   }
+
+  // useBulkActions: cada ação vale para a seleção, limpa a seleção e avisa
+  const processBulk = async (
+    payload: Omit<BulkActionPayload, 'ids'>,
+    success: string,
+    failure: string,
+  ) => {
+    try {
+      await bulkActions(accountId, { ids: selection, ...payload })
+      setSelection([])
+      showAlert(t(success))
+      void refresh()
+    } catch {
+      showAlert(t(failure))
+    }
+  }
+
   const confirmDelete = async () => {
     const id = deleteId
     setDeleteId(null)
@@ -396,6 +450,54 @@ export function ConversationList({
         />
       )}
 
+      <ConversationBulkActions
+        count={selection.length}
+        allConversationsSelected={allConversationsSelected}
+        selectedInboxes={[...new Set(selectedConversations.map((c) => c.inbox_id))]}
+        appliedLabels={[...new Set(selectedConversations.flatMap((c) => c.labels))]}
+        showOpenAction={allSelectedStatus('open')}
+        showResolvedAction={allSelectedStatus('resolved')}
+        showSnoozedAction={allSelectedStatus('snoozed')}
+        className={expanded ? 'sm:!w-[24rem] !w-full' : undefined}
+        onSelectAll={(checked) => setSelection(checked ? conversations.map((c) => c.id) : [])}
+        onAssignLabels={(labels) =>
+          void processBulk(
+            { labels: { add: labels } },
+            'BULK_ACTION.LABELS.ASSIGN_SUCCESFUL',
+            'BULK_ACTION.LABELS.ASSIGN_FAILED',
+          )
+        }
+        onRemoveLabels={(labels) =>
+          void processBulk(
+            { labels: { remove: labels } },
+            'BULK_ACTION.LABELS.REMOVE_SUCCESFUL',
+            'BULK_ACTION.LABELS.REMOVE_FAILED',
+          )
+        }
+        // resolver ainda não confere os atributos obrigatórios (Marco 6.4)
+        onUpdate={(status) =>
+          void processBulk(
+            { fields: { status } },
+            'BULK_ACTION.UPDATE.UPDATE_SUCCESFUL',
+            'BULK_ACTION.UPDATE.UPDATE_FAILED',
+          )
+        }
+        onAssignAgent={(agent) =>
+          void processBulk(
+            { fields: { assignee_id: agent.id } },
+            'BULK_ACTION.ASSIGN_SUCCESFUL',
+            'BULK_ACTION.ASSIGN_FAILED',
+          )
+        }
+        onAssignTeam={(team) =>
+          void processBulk(
+            { fields: { team_id: team.id } },
+            'BULK_ACTION.TEAMS.ASSIGN_SUCCESFUL',
+            'BULK_ACTION.TEAMS.ASSIGN_FAILED',
+          )
+        }
+      />
+
       <div ref={listRef} className="conversations-list min-h-0 flex-1 overflow-y-auto">
         {(query.isPending || query.isPlaceholderData) && (
           <p className="p-4 text-center text-n-slate-11">{t('CHAT_LIST.LOADING')}</p>
@@ -422,6 +524,8 @@ export function ConversationList({
               renderLink:
                 renderCardLink && ((props: CardLinkProps) => renderCardLink(conversation, props)),
               onContextMenu: (event: MouseEvent) => openMenu(conversation, event),
+              selected: selection.includes(conversation.id),
+              onSelectChange: (checked: boolean) => toggleSelection(conversation.id, checked),
             }
             return expandedCards ? (
               <ConversationCardExpanded key={conversation.id} {...common} />

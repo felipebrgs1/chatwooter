@@ -126,3 +126,14 @@ export const markUnread = (accountId: number, id: number) =>
 /** conversations#destroy (só administrador). */
 export const deleteConversation = (accountId: number, id: number) =>
   api.delete<void>(`${base(accountId)}/${id}`)
+
+export type BulkActionPayload = {
+  ids: number[]
+  fields?: { status?: ConversationStatus; assignee_id?: number | null; team_id?: number }
+  labels?: { add?: string[]; remove?: string[] }
+  snoozed_until?: number
+}
+
+/** bulk_actions#create para conversas (useBulkActions e o menu de contexto). */
+export const bulkActions = (accountId: number, payload: BulkActionPayload) =>
+  api.post<void>(`/api/v1/accounts/${accountId}/bulk_actions`, { type: 'Conversation', ...payload })

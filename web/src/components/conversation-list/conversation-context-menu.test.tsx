@@ -191,10 +191,9 @@ test('etiquetas: busca, adiciona a nova e remove a já aplicada, mantendo o menu
   )
   const sent: unknown[] = []
   server.use(
-    http.post('/api/v1/accounts/1/conversations/7/labels', async ({ request }) => {
-      const body = (await request.json()) as { labels: string[] }
-      sent.push(body)
-      return HttpResponse.json({ payload: body.labels })
+    http.post('/api/v1/accounts/1/bulk_actions', async ({ request }) => {
+      sent.push(await request.json())
+      return new HttpResponse(null, { status: 200 })
     }),
   )
   const { user } = await openMenu(maria({ labels: ['vip'] }))
@@ -202,13 +201,15 @@ test('etiquetas: busca, adiciona a nova e remove a já aplicada, mantendo o menu
   await user.type(await screen.findByPlaceholderText('Search labels'), 'bil')
   expect(screen.queryByRole('button', { name: 'vip' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'billing' }))
-  await waitFor(() => expect(sent).toEqual([{ labels: ['vip', 'billing'] }]))
+  await waitFor(() =>
+    expect(sent).toEqual([{ type: 'Conversation', ids: [7], labels: { add: ['billing'] } }]),
+  )
   expect(alerts).toContain('Assigned label #billing to conversation id 7')
 
   await user.clear(screen.getByPlaceholderText('Search labels'))
   await user.click(screen.getByRole('button', { name: 'vip' }))
   await waitFor(() => expect(sent).toHaveLength(2))
-  expect(sent[1]).toEqual({ labels: ['billing'] })
+  expect(sent[1]).toEqual({ type: 'Conversation', ids: [7], labels: { remove: ['vip'] } })
   expect(alerts).toContain('Removed label #vip from conversation id 7')
 })
 
@@ -224,9 +225,9 @@ test('agente: lista None e os atribuíveis da inbox por disponibilidade e atribu
   )
   let body: unknown
   server.use(
-    http.post('/api/v1/accounts/1/conversations/7/assignments', async ({ request }) => {
+    http.post('/api/v1/accounts/1/bulk_actions', async ({ request }) => {
       body = await request.json()
-      return HttpResponse.json({})
+      return new HttpResponse(null, { status: 200 })
     }),
   )
   const { user } = await openMenu()
@@ -240,7 +241,9 @@ test('agente: lista None e os atribuíveis da inbox por disponibilidade e atribu
   expect(follows(none, bruno) && follows(bruno, carla)).toBe(true)
   expect(inboxIds).toEqual(['1'])
   await user.click(screen.getByRole('button', { name: 'Bruno' }))
-  await waitFor(() => expect(body).toEqual({ assignee_id: 4 }))
+  await waitFor(() =>
+    expect(body).toEqual({ type: 'Conversation', ids: [7], fields: { assignee_id: 4 } }),
+  )
   await waitFor(() => expect(alerts).toContain('Conversation id 7 assigned to "Bruno"'))
 })
 

@@ -45,8 +45,10 @@ Ref.: `components/ChatList.vue`, `components/widgets/conversation/*`
   - Filtros aplicados ficam na URL (`?filters=`), não só em memória como no Chatwoot. Atributos personalizados no modal esperam o endpoint de definições (Marco 6.4); campanha aparece sem opções (sem endpoint).
 - [x] Menu de contexto do card: lido/não lido, status, snooze, prioridade, etiquetas, agente, time, abrir em nova aba, copiar link, excluir (`contextMenu/Index.vue`)
   - Backend: `DELETE /conversations/:id` (só admin) e `GET /assignable_agents?inbox_ids[]=`. Conferido no browser em 2026-10-03.
-  - Desvios: Snooze aparece só visual (no Chatwoot abre o submenu da command bar, Marco 5.3); resolver ainda não pede atributos obrigatórios (Marco 6.4); etiquetas e agente vão pelos endpoints da conversa até existir o `bulk_actions`; a exclusão é síncrona (no Chatwoot, `DeleteObjectJob`).
-- [ ] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
+  - Desvios: Snooze aparece só visual (no Chatwoot abre o submenu da command bar, Marco 5.3); resolver ainda não pede atributos obrigatórios (Marco 6.4); a exclusão é síncrona (no Chatwoot, `DeleteObjectJob`).
+- [x] Ações em massa: seleção, etiquetas, status/snooze, agente, time (`conversationBulkActions/`)
+  - Backend: `POST /bulk_actions` (conversas), respeitando as inboxes do agente. Conferido no browser em 2026-10-03.
+  - Desvios: roda na requisição (no Chatwoot, `BulkActionsJob`); "None" do time grava nulo (o Chatwoot gravaria `team_id = 0`); Snooze só visual (command bar); resolver ainda não pula as conversas sem atributos obrigatórios (Marco 6.4); o tipo `Contact` entra com as ações em massa de contatos.
 - [ ] Etiquetas e selo de SLA no card (`CardLabels.vue`, `SLACardLabel.vue`)
   - Etiquetas prontas. Falta o selo de SLA: depende de políticas de SLA, horário comercial e do job de eventos (recursos Enterprise, sem backend aqui).
 - [x] Layout expandido (`ConversationCardExpanded.vue`, `search/SwitchLayout.vue`) — preferência em `ui_settings`

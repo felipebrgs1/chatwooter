@@ -6,6 +6,7 @@ import type { Conversation } from '../../api/types'
 import { Avatar } from '../next/avatar'
 import { ChannelIcon } from '../next/channel-icon'
 import { cx } from '../next/cx'
+import { Checkbox } from '../next/checkbox'
 import { Icon } from '../next/icon'
 import { CardLabels, type AccountLabel } from './card-labels'
 import { lastMessage, PRIORITIES } from './card-helpers'
@@ -33,6 +34,9 @@ type Props = {
   /** O pai injeta o <Link> do roteador. */
   renderLink?: (props: CardLinkProps) => ReactNode
   onContextMenu?: (event: MouseEvent) => void
+  /** Seleção das ações em massa; sem o callback o checkbox não aparece. */
+  selected?: boolean
+  onSelectChange?: (selected: boolean) => void
 }
 
 export function ConversationCard({
@@ -45,6 +49,8 @@ export function ConversationCard({
   now: referenceNow,
   renderLink,
   onContextMenu,
+  selected = false,
+  onSelectChange,
 }: Props) {
   const { t } = useTranslation()
   const currentNow = useTimeAgo(conversation.last_activity_at, conversation.id)
@@ -63,11 +69,29 @@ export function ConversationCard({
     className: cx(
       'conversation group relative flex w-auto max-w-full flex-shrink-0 flex-grow-0 cursor-pointer items-start border-b border-n-slate-3 px-3 py-0 before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:h-px before:bg-n-surface-1 before:content-none hover:z-[1] hover:border-n-surface-1 hover:bg-n-alpha-1 hover:before:content-[""] dark:hover:bg-n-alpha-3',
       active && 'active animate-card-select border-n-surface-1 bg-n-background',
+      selected && 'selected bg-n-slate-2 !border-n-surface-1',
     ),
     children: (
       <>
         <div className="group/avatar relative">
           <Avatar name={contact.name} size={32} className={inboxHeader ? 'mt-8' : 'mt-4'} />
+          {onSelectChange && (
+            // o slot overlay do Avatar: aparece no hover da foto ou com o card marcado
+            <span
+              className={cx(
+                'absolute left-0 z-10 size-8 cursor-pointer items-center justify-center rounded-full backdrop-blur-[2px]',
+                inboxHeader ? 'top-8' : 'top-4',
+                selected ? 'flex' : 'hidden group-hover/avatar:flex',
+              )}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onSelectChange(!selected)
+              }}
+            >
+              <Checkbox checked={selected} />
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1 px-0 py-3">
           {showMeta && (

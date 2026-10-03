@@ -61,6 +61,7 @@ func New(d Deps) http.Handler {
 			r.Get("/labels", controllers.Labels{Labels: d.Labels}.Index)
 			r.Get("/teams", controllers.Teams{Teams: d.Teams}.Index)
 			r.Get("/agents", controllers.Agents{Agents: d.Agents}.Index)
+			r.Post("/bulk_actions", controllers.BulkActions{Conversations: d.Conversations}.Create)
 			r.Get("/assignable_agents", controllers.AssignableAgents{Agents: d.Agents, Conversations: d.Conversations}.Index)
 			r.Get("/inboxes", controllers.Inboxes{Inboxes: d.Inboxes}.Index)
 
